@@ -66,9 +66,9 @@ install_prom_exporters() {
       cp -f scripts/$bin /etc/init.d/$bin
       chmod a+x /etc/init.d/$bin
       if hash update-rc.d 2>/dev/null; then
-         update-rc.d $BIN defaults >/dev/null
+         update-rc.d $bin defaults >/dev/null
       elif hash chkconfig 2>/dev/null; then
-         chkconfig $BIN on >/dev/null
+         chkconfig $bin on >/dev/null
       else
          echo "Cannot find chkconfig or update-rc.d. $bin service" \
             "will not be installed. To start manually: $PMM_DIR/$bin" >&2
