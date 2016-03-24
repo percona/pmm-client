@@ -2,6 +2,7 @@
 *swp
 distro/
 vendor/
+cache/
 bin/percona-metrics/percona-metrics
 bin/percona-metrics/*.log
 bin/percona-metrics/*.yml

@@ -11,9 +11,14 @@ download_pkgs() {
    local IFS=","
    while read pkg url; do
       pkg_file="${url##*/}"
-      echo "Downloading $pkg..."
-      curl -s -LO $url
-      [ -f $pkg_file ] || err "$url did not save as $pkg_file"    
+      if [ -f $ROOT_DIR/cache/$pkg_file ]; then
+         echo "Copying $pkg from cache"
+         cp -f $ROOT_DIR/cache/$pkg_file .
+      else
+         echo "Downloading $pkg..."
+         curl -s -LO $url
+         [ -f $pkg_file ] || err "$url did not save as $pkg_file"    
+      fi
    done < $ROOT_DIR/pkglist
 }
 
