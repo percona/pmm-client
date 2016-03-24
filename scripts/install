@@ -1,0 +1,136 @@
+#!/usr/bin/env bash
+
+set -eu
+
+err() {
+   echo "ERROR: $*" >&2
+   exit 1
+}
+
+set_pkg_file() {
+   local url="$1"
+   pkg_file="${url##*/}"
+   pkg_dir="${pkg_file%.tar.gz}"
+}
+
+check_pkgs() {
+   local IFS=","
+   while read pkg url; do
+      set_pkg_file "$url"
+      [ ! -f "$pkg_file" ] && err "missing $pkg_file from $url"
+   done < pkglist
+   return 0
+}
+
+install_pmm_admin() {
+   set_pkg_file "$(grep "^pmm-admin" pkglist | cut -d, -f2)"
+   tar xfz "$pkg_file"
+   cp "$pkg_dir/pmm-admin" "$PMM_DIR"
+   ln -sf "$PMM_DIR/pmm-admin" /usr/local/bin/pmm-admin
+   /usr/local/bin/pmm-admin server $PMM_SERVER_ADDR > /dev/null
+}
+
+install_qan_agent() {
+   set_pkg_file "$(grep "^percona-qan-agent" pkglist | cut -d, -f2)"
+   tar xfz "$pkg_file"
+   (
+      cd "$pkg_dir"
+      ./install -mysql=false $PMM_SERVER_ADDR > install.log
+   )
+}
+
+install_prom_exporters() {
+   local bin="percona-metrics"
+
+   if [ -x "$PMM_DIR/$bin" ]; then
+      if [ "$KERNEL" != "Darwin" ]; then
+         service $bin stop >/dev/null
+      else
+         if [ -f "$PMM_DIR/$bin.pid" ]; then
+            local pid="$(cat "$PMM_DIR/$bin.pid")"
+            [ "$pid" ] && kill $pid
+         fi
+      fi
+   fi
+
+   cp -f bin/$bin exporters.yml "$PMM_DIR"
+
+   for exporter in "node_exporter" "mysqld_exporter"; do
+      set_pkg_file "$(grep "^$exporter" pkglist | cut -d, -f2)"
+      tar xfz "$pkg_file"
+      cp "$exporter" "$PMM_DIR"
+   done
+
+   # Register the init script to make "service percona-metrics start|stop" work.
+   if [ "$KERNEL" != "Darwin" ]; then
+      cp -f scripts/$bin /etc/init.d/$bin
+      chmod a+x /etc/init.d/$bin
+      if hash update-rc.d 2>/dev/null; then
+         update-rc.d $BIN defaults >/dev/null
+      elif hash chkconfig 2>/dev/null; then
+         chkconfig $BIN on >/dev/null
+      else
+         echo "Cannot find chkconfig or update-rc.d. $bin service" \
+            "will not be installed. To start manually: $PMM_DIR/$bin" >&2
+      fi
+
+      service $bin start
+   else
+      (
+         cd "$PMM_DIR"
+         ./$bin -basedir "$PMM_DIR" >> $bin.log 2>&1 &
+         echo $! > "$bin.pid"
+      )
+   fi
+}
+
+# ###########################################################################
+# Script starts here
+# ###########################################################################
+
+if [ $# -eq 0 ]; then
+   echo "Usage: install <PMM server address>" >&2
+   exit 1
+fi
+
+PMM_SERVER_ADDR="$1"
+PMM_DIR="${PMM_DIR:-"/usr/local/percona/pmm-client"}"
+KERNEL="$(uname -s)"
+
+# Check if script is run as root as we need write access to /etc, /usr/local
+if [ ${EUID:-$(id -u)} -ne 0 ]; then
+   err "root user required to install PMM client"
+fi
+
+[ ! -d "$PMM_DIR" ] && mkdir -p "$PMM_DIR"
+
+check_pkgs
+
+echo "[1/3] Installing pmm-admin..."
+install_pmm_admin
+
+echo "[2/3] Installing Query Analytics Agent..."
+install_qan_agent
+
+echo "[3/3] Installing Prometheus exporters..."
+install_prom_exporters
+
+echo "Done installing PMM client. Next steps:"
+echo
+echo "  1. Enable monitoring this OS (CPU, storage, etc.):"
+echo
+echo "         pmm-admin add os <address>"
+echo
+echo "     where <address> is the IP or FQDN of this server."
+echo
+echo "  2. Enable monitoring MySQL on this server:"
+echo
+echo "         pmm-admin [options] add mysql"
+echo
+echo "     You might need to specify MySQL options like -user, -password, etc."
+echo "     if auto-detection fails."
+echo
+echo "To see what's being monitored on this server, run: pmm-admin list"
+echo
+echo "Metrics should appear in a minute or two: http://$PMM_SERVER_ADDR"
+echo

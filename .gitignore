@@ -1,0 +1,8 @@
+*.tmp
+*swp
+distro/
+vendor/
+bin/percona-metrics/percona-metrics
+bin/percona-metrics/*.log
+bin/percona-metrics/*.yml
+bin/percona-metrics/*_exporter

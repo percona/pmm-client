@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+
+set -eu
+
+err() {
+   echo "ERROR: $*" >&2
+   exit 1
+}
+
+download_pkgs() {
+   local IFS=","
+   while read pkg url; do
+      pkg_file="${url##*/}"
+      echo "Downloading $pkg..."
+      curl -s -LO $url
+      [ -f $pkg_file ] || err "$url did not save as $pkg_file"    
+   done < $ROOT_DIR/pkglist
+}
+
+# ###########################################################################
+# Script starts here
+# ###########################################################################
+
+if [ $# -eq 0 ]; then
+   echo "Usage: build <version>" >&2
+   exit 1
+fi
+
+VER="$1"
+PKG_NAME="pmm-client-$VER"
+
+# Find and cd to repo root dir.
+[ "$(basename "$PWD")" = "scripts" ] && cd ..
+if [ -d ".git" ]; then
+   ROOT_DIR="$PWD"
+else
+   err "Run this script from the repo root dir or the build/ dir."
+fi
+cd $ROOT_DIR
+
+# Make a dir for the package in distro/.
+PKG_DIR="distro/$PKG_NAME"
+[ ! -d distro ] && mkdir distro
+if [ ! -d $PKG_DIR ]; then
+   mkdir $PKG_DIR
+else
+   rm -rf $PKG_DIR/*
+fi
+
+# Set up the pkg dir.
+cd $PKG_DIR
+mkdir scripts
+mkdir bin
+download_pkgs
+
+# Build the percona-metrics wrapper program.
+echo "Building percona-metrics..."
+cd $ROOT_DIR/bin/percona-metrics
+go build
+
+# Copy what we need into the pkg dir.
+cd $ROOT_DIR
+cp pkglist Changelog exporters.yml scripts/install $PKG_DIR
+cp scripts/percona-metrics $PKG_DIR/scripts
+cp bin/percona-metrics/percona-metrics $PKG_DIR/bin
+
+echo "Done building $PKG_DIR"
