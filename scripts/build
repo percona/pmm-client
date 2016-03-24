@@ -69,4 +69,7 @@ cp pkglist Changelog exporters.yml scripts/install $PKG_DIR
 cp scripts/percona-metrics $PKG_DIR/scripts
 cp bin/percona-metrics/percona-metrics $PKG_DIR/bin
 
-echo "Done building $PKG_DIR"
+cd distro
+tar czf $PKG_NAME.tar.gz $PKG_NAME
+
+echo "Done building $PKG_DIR.tar.gz"
