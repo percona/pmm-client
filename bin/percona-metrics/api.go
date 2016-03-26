@@ -31,12 +31,6 @@ import (
 )
 
 var (
-	AGENT_API_PORT string = "9000"
-	QAN_API_PORT   string = "9001"
-	PROM_API_PORT  string = "9003"
-)
-
-var (
 	ErrNotFound = errors.New("resource not found")
 	ErrNoServer = errors.New("PMM server address not set")
 )
@@ -62,61 +56,39 @@ func (a *API) Run() {
 }
 
 func get(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	JSONResponse(w, 200, exporters)
+	proto.JSONResponse(w, 200, exporters)
 }
 
 func post(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		ErrorResponse(w, err)
+		proto.ErrorResponse(w, err)
 		return
 	}
 	if len(body) == 0 {
-		JSONResponse(w, http.StatusBadRequest, nil)
+		proto.JSONResponse(w, http.StatusBadRequest, nil)
 		return
 	}
 	e := &Exporter{}
 	if err := json.Unmarshal(body, e); err != nil {
-		ErrorResponse(w, err)
+		proto.ErrorResponse(w, err)
 		return
 	}
 
 	if err := add(e); err != nil {
-		ErrorResponse(w, err)
+		proto.ErrorResponse(w, err)
 	} else {
-		JSONResponse(w, http.StatusOK, nil)
+		proto.JSONResponse(w, http.StatusCreated, nil)
 	}
-	log.Printf("Added %+v", e)
 }
 
 func del(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	name := p.ByName("name")
 	port := p.ByName("port")
 	if err := remove(name, port); err != nil {
-		ErrorResponse(w, err)
+		proto.ErrorResponse(w, err)
 	} else {
-		JSONResponse(w, http.StatusOK, nil)
-	}
-}
-
-func JSONResponse(w http.ResponseWriter, statusCode int, v interface{}) {
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	w.WriteHeader(statusCode)
-	if v != nil {
-		if err := json.NewEncoder(w).Encode(v); err != nil {
-			log.Println(err)
-		}
-	}
-}
-
-func ErrorResponse(w http.ResponseWriter, err error) {
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	w.WriteHeader(500)
-	e := proto.Error{
-		Error: err.Error(),
-	}
-	if err := json.NewEncoder(w).Encode(e); err != nil {
-		log.Println(err)
+		proto.JSONResponse(w, http.StatusOK, nil)
 	}
 }
 
@@ -127,7 +99,7 @@ func GetInstance(uuid string) (proto.Instance, error) {
 	if serverAddr == "" {
 		return in, ErrNoServer
 	}
-	url := fmt.Sprintf("http://%s:%s/instances/%s", serverAddr, QAN_API_PORT, uuid)
+	url := fmt.Sprintf("http://%s:%s/instances/%s", serverAddr, proto.DEFAULT_QAN_API_PORT, uuid)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return in, err

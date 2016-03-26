@@ -31,18 +31,15 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/percona/platform/proto"
 	"gopkg.in/yaml.v2"
 )
 
 type Exporter struct {
-	Name         string   `yaml:"name"`
-	Alias        string   `yaml:"alias,omitempty"`
-	Port         string   `yaml:"port"`
-	Args         []string `yaml:"args"`
-	InstanceUUID string   `yaml:"instance_uuid,omitempty"`
-	err          error
-	errCount     uint
-	stopChan     chan struct{} // stop this exporter
+	proto.Exporter
+	err      error
+	errCount uint
+	stopChan chan struct{} // stop this exporter
 }
 
 var exporters []*Exporter
@@ -57,7 +54,7 @@ const (
 	BIN             = "percona-metrics"
 	MAX_ERRORS      = 3
 	DEFAULT_BASEDIR = "/usr/local/percona/pmm-client"
-	DEFAULT_LISTEN  = "127.0.0.1:9004"
+	DEFAULT_LISTEN  = "127.0.0.1:" + proto.DEFAULT_METRICS_API_PORT
 )
 
 var (

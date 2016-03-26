@@ -1,0 +1,8 @@
+- name: node_exporter
+  port: "9100"
+  args: []
+- name:  mysqld_exporter
+  alias: "MySQL hi-res"
+  port:  "9104"
+  args:  []
+  instance_uuid: "63d142f6e9534b3767260cbfa5fc65a8"
