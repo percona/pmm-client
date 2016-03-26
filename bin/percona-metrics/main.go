@@ -36,18 +36,21 @@ import (
 
 type Exporter struct {
 	Name         string   `yaml:"name"`
+	Alias        string   `yaml:"alias,omitempty"`
 	Port         string   `yaml:"port"`
 	Args         []string `yaml:"args"`
-	InstanceUUID string   `yaml:"instance_uuid"`
+	InstanceUUID string   `yaml:"instance_uuid,omitempty"`
 	err          error
 	errCount     uint
+	stopChan     chan struct{} // stop this exporter
 }
 
 var exporters []*Exporter
-var mux *sync.Mutex = &sync.Mutex{}
+var mux *sync.Mutex = &sync.Mutex{} // guards exporters
 
 var (
 	ErrDupePort = errors.New("duplicate port")
+	ErrRemoved  = errors.New("removed")
 )
 
 const (
@@ -68,7 +71,7 @@ func init() {
 	flag.Parse()
 }
 
-var stopChan chan struct{}
+var stopChan chan struct{} // stop all exporters
 var eStopChan chan *Exporter
 
 func main() {
@@ -91,6 +94,7 @@ func main() {
 	eStopChan = make(chan *Exporter, 10)
 
 	for _, e := range exporters {
+		e.stopChan = make(chan struct{})
 		go run(e)
 	}
 
@@ -108,8 +112,13 @@ func main() {
 RESPAWN_LOOP:
 	for {
 		select {
-		case e := <-eStopChan: // exporter e stopped
-			respawn(e)
+		case e := <-eStopChan: // exporter stopped
+			switch e.err {
+			case ErrRemoved: // on purpose, DELETE /:name/:port
+				log.Printf("Removed %s:%s (%s)", e.Name, e.Port, e.Alias)
+			default: // crash?
+				respawn(e)
+			}
 		case <-sigTermChan:
 			log.Println("Caught signal, terminating...")
 			break RESPAWN_LOOP
@@ -142,16 +151,31 @@ func add(e *Exporter) error {
 	mux.Lock()
 	defer mux.Unlock()
 
+	// Exporters are unique by port number.
 	for _, ee := range exporters {
 		if e.Port == ee.Port {
 			return ErrDupePort
 		}
 	}
 
+	e.stopChan = make(chan struct{})
 	go run(e)
 
 	exporters = append(exporters, e)
 	return save()
+}
+
+func remove(name, port string) error {
+	mux.Lock()
+	defer mux.Unlock()
+	for i, e := range exporters {
+		if e.Name == name && e.Port == port {
+			close(e.stopChan) // kill the exporter process in run()
+			exporters = append(exporters[:i], exporters[i+1:]...)
+			return save()
+		}
+	}
+	return ErrNotFound
 }
 
 func run(e *Exporter) {
@@ -188,24 +212,29 @@ func run(e *Exporter) {
 		runErrChan <- cmd.Run() // received below
 	}()
 
-	log.Printf("Started %s:%s %s", e.Name, e.Port, strings.Join(e.Args, " "))
+	log.Printf("Started %s:%s (%s) %s", e.Name, e.Port, e.Alias, strings.Join(e.Args, " "))
 
 	select {
 	case err := <-runErrChan:
-		e.err = err
+		e.err = err // exporter process died
+	case <-e.stopChan:
+		if err := cmd.Process.Kill(); err != nil {
+			log.Printf("Cannot kill process %s:%s (%s): %s", e.Name, e.Port, e.Alias, err)
+		}
+		e.err = ErrRemoved // let main loop know we stopped on purpose
 	case <-stopChan:
-		e.err = cmd.Process.Kill()
+		e.err = cmd.Process.Kill() // program shutting down
 	}
 }
 
 func respawn(e *Exporter) {
 	e.errCount++
-	log.Printf(e.Name+" stopped (%d/%d), restarting: %s", e.errCount, MAX_ERRORS, e.err)
+	log.Printf("%s:%s (%s) stopped (%d/%d), restarting: %s", e.Name, e.Port, e.Alias, e.errCount, MAX_ERRORS, e.err)
 	if e.errCount < MAX_ERRORS {
 		time.Sleep(1 * time.Second)
 		go run(e)
 	} else {
-		log.Printf("Not restarting %s because it has failed too mamy times", e.Name)
+		log.Printf("Not restarting %s:%s (%s) because it has failed too mamy times", e.Name, e.Port, e.Alias)
 	}
 }
 

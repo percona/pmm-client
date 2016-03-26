@@ -90,7 +90,13 @@ func post(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 }
 
 func del(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	return
+	name := p.ByName("name")
+	port := p.ByName("port")
+	if err := remove(name, port); err != nil {
+		ErrorResponse(w, err)
+	} else {
+		JSONResponse(w, http.StatusOK, nil)
+	}
 }
 
 func JSONResponse(w http.ResponseWriter, statusCode int, v interface{}) {
@@ -98,7 +104,7 @@ func JSONResponse(w http.ResponseWriter, statusCode int, v interface{}) {
 	w.WriteHeader(statusCode)
 	if v != nil {
 		if err := json.NewEncoder(w).Encode(v); err != nil {
-			panic(err)
+			log.Println(err)
 		}
 	}
 }
@@ -110,7 +116,7 @@ func ErrorResponse(w http.ResponseWriter, err error) {
 		Error: err.Error(),
 	}
 	if err := json.NewEncoder(w).Encode(e); err != nil {
-		panic(err)
+		log.Println(err)
 	}
 }
 
