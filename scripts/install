@@ -53,7 +53,8 @@ install_prom_exporters() {
       fi
    fi
 
-   cp -f bin/$bin exporters.yml "$PMM_DIR"
+   cp -f bin/$bin "$PMM_DIR"
+   [ ! -f "$PMM_DIR/exporters.yml" ] && touch "$PMM_DIR/exporters.yml"
 
    for exporter in "node_exporter" "mysqld_exporter"; do
       set_pkg_file "$(grep "^$exporter" pkglist | cut -d, -f2)"

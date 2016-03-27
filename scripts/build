@@ -65,7 +65,7 @@ go build
 
 # Copy what we need into the pkg dir.
 cd $ROOT_DIR
-cp pkglist Changelog exporters.yml scripts/install $PKG_DIR
+cp pkglist Changelog scripts/install $PKG_DIR
 cp scripts/percona-metrics $PKG_DIR/scripts
 cp bin/percona-metrics/percona-metrics $PKG_DIR/bin
 

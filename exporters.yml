@@ -1,2 +1,0 @@
-- name: node_exporter
-  args: ["-collectors.enabled=diskstats,filesystem,loadavg,meminfo,netdev,netstat,stat,time,uname,vmstat"]  
