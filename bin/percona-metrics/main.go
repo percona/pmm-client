@@ -37,6 +37,7 @@ import (
 
 type Exporter struct {
 	proto.Exporter
+	Running  bool `yaml:"-"`
 	err      error
 	errCount uint
 	stopChan chan struct{} // stop this exporter
@@ -177,6 +178,7 @@ func remove(name, port string) error {
 
 func run(e *Exporter) {
 	defer func() {
+		e.Running = false
 		eStopChan <- e // received in main loop
 	}()
 
@@ -209,6 +211,7 @@ func run(e *Exporter) {
 		runErrChan <- cmd.Run() // received below
 	}()
 
+	e.Running = true
 	log.Printf("Started %s:%s (%s) %s", e.Name, e.Port, e.Alias, strings.Join(e.Args, " "))
 
 	select {

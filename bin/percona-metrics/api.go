@@ -76,7 +76,15 @@ func post(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	}
 
 	if err := add(e); err != nil {
-		proto.ErrorResponse(w, err)
+		switch err {
+		case ErrDupePort:
+			apiErr := proto.Error{
+				Error: fmt.Sprintf("%s already running on port %s", e.Name, e.Port),
+			}
+			proto.JSONResponse(w, http.StatusConflict, apiErr)
+		default:
+			proto.ErrorResponse(w, err)
+		}
 	} else {
 		proto.JSONResponse(w, http.StatusCreated, nil)
 	}
