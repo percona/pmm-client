@@ -94,7 +94,12 @@ func del(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	name := p.ByName("name")
 	port := p.ByName("port")
 	if err := remove(name, port); err != nil {
-		proto.ErrorResponse(w, err)
+		switch err {
+		case ErrNotFound:
+			proto.JSONResponse(w, http.StatusNotFound, nil)
+		default:
+			proto.ErrorResponse(w, err)
+		}
 	} else {
 		proto.JSONResponse(w, http.StatusOK, nil)
 	}
