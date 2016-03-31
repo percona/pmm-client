@@ -33,10 +33,17 @@ install_pmm_admin() {
 install_qan_agent() {
    set_pkg_file "$(grep "^percona-qan-agent" pkglist | cut -d, -f2)"
    tar xfz "$pkg_file"
+   set +e
    (
       cd "$pkg_dir"
       ./install -mysql=false $PMM_SERVER_ADDR > install.log
    )
+   local exitStatus=$?
+   set -e
+   if [ $exitStatus -ne 0 ]; then
+      cat "$pkg_dir/install.log" >&2
+      err "percona-qan-agent install failed. Its install log is printed above."
+   fi
 }
 
 install_prom_exporters() {
