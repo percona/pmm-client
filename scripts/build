@@ -2,6 +2,8 @@
 
 set -eu
 
+BIN="pmm-client"
+
 err() {
    echo "ERROR: $*" >&2
    exit 1
@@ -26,14 +28,6 @@ download_pkgs() {
 # Script starts here
 # ###########################################################################
 
-if [ $# -eq 0 ]; then
-   echo "Usage: build <version>" >&2
-   exit 1
-fi
-
-VER="$1"
-PKG_NAME="pmm-client-$VER"
-
 # Find and cd to repo root dir.
 [ "$(basename "$PWD")" = "scripts" ] && cd ..
 if [ -d ".git" ]; then
@@ -41,9 +35,72 @@ if [ -d ".git" ]; then
 else
    err "Run this script from the repo root dir or the build/ dir."
 fi
+
 cd $ROOT_DIR
 
+PLATFORM=`uname -m`
+if [ "$PLATFORM" = "x86_64" ]; then
+   ARCH="x86_64"  # no change
+elif [ "$PLATFORM" = "i686" -o "$PLATFORM" = "i386" ]; then
+   ARCH="i386"
+else
+   err "Unknown platform (uname -m): $PLATFORM (expected x86_64, i686, or i386)"
+fi
+
+# Determine if this is a dev or release build. A release build requires using
+# the master branch that's tagged with the same version in conf/app.conf. Else,
+# we presume dev build.
+DEV="yes"
+VER="$(awk '/var VERSION/ {print $5}' $ROOT_DIR/client/client.go | sed 's/"//g')"
+REV="$(git log -n 1 --no-walk --pretty="%h")"
+BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+if [ "$BRANCH" = "master" ]; then
+   # git log -n 1 --no-walk --tags --pretty="%h %d" --decorate=full
+   # 1475390  (HEAD, tag: refs/tags/v1.0.0, refs/remotes/origin/master, refs/heads/master, refs/heads/foo)
+   latestTag="$(git log -n 1 --no-walk --tags --pretty="%h %d" --decorate=full)"
+   tagRev="$(echo "$latestTag" | awk '{print $1}')"
+   tagVer="$(echo "$latestTag" | perl -n -e '/refs\/tags\/v([\d\.]+)/ && print $1')"
+   if [ "$tagVer" -a "$tagRev" = "$REV" ]; then
+      if [ "$tagVer" != "$VER" ]; then
+         err "Version mismatch: conf/app.conf has v$VER, but git tag has v$tagVer"
+      else
+         dirty="$(git status --porcelain)"
+         if [ "$dirty" ]; then
+            if [ "$DIRTY_BUILD" = "no" ]; then
+               err "Cannot do release build because this is the master branch with version" \
+                  "tag v$tagVer but there are uncommitted changes or untracked files" \
+                  "(see 'git status'). If the latest commit is not v$tagVer, remove the tag (git tag -d v$tagVer);" \
+                  "else, add and commit all changes, then re-tag the latest commit" \
+                  "(git tag -a v$tagVer -m \"v$tagVer\"). Or, specify DIRTY_BUILD=yes to force" \
+                  "the release build (not recommended)."
+            else
+               echo "Dirty release build of master branch v$VER"
+            fi
+         else
+            echo "Release build of master branch v$VER"
+         fi
+         DEV="no"
+      fi
+   else
+      echo "Dev build of master branch @ $REV (latest commit has no version tag)"
+   fi
+else
+   echo "Dev build of $BRANCH branch @ $REV"
+fi
+
+# To distinguish dev and release builds, we append "-date.revision" to dev builds,
+# e.g. release 1.0.0 = "1.0.0", but dev 1.0.0 = "1.0.0-20150825.a73cd9e".
+# Also, unless DEPS is set explicitly, dev builds don't use vendoring but release builds do.
+if [ "$DEV" = "yes" ]; then
+   ymd="$(TZ="UTC" date "+%Y%m%d")"
+   VER="$VER-$ymd.$REV"
+   DEPS="${DEPS:-"no"}"
+else
+   DEPS="${DEPS:-"yes"}"
+fi
+
 # Make a dir for the package in distro/.
+PKG_NAME="$BIN-$VER-$ARCH"
 PKG_DIR="distro/$PKG_NAME"
 [ ! -d distro ] && mkdir distro
 if [ ! -d $PKG_DIR ]; then
@@ -58,18 +115,20 @@ mkdir scripts
 mkdir bin
 download_pkgs
 
-# Build the percona-metrics wrapper program.
-echo "Building percona-metrics..."
-cd $ROOT_DIR/bin/percona-metrics
-go build
+# Build the percona-prom-pm wrapper program.
+echo "Building percona-prom-pm..."
+cd $ROOT_DIR/bin/percona-prom-pm
+go build -ldflags "-X github.com/percona/pmm-client/client.VERSION=$VER"
 
 # Copy what we need into the pkg dir.
 cd $ROOT_DIR
-cp pkglist Changelog scripts/install $PKG_DIR
-cp scripts/percona-metrics $PKG_DIR/scripts
-cp bin/percona-metrics/percona-metrics $PKG_DIR/bin
+cp pkglist CHANGELOG.md README.md LICENSE scripts/install $PKG_DIR
+cp scripts/percona-prom-pm $PKG_DIR/scripts
+cp bin/percona-prom-pm/percona-prom-pm $PKG_DIR/bin
 
 cd distro
 tar czf $PKG_NAME.tar.gz $PKG_NAME
 
+echo
 echo "Done building $PKG_DIR.tar.gz"
+echo

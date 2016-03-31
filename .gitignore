@@ -1,9 +1,10 @@
 *.tmp
-*swp
+*.swp
+*.log
 distro/
 vendor/
 cache/
-bin/percona-metrics/percona-metrics
-bin/percona-metrics/*.log
-bin/percona-metrics/*.yml
-bin/percona-metrics/*_exporter
+bin/percona-prom-pm/percona-prom-pm
+bin/percona-prom-pm/*.log
+bin/percona-prom-pm/*.yml
+bin/percona-prom-pm/*_exporter

@@ -20,6 +20,7 @@ package main
 import (
 	"errors"
 	"flag"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -32,6 +33,7 @@ import (
 	"time"
 
 	"github.com/percona/platform/proto"
+	"github.com/percona/pmm-client/client"
 	"gopkg.in/yaml.v2"
 )
 
@@ -52,7 +54,7 @@ var (
 )
 
 const (
-	BIN             = "percona-metrics"
+	BIN             = "percona-prom-pm"
 	MAX_ERRORS      = 3
 	DEFAULT_BASEDIR = "/usr/local/percona/pmm-client"
 	DEFAULT_LISTEN  = "127.0.0.1:" + proto.DEFAULT_METRICS_API_PORT
@@ -61,11 +63,13 @@ const (
 var (
 	flagBasedir string
 	flagListen  string
+	flagVersion bool
 )
 
 func init() {
 	flag.StringVar(&flagBasedir, "basedir", DEFAULT_BASEDIR, "pmm-client basedir")
 	flag.StringVar(&flagListen, "listen", DEFAULT_LISTEN, "IP:port to listen on")
+	flag.BoolVar(&flagVersion, "version", false, "Print version")
 	flag.Parse()
 }
 
@@ -73,6 +77,11 @@ var stopChan chan struct{} // stop all exporters
 var eStopChan chan *Exporter
 
 func main() {
+	if flagVersion {
+		fmt.Printf("%s %s\n", BIN, client.VERSION)
+		os.Exit(0)
+	}
+
 	if err := os.Chdir(flagBasedir); err != nil {
 		log.Fatal(err)
 	}

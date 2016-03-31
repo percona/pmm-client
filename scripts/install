@@ -40,7 +40,7 @@ install_qan_agent() {
 }
 
 install_prom_exporters() {
-   local bin="percona-metrics"
+   local bin="percona-prom-pm"
 
    if [ -x "$PMM_DIR/$bin" ]; then
       if [ "$KERNEL" != "Darwin" ]; then
@@ -62,7 +62,7 @@ install_prom_exporters() {
       cp "$exporter" "$PMM_DIR"
    done
 
-   # Register the init script to make "service percona-metrics start|stop" work.
+   # Register the init script to make "service percona-prom-pm start|stop" work.
    if [ "$KERNEL" != "Darwin" ]; then
       cp -f scripts/$bin /etc/init.d/$bin
       chmod a+x /etc/init.d/$bin
@@ -120,9 +120,9 @@ echo "Done installing PMM client. Next steps:"
 echo
 echo "  1. Enable monitoring this OS (CPU, storage, etc.):"
 echo
-echo "         pmm-admin add os <address>"
+echo "         pmm-admin add os <client address>"
 echo
-echo "     where <address> is the IP or FQDN of this server."
+echo "     where <client address> is the IP or FQDN of this server."
 echo
 echo "  2. Enable monitoring MySQL on this server:"
 echo

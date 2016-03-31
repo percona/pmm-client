@@ -1,12 +1,12 @@
 #!/bin/sh
 #
-# percona-metrics  Manage Prometheus exporter processes for PMM
+# percona-prom-pm  Manage Prometheus exporter processes for PMM
 #
 # chkconfig: 2345 65 35
 # description: Percona Query Analytics Agent
 #
 ### BEGIN INIT INFO
-# Provides:          percona-metrics
+# Provides:          percona-prom-pm
 # Required-Start:    $local_fs $network
 # Required-Stop:     $local_fs $network
 # Default-Start:     2 3 4 5
@@ -17,8 +17,8 @@
 
 export LANG="en_US"
 
-SERVICE="percona-metrics"
-BIN="percona-metrics"
+SERVICE="percona-prom-pm"
+BIN="percona-prom-pm"
 
 # Agent uses a single base directory for all its files and data.
 BASEDIR="${BASEDIR:-"/usr/local/percona/pmm-client"}"
