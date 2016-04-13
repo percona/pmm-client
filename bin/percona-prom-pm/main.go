@@ -194,7 +194,8 @@ func run(e *Exporter) {
 	logFileName, _ := filepath.Abs(filepath.Join(flagBasedir, e.Name+"_"+e.Port+".log"))
 	logFile, err := os.OpenFile(logFileName, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
 	if err != nil {
-		log.Fatal(err)
+		e.err = fmt.Errorf("cannot open %s: %s", logFileName, err)
+		return
 	}
 	defer logFile.Close()
 
@@ -206,7 +207,8 @@ func run(e *Exporter) {
 	if e.InstanceUUID != "" {
 		in, err := GetInstance(e.InstanceUUID)
 		if err != nil {
-			log.Fatal(err)
+			e.err = fmt.Errorf("cannot get instance %s from QAN API: %s", e.InstanceUUID, err)
+			return
 		}
 		if in.DSN != "" {
 			env := os.Environ()
@@ -248,7 +250,7 @@ func respawn(e *Exporter) {
 }
 
 func serverAddr() string {
-	out, err := exec.Command("pmm-admin", "server").Output()
+	out, err := exec.Command(filepath.Join(flagBasedir, "pmm-admin"), "server").Output()
 	if err != nil {
 		log.Println(err)
 	}
