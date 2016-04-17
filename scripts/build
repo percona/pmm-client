@@ -51,6 +51,7 @@ fi
 # the master branch that's tagged with the same version in conf/app.conf. Else,
 # we presume dev build.
 DEV="yes"
+DIRTY_BUILD="${DIRTY_BUILD:-"no"}"
 VER="$(awk '/var VERSION/ {print $5}' $ROOT_DIR/client/client.go | sed 's/"//g')"
 REV="$(git log -n 1 --no-walk --pretty="%h")"
 BRANCH="$(git rev-parse --abbrev-ref HEAD)"
