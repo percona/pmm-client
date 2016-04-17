@@ -32,8 +32,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/percona/platform/proto"
 	"github.com/percona/pmm-client/client"
+	"github.com/percona/pmm/proto"
 	"gopkg.in/yaml.v2"
 )
 

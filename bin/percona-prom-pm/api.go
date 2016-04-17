@@ -27,7 +27,7 @@ import (
 	"time"
 
 	"github.com/julienschmidt/httprouter"
-	"github.com/percona/platform/proto"
+	"github.com/percona/pmm/proto"
 )
 
 var (
