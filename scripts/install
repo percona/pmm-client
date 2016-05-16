@@ -23,9 +23,7 @@ check_pkgs() {
 }
 
 install_pmm_admin() {
-   set_pkg_file "$(grep "^pmm-admin" pkglist | cut -d, -f2)"
-   tar xfz "$pkg_file"
-   cp "$pkg_dir/pmm-admin" "$PMM_DIR"
+   cp -f bin/pmm-admin "$PMM_DIR"
    ln -sf "$PMM_DIR/pmm-admin" /usr/local/bin/pmm-admin
    /usr/local/bin/pmm-admin server $PMM_SERVER_ADDR > /dev/null
 }
@@ -66,7 +64,7 @@ install_prom_exporters() {
    for exporter in "node_exporter" "mysqld_exporter" "mongodb_exporter"; do
       set_pkg_file "$(grep "^$exporter" pkglist | cut -d, -f2)"
       tar xfz "$pkg_file"
-      cp "$exporter" "$PMM_DIR"
+      cp "$pkg_dir"/"$exporter" "$PMM_DIR"
    done
 
    # Register the init script to make "service percona-prom-pm start|stop" work.

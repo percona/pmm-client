@@ -19,7 +19,7 @@ download_pkgs() {
       else
          echo "Downloading $pkg..."
          curl -s -LO $url
-         [ -f $pkg_file ] || err "$url did not save as $pkg_file"    
+         [ -f $pkg_file ] || err "$url did not save as $pkg_file"
       fi
    done < $ROOT_DIR/pkglist
 }
@@ -116,10 +116,19 @@ mkdir scripts
 mkdir bin
 download_pkgs
 
+# Default build for linux, not Darwin.
+export GOOS=linux
+
 # Build the percona-prom-pm wrapper program.
 echo "Building percona-prom-pm..."
 cd $ROOT_DIR/bin/percona-prom-pm
 go build -ldflags "-X github.com/percona/pmm-client/client.VERSION=$VER"
+
+# Build pmm-admin.
+echo "Building pmm-admin..."
+cd $ROOT_DIR
+go build -o $PKG_DIR/bin/pmm-admin github.com/percona/pmm-admin/bin/pmm-admin
+chmod +x $PKG_DIR/bin/pmm-admin
 
 # Copy what we need into the pkg dir.
 cd $ROOT_DIR
