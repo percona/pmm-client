@@ -17,4 +17,4 @@
 
 package client
 
-var VERSION string = "1.0.1consul"
+var VERSION string = "1.0.2"
