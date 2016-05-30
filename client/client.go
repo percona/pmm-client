@@ -17,4 +17,4 @@
 
 package client
 
-var VERSION string = "1.0.2"
+var VERSION string = "1.0.3"
