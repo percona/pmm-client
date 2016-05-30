@@ -23,9 +23,7 @@ check_pkgs() {
 }
 
 install_pmm_admin() {
-   set_pkg_file "$(grep "^pmm-admin" pkglist | cut -d, -f2)"
-   tar xfz "$pkg_file"
-   cp "$pkg_dir/pmm-admin" "$PMM_DIR"
+   cp -f bin/pmm-admin "$PMM_DIR"
    ln -sf "$PMM_DIR/pmm-admin" /usr/local/bin/pmm-admin
    /usr/local/bin/pmm-admin server $PMM_SERVER_ADDR > /dev/null
 }
@@ -36,7 +34,7 @@ install_qan_agent() {
    set +e
    (
       cd "$pkg_dir"
-      ./install -mysql=false $PMM_SERVER_ADDR > install.log
+      ./install -mysql=false ${PMM_SERVER_ADDR%:*} > install.log
    )
    local exitStatus=$?
    set -e
@@ -63,10 +61,10 @@ install_prom_exporters() {
    cp -f bin/$bin "$PMM_DIR"
    [ ! -f "$PMM_DIR/exporters.yml" ] && touch "$PMM_DIR/exporters.yml"
 
-   for exporter in "node_exporter" "mysqld_exporter"; do
+   for exporter in "node_exporter" "mysqld_exporter" "mongodb_exporter"; do
       set_pkg_file "$(grep "^$exporter" pkglist | cut -d, -f2)"
       tar xfz "$pkg_file"
-      cp "$exporter" "$PMM_DIR"
+      cp "$pkg_dir"/"$exporter" "$PMM_DIR"
    done
 
    # Register the init script to make "service percona-prom-pm start|stop" work.
@@ -137,6 +135,12 @@ echo "         pmm-admin [options] add mysql"
 echo
 echo "     You might need to specify MySQL options like -user, -password, etc."
 echo "     if auto-detection fails."
+echo
+echo "  3. Enable monitoring MongoDB on this server:"
+echo
+echo "         pmm-admin [options] add mongodb"
+echo
+echo "     You might need to specify MongoDB options like -mongodb-uri, -mongodb-replset, -mongodb-cluster"
 echo
 echo "To see what's being monitored on this server, run: pmm-admin list"
 echo

@@ -254,7 +254,8 @@ func serverAddr() string {
 	if err != nil {
 		log.Println(err)
 	}
-	return strings.TrimSpace(string(out))
+	addr := strings.TrimSpace(string(out))
+	return addr[:strings.Index(addr, ":")]
 }
 
 func save() error {
