@@ -24,8 +24,10 @@ check_pkgs() {
 
 install_pmm_admin() {
    cp -f bin/pmm-admin "$PMM_DIR"
-   ln -sf "$PMM_DIR/pmm-admin" /usr/local/bin/pmm-admin
-   /usr/local/bin/pmm-admin server $PMM_SERVER_ADDR > /dev/null
+   ln -sf "$PMM_DIR/pmm-admin" /usr/bin/pmm-admin
+   # Remove old link
+   [ -h /usr/local/bin/pmm-admin ] && rm -f /usr/local/bin/pmm-admin
+   /usr/bin/pmm-admin server $PMM_SERVER_ADDR > /dev/null
 }
 
 install_qan_agent() {

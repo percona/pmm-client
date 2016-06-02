@@ -94,7 +94,7 @@ fi
 # Also, unless DEPS is set explicitly, dev builds don't use vendoring but release builds do.
 if [ "$DEV" = "yes" ]; then
    ymd="$(TZ="UTC" date "+%Y%m%d")"
-   VER="$VER-$ymd.$REV"
+   VER="$VER-dev$ymd.$REV"
    DEPS="${DEPS:-"no"}"
 else
    DEPS="${DEPS:-"yes"}"
