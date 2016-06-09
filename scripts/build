@@ -132,7 +132,7 @@ chmod +x $PKG_DIR/bin/pmm-admin
 
 # Copy what we need into the pkg dir.
 cd $ROOT_DIR
-cp pkglist CHANGELOG.md README.md LICENSE scripts/install $PKG_DIR
+cp pkglist CHANGELOG.md README.md LICENSE scripts/install scripts/uninstall $PKG_DIR
 cp scripts/percona-prom-pm $PKG_DIR/scripts
 cp bin/percona-prom-pm/percona-prom-pm $PKG_DIR/bin
 

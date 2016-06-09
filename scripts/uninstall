@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+
+set -eu
+
+/etc/init.d/percona-prom-pm stop
+/etc/init.d/percona-qan-agent stop
+rm -rf /usr/local/percona /usr/bin/pmm-admin /etc/init.d/percona-prom-pm /etc/init.d/percona-qan-agent
