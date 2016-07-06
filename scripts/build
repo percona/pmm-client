@@ -52,7 +52,7 @@ fi
 # we presume dev build.
 DEV="yes"
 DIRTY_BUILD="${DIRTY_BUILD:-"no"}"
-VER="$(awk '/var VERSION/ {print $5}' $ROOT_DIR/client/client.go | sed 's/"//g')"
+VER="$(awk '/var VERSION/ {print $4}' $ROOT_DIR/pmm/constants.go | sed 's/"//g')"
 REV="$(git log -n 1 --no-walk --pretty="%h")"
 BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 if [ "$BRANCH" = "master" ]; then
@@ -119,22 +119,15 @@ download_pkgs
 # Default build for linux, not Darwin.
 export GOOS=linux
 
-# Build the percona-prom-pm wrapper program.
-echo "Building percona-prom-pm..."
-cd $ROOT_DIR/bin/percona-prom-pm
-go build -ldflags "-X github.com/percona/pmm-client/client.VERSION=$VER"
-
 # Build pmm-admin.
 echo "Building pmm-admin..."
 cd $ROOT_DIR
-go build -o $PKG_DIR/bin/pmm-admin github.com/percona/pmm-admin/bin/pmm-admin
+go build -ldflags "-X github.com/percona/pmm-client/pmm.VERSION=$VER" -o $PKG_DIR/bin/pmm-admin
 chmod +x $PKG_DIR/bin/pmm-admin
 
 # Copy what we need into the pkg dir.
 cd $ROOT_DIR
 cp pkglist CHANGELOG.md README.md LICENSE scripts/install scripts/uninstall $PKG_DIR
-cp scripts/percona-prom-pm $PKG_DIR/scripts
-cp bin/percona-prom-pm/percona-prom-pm $PKG_DIR/bin
 
 cd distro
 tar czf $PKG_NAME.tar.gz $PKG_NAME

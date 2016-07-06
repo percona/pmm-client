@@ -1,0 +1,99 @@
+{
+	"ImportPath": "github.com/percona/pmm-client",
+	"GoVersion": "go1.6",
+	"GodepVersion": "v72",
+	"Deps": [
+		{
+			"ImportPath": "github.com/go-sql-driver/mysql",
+			"Comment": "v1.2-125-gd512f20",
+			"Rev": "d512f204a577a4ab037a1816604c48c9c13210be"
+		},
+		{
+			"ImportPath": "github.com/hashicorp/consul/api",
+			"Comment": "v0.6.4-292-g359541a",
+			"Rev": "359541a67d46a81411070894a2287bef092aeebb"
+		},
+		{
+			"ImportPath": "github.com/hashicorp/go-cleanhttp",
+			"Rev": "ad28ea4487f05916463e2423a55166280e8254b5"
+		},
+		{
+			"ImportPath": "github.com/hashicorp/serf/coordinate",
+			"Comment": "v0.7.0-66-g6c4672d",
+			"Rev": "6c4672d66fc6312ddde18399262943e21175d831"
+		},
+		{
+			"ImportPath": "github.com/inconshreveable/mousetrap",
+			"Rev": "76626ae9c91c4f2a10f34cad8ce83ea42c93bb75"
+		},
+		{
+			"ImportPath": "github.com/kardianos/osext",
+			"Rev": "29ae4ffbc9a6fe9fb2bc5029050ce6996ea1d3bc"
+		},
+		{
+			"ImportPath": "github.com/percona/go-mysql/dsn",
+			"Rev": "236e803a46a089f5316a432fa0ceef01da3a3c31"
+		},
+		{
+			"ImportPath": "github.com/percona/pmm/proto",
+			"Rev": "284671ed97df56f5b638465d5829a299b7b07e7e"
+		},
+		{
+			"ImportPath": "github.com/percona/pmm/proto/config",
+			"Rev": "284671ed97df56f5b638465d5829a299b7b07e7e"
+		},
+		{
+			"ImportPath": "github.com/prometheus/client_golang/api/prometheus",
+			"Comment": "0.7.0-85-g9f1ed1e",
+			"Rev": "9f1ed1ed4a5f754c9b626e5cf8ec1ea7d622e017"
+		},
+		{
+			"ImportPath": "github.com/prometheus/common/model",
+			"Rev": "ba1c9185b796b0ca48e40c09edf7951b1a18f349"
+		},
+		{
+			"ImportPath": "github.com/roman-vynar/service",
+			"Rev": "fff6854be40a6271fecc03185ccd89f983d5045d"
+		},
+		{
+			"ImportPath": "github.com/spf13/cobra",
+			"Rev": "6a8bd97bdb1fc0d08a83459940498ea49d3e8c93"
+		},
+		{
+			"ImportPath": "github.com/spf13/pflag",
+			"Rev": "367864438f1b1a3c7db4da06a2f55b144e6784e0"
+		},
+		{
+			"ImportPath": "golang.org/x/net/context",
+			"Rev": "b400c2eff1badec7022a8c8f5bea058b6315eed7"
+		},
+		{
+			"ImportPath": "golang.org/x/net/context/ctxhttp",
+			"Rev": "b400c2eff1badec7022a8c8f5bea058b6315eed7"
+		},
+		{
+			"ImportPath": "golang.org/x/sys/windows",
+			"Rev": "a408501be4d17ee978c04a618e7a1b22af058c0e"
+		},
+		{
+			"ImportPath": "golang.org/x/sys/windows/registry",
+			"Rev": "a408501be4d17ee978c04a618e7a1b22af058c0e"
+		},
+		{
+			"ImportPath": "golang.org/x/sys/windows/svc",
+			"Rev": "a408501be4d17ee978c04a618e7a1b22af058c0e"
+		},
+		{
+			"ImportPath": "golang.org/x/sys/windows/svc/eventlog",
+			"Rev": "a408501be4d17ee978c04a618e7a1b22af058c0e"
+		},
+		{
+			"ImportPath": "golang.org/x/sys/windows/svc/mgr",
+			"Rev": "a408501be4d17ee978c04a618e7a1b22af058c0e"
+		},
+		{
+			"ImportPath": "gopkg.in/yaml.v2",
+			"Rev": "f7716cbe52baa25d2e9b0d0da546fcf909fc16b4"
+		}
+	]
+}
