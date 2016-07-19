@@ -18,13 +18,15 @@
 package pmm
 
 import (
-	"crypto/rand"
 	"database/sql"
 	"fmt"
+	"math/rand"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/percona/go-mysql/dsn"
+	"github.com/zach-klippenstein/goregen"
 )
 
 // MySQL and agent specific options.
@@ -80,7 +82,7 @@ func DetectMySQL(serviceType string, mf MySQLFlags) (map[string]string, error) {
 	}
 
 	if err != nil {
-		helpTxt := "Use additional MySQL flags (-user, -pass, -host, -port, -socket) if needed."
+		helpTxt := "Use additional MySQL flags --user, --password, --host, --port, --socket if needed."
 		if mf.CreateUser {
 			err = fmt.Errorf("Error creating a new MySQL user: %s\n\n%s\n%s", err,
 				"Verify that connecting MySQL user exists and has GRANT privilege.", helpTxt)
@@ -114,7 +116,11 @@ func createMySQLUser(userDSN dsn.DSN, serviceType string, maxUserConn uint) (dsn
 	// New DSN has same host:port or socket, but different user and pass.
 	newDSN := userDSN
 	newDSN.Username = fmt.Sprintf("pmm-%s", serviceType)
-	newDSN.Password = generatePassword(20)
+	// Generate 20 char password containing upper/lower, digit, special chars.
+	generator, _ := regen.NewGenerator("([[:alnum:]]|[_,;-]){16}[a-z][A-Z][0-9][_,;-]", &regen.GeneratorArgs{
+		RngSource: rand.NewSource(time.Now().UTC().UnixNano()),
+	})
+	newDSN.Password = generator.Generate()
 
 	// Create a new MySQL user with necessary privs.
 	grants := makeGrant(newDSN, serviceType, maxUserConn)
@@ -226,14 +232,4 @@ func mysqlInfo(userDSN dsn.DSN, source string) (map[string]string, error) {
 		"safe_dsn":     strings.TrimRight(strings.Split(dsn.HidePassword(userDSN.String()), "?")[0], "/"),
 	}
 	return info, nil
-}
-
-func generatePassword(size uint8) string {
-	chars := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-	bytes := make([]byte, size)
-	rand.Read(bytes)
-	for i, b := range bytes {
-		bytes[i] = chars[b%byte(len(chars))]
-	}
-	return string(bytes)
 }

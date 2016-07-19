@@ -64,6 +64,10 @@
 			"Rev": "367864438f1b1a3c7db4da06a2f55b144e6784e0"
 		},
 		{
+			"ImportPath": "github.com/zach-klippenstein/goregen",
+			"Rev": "795b5e3961ea1912fde60af417ad85e86acc0d6a"
+		},
+		{
 			"ImportPath": "golang.org/x/net/context",
 			"Rev": "b400c2eff1badec7022a8c8f5bea058b6315eed7"
 		},

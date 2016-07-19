@@ -113,9 +113,9 @@ a new user 'pmm-mysql@' automatically using the given (auto-detected) MySQL cred
 
 [name] is an optional argument, by default it is set to the client name of this PMM client.
 		`,
-		Example: `  pmm-admin add mysql --pass abc123
-  pmm-admin add mysql --pass abc123 --host 192.168.1.2 --create-user
-  pmm-admin add mysql --user rdsuser --pass abc123 --host my-rds.1234567890.us-east-1.rds.amazonaws.com my-rds`,
+		Example: `  pmm-admin add mysql --password abc123
+  pmm-admin add mysql --password abc123 --host 192.168.1.2 --create-user
+  pmm-admin add mysql --user rdsuser --password abc123 --host my-rds.1234567890.us-east-1.rds.amazonaws.com my-rds`,
 		Run: func(cmd *cobra.Command, args []string) {
 			info, err := pmm.DetectMySQL("mysql", flagM)
 			if err != nil {
@@ -140,9 +140,9 @@ a new user 'pmm-queries@' automatically using the given (auto-detected) MySQL cr
 
 [name] is an optional argument, by default it is set to the client name of this PMM client.
 		`,
-		Example: `  pmm-admin add queries --pass abc123
-  pmm-admin add queries --pass abc123 --host 192.168.1.2 --create-user
-  pmm-admin add queries --user rdsuser --pass abc123 --host my-rds.1234567890.us-east-1.rds.amazonaws.com my-rds`,
+		Example: `  pmm-admin add queries --password abc123
+  pmm-admin add queries --password abc123 --host 192.168.1.2 --create-user
+  pmm-admin add queries --user rdsuser --password abc123 --host my-rds.1234567890.us-east-1.rds.amazonaws.com my-rds`,
 		Run: func(cmd *cobra.Command, args []string) {
 			// Check --query-source flag.
 			if flagM.QuerySource != "auto" && flagM.QuerySource != "slowlog" && flagM.QuerySource != "perfschema" {
@@ -371,7 +371,7 @@ func main() {
 	cmdAddMySQL.Flags().StringVar(&flagM.Host, "host", "", "MySQL host")
 	cmdAddMySQL.Flags().StringVar(&flagM.Port, "port", "", "MySQL port")
 	cmdAddMySQL.Flags().StringVar(&flagM.User, "user", "", "MySQL username")
-	cmdAddMySQL.Flags().StringVar(&flagM.Password, "pass", "", "MySQL password")
+	cmdAddMySQL.Flags().StringVar(&flagM.Password, "password", "", "MySQL password")
 	cmdAddMySQL.Flags().StringVar(&flagM.Socket, "socket", "", "MySQL socket")
 	cmdAddMySQL.Flags().BoolVar(&flagM.CreateUser, "create-user", false, "create a new MySQL user")
 	cmdAddMySQL.Flags().BoolVar(&flagM.OldPasswords, "old-passwords", false, "use old passwords for a new user")
@@ -382,7 +382,7 @@ func main() {
 	cmdAddQueries.Flags().StringVar(&flagM.Host, "host", "", "MySQL host")
 	cmdAddQueries.Flags().StringVar(&flagM.Port, "port", "", "MySQL port")
 	cmdAddQueries.Flags().StringVar(&flagM.User, "user", "", "MySQL username")
-	cmdAddQueries.Flags().StringVar(&flagM.Password, "pass", "", "MySQL password")
+	cmdAddQueries.Flags().StringVar(&flagM.Password, "password", "", "MySQL password")
 	cmdAddQueries.Flags().StringVar(&flagM.Socket, "socket", "", "MySQL socket")
 	cmdAddQueries.Flags().BoolVar(&flagM.CreateUser, "create-user", false, "create a new MySQL user")
 	cmdAddQueries.Flags().BoolVar(&flagM.OldPasswords, "old-passwords", false, "use old passwords for a new user")
