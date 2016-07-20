@@ -81,9 +81,9 @@ func (a *Admin) CheckNetwork(noEmoji bool) error {
 	errStatus := false
 	for _, svc := range node.Services {
 		metricType := svc.Service
-		if metricType == "mysql-hr" {
+		if metricType == "mysql-hr" || metricType == "mysql-mr" || metricType == "mysql-lr" {
 			metricType = "mysql"
-		} else if metricType == "mysql-mr" || metricType == "mysql-lr" || metricType == "queries" {
+		} else if metricType == "queries" {
 			continue
 		}
 
