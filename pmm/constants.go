@@ -27,6 +27,7 @@ const (
 	qanAPIBasePath = "qan-api"
 	emojiUnhappy   = "😡"
 	emojiHappy     = "🙂"
+	noMonitoring   = "No monitoring registered for this node under identifier"
 )
 
 var (

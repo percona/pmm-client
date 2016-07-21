@@ -81,9 +81,9 @@ func (a *Admin) AddOS() error {
 }
 
 // RemoveOS remove os service from monitoring.
-func (a *Admin) RemoveOS() error {
+func (a *Admin) RemoveOS(name string) error {
 	// Check if we have this service on Consul.
-	consulSvc, err := a.getConsulService("os", "")
+	consulSvc, err := a.getConsulService("os", name)
 	if err != nil {
 		return err
 	}
@@ -107,4 +107,3 @@ func (a *Admin) RemoveOS() error {
 
 	return nil
 }
-

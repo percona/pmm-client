@@ -67,12 +67,18 @@ func (a *Admin) CheckNetwork(noEmoji bool) error {
 
 	node, _, err := a.consulapi.Catalog().Node(a.Config.ClientName, nil)
 	if err != nil || node == nil {
-		fmt.Printf("No monitoring registered for this node under identifier '%s'.\n\n", a.Config.ClientName)
+		fmt.Printf("%s '%s'.\n\n", noMonitoring, a.Config.ClientName)
 		return nil
 	}
 
 	if !promStatus {
 		fmt.Println("Prometheus is down. Please check if PMM server container runs properly.\n")
+		return nil
+	}
+
+	fmt.Println("* Server > Client")
+	if len(node.Services) == 0 {
+		fmt.Println("No Prometheus endpoints found.\n")
 		return nil
 	}
 
@@ -109,11 +115,6 @@ func (a *Admin) CheckNetwork(noEmoji bool) error {
 		svcTable = append(svcTable, row)
 	}
 
-	fmt.Println("* Server > Client")
-	if len(svcTable) == 0 {
-		fmt.Println("No Prometheus endpoints found.\n")
-		return nil
-	}
 	maxNameLen := 5
 	for _, in := range svcTable {
 		if len(in.Name) > maxNameLen {

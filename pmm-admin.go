@@ -207,20 +207,16 @@ the name of MongoDB instance and also sets the same options such as node type, c
 		},
 	}
 	cmdRemoveOS = &cobra.Command{
-		Use:   "os",
+		Use:   "os NAME",
 		Short: "Remove this OS from metrics monitoring.",
-		Long:  "This command removes this system from metrics monitoring.",
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			// Cancel PersistentPreRun inherited from cmdRemove and just read the config file
-			// by running root's PersistentPreRun.
-			cmd.Root().PersistentPreRun(cmd.Root(), args)
-		},
+		Long:  "This command removes OS instance specified by NAME from metrics monitoring.",
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := admin.RemoveOS(); err != nil {
-				fmt.Println("Error removing OS:", err)
+			name := args[0]
+			if err := admin.RemoveOS(name); err != nil {
+				fmt.Printf("Error removing OS %s: %s\n", name, err)
 				os.Exit(1)
 			}
-			fmt.Println("OK, removed this OS from monitoring.")
+			fmt.Printf("OK, removed OS %s from monitoring.\n", name)
 		},
 	}
 	cmdRemoveMySQL = &cobra.Command{
@@ -308,6 +304,7 @@ the name of MongoDB instance and also sets the same options such as node type, c
 			}
 		},
 	}
+
 	cmdCheckNet = &cobra.Command{
 		Use:   "check-network",
 		Short: "Check network connectivity between client and server.",
@@ -326,12 +323,13 @@ If all endpoints are down here and "pmm-admin list" shows all services are up,
 please check the firewall settings whether this system allows incoming connections by address:port in question.`,
 		Run: func(cmd *cobra.Command, args []string) {
 			cmd.Root().PersistentPreRun(cmd.Root(), args)
-			if err := admin.CheckNetwork(flagOldStyle); err != nil {
+			if err := admin.CheckNetwork(flagNoEmoji); err != nil {
 				fmt.Println("Error checking network status:", err)
 				os.Exit(1)
 			}
 		},
 	}
+
 	cmdPing = &cobra.Command{
 		Use:   "ping",
 		Short: "Check if PMM server is alive.",
@@ -343,8 +341,100 @@ please check the firewall settings whether this system allows incoming connectio
 		},
 	}
 
+	cmdStart = &cobra.Command{
+		Use:   "start METRIC NAME",
+		Short: "Start metric service by type and name.",
+		Long:  "This command starts the corresponding system service or all.",
+		Example: `  pmm-admin start os db01.vm
+  pmm-admin start mysql db01.vm
+  pmm-admin start queries db01.vm
+  pmm-admin start mongodb db01.vm
+  pmm-admin stop --all`,
+		Run: func(cmd *cobra.Command, args []string) {
+			if flagAll {
+				err, noServices := admin.StartStopAllMonitoring("start")
+				if err != nil {
+					fmt.Printf("Error starting one of the services: %s\n", err)
+					os.Exit(1)
+				}
+				if noServices {
+					fmt.Println("OK, no services found.")
+				} else {
+					fmt.Println("OK, all services are started.")
+				}
+				os.Exit(0)
+			}
+
+			// Check args.
+			if len(args) < 2 {
+				fmt.Println("No metric type or name specified.\n")
+				cmd.Usage()
+				os.Exit(1)
+			}
+			metric := args[0]
+			name := args[1]
+			if metric != "os" && metric != "mysql" && metric != "queries" && metric != "mongodb" {
+				fmt.Println("METRIC argument can take the following values: os, mysql, queries, mongodb.\n")
+				cmd.Usage()
+				os.Exit(1)
+			}
+
+			if err := admin.StartStopMonitoring("start", metric, name); err != nil {
+				fmt.Printf("Error starting %s metric service for %s: %s\n", metric, name, err)
+				os.Exit(1)
+			}
+			fmt.Printf("OK, started %s metric service for %s.\n", metric, name)
+		},
+	}
+
+	cmdStop = &cobra.Command{
+		Use:   "stop METRIC NAME",
+		Short: "Stop metric service by type and name.",
+		Long:  "This command stops the corresponding system service or all.",
+		Example: `  pmm-admin stop os db01.vm
+  pmm-admin stop mysql db01.vm
+  pmm-admin stop queries db01.vm
+  pmm-admin stop mongodb db01.vm
+  pmm-admin stop --all`,
+		Run: func(cmd *cobra.Command, args []string) {
+			if flagAll {
+				err, noServices := admin.StartStopAllMonitoring("stop")
+				if err != nil {
+					fmt.Printf("Error stopping one of the services: %s\n", err)
+					os.Exit(1)
+				}
+				if noServices {
+					fmt.Println("OK, no services found.")
+				} else {
+					fmt.Println("OK, all services are stopped.")
+				}
+				os.Exit(0)
+			}
+
+			// Check args.
+			if len(args) < 2 {
+				fmt.Println("No metric type or name specified.\n")
+				cmd.Usage()
+				os.Exit(1)
+			}
+			metric := args[0]
+			name := args[1]
+			if metric != "os" && metric != "mysql" && metric != "queries" && metric != "mongodb" {
+				fmt.Println("METRIC argument can take the following values: os, mysql, queries, mongodb.\n")
+				cmd.Usage()
+				os.Exit(1)
+			}
+
+			if err := admin.StartStopMonitoring("stop", metric, name); err != nil {
+				fmt.Printf("Error stopping %s metric service for %s: %s\n", metric, name, err)
+				os.Exit(1)
+			}
+			fmt.Printf("OK, stopped %s metric service for %s.\n", metric, name)
+		},
+	}
+
 	flagConfigFile, flagServerAddr, flagClientAddr, flagClientName      string
-	flagVersion, flagOldStyle                                           bool
+	flagVersion, flagNoEmoji, flagAll                                   bool
 	flagServicePort                                                     uint
 	flagMongoURI, flagMongoNodeType, flagMongoReplSet, flagMongoCluster string
 
@@ -354,7 +444,7 @@ please check the firewall settings whether this system allows incoming connectio
 func main() {
 	// Setup commands and flags.
 	cobra.EnableCommandSorting = false
-	rootCmd.AddCommand(cmdAdd, cmdRemove, cmdList, cmdConfig, cmdInfo, cmdCheckNet, cmdPing)
+	rootCmd.AddCommand(cmdAdd, cmdRemove, cmdList, cmdConfig, cmdInfo, cmdCheckNet, cmdPing, cmdStart, cmdStop)
 	cmdAdd.AddCommand(cmdAddOS, cmdAddMySQL, cmdAddQueries, cmdAddMongoDB)
 	cmdRemove.AddCommand(cmdRemoveOS, cmdRemoveMySQL, cmdRemoveQueries, cmdRemoveMongoDB)
 
@@ -394,7 +484,10 @@ func main() {
 	cmdAddMongoDB.Flags().StringVar(&flagMongoCluster, "cluster", "", "cluster name")
 	cmdAddMongoDB.Flags().StringVar(&flagMongoReplSet, "replset", "", "replSet name")
 
-	cmdCheckNet.Flags().BoolVar(&flagOldStyle, "old-style", false, "avoid emoji in the output")
+	cmdCheckNet.Flags().BoolVar(&flagNoEmoji, "no-emoji", false, "avoid emoji in the output")
+
+	cmdStart.Flags().BoolVar(&flagAll, "all", false, "all metric services")
+	cmdStop.Flags().BoolVar(&flagAll, "all", false, "all metric services")
 
 	if os.Getuid() != 0 {
 		fmt.Println("pmm-admin requires superuser privileges to manage system services.")

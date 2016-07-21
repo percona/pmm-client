@@ -110,7 +110,12 @@ func (a *Admin) SetAPI() {
 func (a *Admin) List() error {
 	node, _, err := a.consulapi.Catalog().Node(a.Config.ClientName, nil)
 	if err != nil || node == nil {
-		fmt.Printf("No monitoring registered for this node under identifier '%s'.\n\n", a.Config.ClientName)
+		fmt.Printf("%s '%s'.\n\n", noMonitoring, a.Config.ClientName)
+		return nil
+	}
+
+	if len(node.Services) == 0 {
+		fmt.Println("No services under monitoring.\n")
 		return nil
 	}
 
@@ -216,10 +221,6 @@ func (a *Admin) List() error {
 	}
 
 	// Print table.
-	if len(svcTable) == 0 {
-		fmt.Println("No services under monitoring.\n")
-		return nil
-	}
 	// Info header.
 	maxNameLen := 5
 	maxDSNlen := 12
@@ -271,6 +272,66 @@ func (a *Admin) ServerAlive() bool {
 		return true
 	}
 	return false
+}
+
+// StartStopMonitoring start/stop system service by its metric type and name.
+func (a *Admin) StartStopMonitoring(action, metric, name string) error {
+	consulMetric := metric
+	if metric == "mysql" {
+		consulMetric = "mysql-hr"
+	}
+	// Check if we have this service on Consul.
+	consulSvc, err := a.getConsulService(consulMetric, name)
+	if err != nil {
+		return err
+	}
+	if consulSvc == nil {
+		return errNoService
+	}
+
+	endPort := consulSvc.Port
+	if metric == "mysql" {
+		endPort = consulSvc.Port + 2
+	}
+	for i := consulSvc.Port; i <= endPort; i++ {
+		if action == "start" {
+			if err := startService(fmt.Sprintf("pmm-%s-exporter-%d", metric, i)); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := stopService(fmt.Sprintf("pmm-%s-exporter-%d", metric, i)); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// StartStopAllMonitoring start/stop all metric services.
+func (a *Admin) StartStopAllMonitoring(action string) (error, bool) {
+	node, _, err := a.consulapi.Catalog().Node(a.Config.ClientName, nil)
+	if err != nil || node == nil || len(node.Services) == 0 {
+		return nil, true
+	}
+
+	for _, svc := range node.Services {
+		metric := svc.Service
+		if metric == "mysql-hr" || metric == "mysql-mr" || metric == "mysql-lr" {
+			metric = "mysql"
+		}
+		if action == "start" {
+			if err := startService(fmt.Sprintf("pmm-%s-exporter-%d", metric, svc.Port)); err != nil {
+				return err, false
+			}
+			continue
+		}
+		if err := stopService(fmt.Sprintf("pmm-%s-exporter-%d", metric, svc.Port)); err != nil {
+			return err, false
+		}
+	}
+
+	return nil, false
 }
 
 // getConsulService get service from Consul by service type and optionally name (alias).
