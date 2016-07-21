@@ -26,22 +26,22 @@ import (
 	"time"
 
 	"github.com/percona/go-mysql/dsn"
-	"github.com/zach-klippenstein/goregen"
 )
 
 // MySQL and agent specific options.
 type MySQLFlags struct {
-	DefaultsFile      string
-	User              string
-	Password          string
-	Host              string
-	Port              string
-	Socket            string
-	QuerySource       string
-	MaxUserConn       uint
-	OldPasswords      bool
-	CreateUser        bool
-	DisableInfoSchema bool
+	DefaultsFile         string
+	User                 string
+	Password             string
+	Host                 string
+	Port                 string
+	Socket               string
+	QuerySource          string
+	MaxUserConn          uint
+	OldPasswords         bool
+	CreateUser           bool
+	DisableInfoSchema    bool
+	DisablePerTableStats bool
 }
 
 // DetectMySQL detect MySQL, create user if needed, return DSN and MySQL info strings.
@@ -116,11 +116,7 @@ func createMySQLUser(userDSN dsn.DSN, serviceType string, maxUserConn uint) (dsn
 	// New DSN has same host:port or socket, but different user and pass.
 	newDSN := userDSN
 	newDSN.Username = fmt.Sprintf("pmm-%s", serviceType)
-	// Generate 20 char password containing upper/lower, digit, special chars.
-	generator, _ := regen.NewGenerator("([[:alnum:]]|[_,;-]){16}[a-z][A-Z][0-9][_,;-]", &regen.GeneratorArgs{
-		RngSource: rand.NewSource(time.Now().UTC().UnixNano()),
-	})
-	newDSN.Password = generator.Generate()
+	newDSN.Password = generatePassword(20)
 
 	// Create a new MySQL user with necessary privs.
 	grants := makeGrant(newDSN, serviceType, maxUserConn)
@@ -232,4 +228,29 @@ func mysqlInfo(userDSN dsn.DSN, source string) (map[string]string, error) {
 		"safe_dsn":     strings.TrimRight(strings.Split(dsn.HidePassword(userDSN.String()), "?")[0], "/"),
 	}
 	return info, nil
+}
+
+// generatePassword generate password to satisfy MySQL 5.7 default password policy.
+func generatePassword(size int) string {
+	rand.Seed(time.Now().UnixNano())
+	required := []string{
+		"abcdefghijklmnopqrstuvwxyz", "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "0123456789", "_,;-",
+	}
+	var b []rune
+
+	for _, source := range required {
+		rsource := []rune(source)
+		for i := 0; i < int(size/len(required))+1; i++ {
+			b = append(b, rsource[rand.Intn(len(rsource))])
+		}
+	}
+	// Scramble.
+	for _ = range b {
+		pos1 := rand.Intn(len(b))
+		pos2 := rand.Intn(len(b))
+		a := b[pos1]
+		b[pos1] = b[pos2]
+		b[pos2] = a
+	}
+	return string(b)[:size]
 }

@@ -26,7 +26,7 @@ import (
 )
 
 // AddMySQL add mysql services to monitoring.
-func (a *Admin) AddMySQL(info map[string]string, disableInfoSchema bool) error {
+func (a *Admin) AddMySQL(info map[string]string, mf MySQLFlags) error {
 	// Check if we have already this service on Consul.
 	consulSvc, err := a.getConsulService("mysql-hr", a.ServiceName)
 	if err != nil {
@@ -74,15 +74,28 @@ func (a *Admin) AddMySQL(info map[string]string, disableInfoSchema bool) error {
 		a.consulapi.KV().Put(d, nil)
 
 		args := mysqldExporterArgs[job]
-		// If information_schema is disabled, override all -collect.info_schame.* options with false.
-		if disableInfoSchema {
+		if mf.DisablePerTableStats {
+			// Disable per table collector options.
 			for i, a := range args {
-				if strings.HasPrefix(a, "-collect.info_schema.") {
+				for _, d := range mysqldExporterPerTableArgs {
+					if strings.HasPrefix(a, d) {
+						args[i] = fmt.Sprintf("%sfalse", d)
+					}
+				}
+			}
+			d := &consul.KVPair{Key: fmt.Sprintf("%s/%s/per_table_metrics", a.Config.ClientName, serviceID),
+				Value: []byte("OFF")}
+			a.consulapi.KV().Put(d, nil)
+		}
+		if mf.DisableInfoSchema {
+			// Disable all information_schema related options.
+			for i, a := range args {
+				if strings.HasPrefix(a, "-collect.info_schema.") || strings.HasPrefix(a, "-collect.auto_increment.columns=") {
 					args[i] = fmt.Sprintf("%s=false", strings.Split(a, "=")[0])
 				}
 			}
 			d := &consul.KVPair{Key: fmt.Sprintf("%s/%s/info_schema", a.Config.ClientName, serviceID),
-				Value: []byte("disabled")}
+				Value: []byte("OFF")}
 			a.consulapi.KV().Put(d, nil)
 		}
 

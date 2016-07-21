@@ -122,7 +122,7 @@ a new user 'pmm-mysql@' automatically using the given (auto-detected) MySQL cred
 				fmt.Println(err)
 				os.Exit(1)
 			}
-			if err := admin.AddMySQL(info, flagM.DisableInfoSchema); err != nil {
+			if err := admin.AddMySQL(info, flagM); err != nil {
 				fmt.Println("Error adding MySQL:", err)
 				os.Exit(1)
 			}
@@ -466,7 +466,8 @@ func main() {
 	cmdAddMySQL.Flags().BoolVar(&flagM.CreateUser, "create-user", false, "create a new MySQL user")
 	cmdAddMySQL.Flags().BoolVar(&flagM.OldPasswords, "old-passwords", false, "use old passwords for a new user")
 	cmdAddMySQL.Flags().UintVar(&flagM.MaxUserConn, "user-connections", 5, "max user connections for a new user")
-	cmdAddMySQL.Flags().BoolVar(&flagM.DisableInfoSchema, "disable-infoschema", false, "disable metrics from information_schema tables")
+	cmdAddMySQL.Flags().BoolVar(&flagM.DisableInfoSchema, "disable-infoschema", false, "disable all metrics from information_schema tables")
+	cmdAddMySQL.Flags().BoolVar(&flagM.DisablePerTableStats, "disable-per-table-stats", false, "disable per table metrics (for MySQL with a huge number of tables)")
 
 	cmdAddQueries.Flags().StringVar(&flagM.DefaultsFile, "defaults-file", "", "path to my.cnf")
 	cmdAddQueries.Flags().StringVar(&flagM.Host, "host", "", "MySQL host")

@@ -152,8 +152,8 @@ func (a *Admin) List() error {
 				switch key {
 				case "dsn":
 					dsn = string(kvp.Value)
-				case "info_schema":
-					opts = append(opts, fmt.Sprintf("info_schema=%s", kvp.Value))
+				default:
+					opts = append(opts, fmt.Sprintf("%s=%s", key, kvp.Value))
 				}
 			}
 		}
@@ -204,8 +204,9 @@ func (a *Admin) List() error {
 					case "dsn":
 						dsn = string(kvp.Value)
 					case "query_source":
-						opts = append(opts, fmt.Sprintf("source=%s", kvp.Value))
+						opts = append(opts, fmt.Sprintf("%s=%s", key, kvp.Value))
 					}
+					// We don't need other, e.g. qan_mysql_uuid.
 				}
 			}
 			row := instanceStatus{

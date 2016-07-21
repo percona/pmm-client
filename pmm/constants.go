@@ -106,3 +106,22 @@ var mysqldExporterArgs = map[string][]string{
 		"-collect.slave_status=false",
 	},
 }
+
+// Option prefixes which enable per table stats that we optionally disable to avoid performance issues
+// when running on MySQL with a huge number of databases or tables.
+var mysqldExporterPerTableArgs = []string{
+	"-collect.auto_increment.columns=",
+	"-collect.info_schema.tables=",
+	"-collect.info_schema.tablestats=",
+	"-collect.perf_schema.indexiowaits=",
+	"-collect.perf_schema.tableiowaits=",
+	"-collect.perf_schema.tablelocks=",
+}
+
+// Conditionally problematic options. Not doing anything with them so far.
+var mysqldExporterCondProblematicArgs = []string{
+	"-collect.perf_schema.eventsstatements=",
+	"-collect.binlog_size=",
+	"-collect.info_schema.processlist=",
+	"-collect.info_schema.userstats=",
+}
