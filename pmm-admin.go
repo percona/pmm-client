@@ -349,7 +349,7 @@ please check the firewall settings whether this system allows incoming connectio
   pmm-admin start mysql db01.vm
   pmm-admin start queries db01.vm
   pmm-admin start mongodb db01.vm
-  pmm-admin stop --all`,
+  pmm-admin start --all`,
 		Run: func(cmd *cobra.Command, args []string) {
 			if flagAll {
 				err, noServices := admin.StartStopAllMonitoring("start")

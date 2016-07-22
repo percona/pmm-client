@@ -161,16 +161,16 @@ func makeGrant(dsn dsn.DSN, serviceType string, mysqlMaxUserConns uint) []string
 		grants = append(grants,
 			fmt.Sprintf("GRANT SELECT, PROCESS, SUPER ON *.* TO '%s'@'%s' IDENTIFIED BY '%s' WITH MAX_USER_CONNECTIONS %d",
 				dsn.Username, host, dsn.Password, mysqlMaxUserConns),
-			fmt.Sprintf("GRANT SELECT, UPDATE, DELETE, DROP ON performance_schema.* TO '%s'@'%s' IDENTIFIED BY '%s' WITH MAX_USER_CONNECTIONS %d",
-				dsn.Username, host, dsn.Password, mysqlMaxUserConns),
+			fmt.Sprintf("GRANT SELECT, UPDATE, DELETE, DROP ON performance_schema.* TO '%s'@'%s'",
+				dsn.Username, host),
 		)
 	}
 	if serviceType == "mysql" {
 		grants = append(grants,
 			fmt.Sprintf("GRANT PROCESS, REPLICATION CLIENT ON *.* TO '%s'@'%s' IDENTIFIED BY '%s' WITH MAX_USER_CONNECTIONS %d",
 				dsn.Username, host, dsn.Password, mysqlMaxUserConns),
-			fmt.Sprintf("GRANT SELECT ON performance_schema.* TO '%s'@'%s' IDENTIFIED BY '%s' WITH MAX_USER_CONNECTIONS %d",
-				dsn.Username, host, dsn.Password, mysqlMaxUserConns),
+			fmt.Sprintf("GRANT SELECT ON performance_schema.* TO '%s'@'%s'",
+				dsn.Username, host),
 		)
 	}
 	return grants
