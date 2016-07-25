@@ -78,6 +78,10 @@ func (a *Admin) AddQueries(info map[string]string) error {
 		}
 	} else {
 		port = uint(consulSvc.Port)
+		// Ensure qan-agent is started if service exists, otherwise it won't be enabled for QAN.
+		if err := startService(fmt.Sprintf("pmm-queries-exporter-%d", port)); err != nil {
+			return err
+		}
 	}
 
 	// Add new MySQL instance to QAN.
