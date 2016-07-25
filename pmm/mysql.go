@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/percona/go-mysql/dsn"
@@ -180,13 +179,13 @@ func testConnection(userDSN dsn.DSN) error {
 	// Make logical sql.DB connection, not an actual MySQL connection...
 	db, err := sql.Open("mysql", userDSN.String())
 	if err != nil {
-		return fmt.Errorf("cannot connect to MySQL %s: %s", dsn.HidePassword(userDSN.String()), err)
+		return fmt.Errorf("cannot connect to MySQL %s: %s", SanitizeDSN(userDSN.String()), err)
 	}
 	defer db.Close()
 
 	// Must call sql.DB.Ping to test actual MySQL connection.
 	if err = db.Ping(); err != nil {
-		return fmt.Errorf("cannot connect to MySQL %s: %s", dsn.HidePassword(userDSN.String()), err)
+		return fmt.Errorf("cannot connect to MySQL %s: %s", SanitizeDSN(userDSN.String()), err)
 	}
 
 	return nil
@@ -225,7 +224,7 @@ func mysqlInfo(userDSN dsn.DSN, source string) (map[string]string, error) {
 		"version":      version,
 		"query_source": source,
 		"dsn":          userDSN.String(),
-		"safe_dsn":     strings.TrimRight(strings.Split(dsn.HidePassword(userDSN.String()), "?")[0], "/"),
+		"safe_dsn":     SanitizeDSN(userDSN.String()),
 	}
 	return info, nil
 }

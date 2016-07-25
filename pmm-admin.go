@@ -188,7 +188,7 @@ the name of MongoDB instance and also sets the same options such as node type, c
 				fmt.Println("Error adding MongoDB:", err)
 				os.Exit(1)
 			}
-			fmt.Println("OK, now monitoring MongoDB using URI", pmm.SanitizeURI(flagMongoURI))
+			fmt.Println("OK, now monitoring MongoDB using URI", pmm.SanitizeDSN(flagMongoURI))
 		},
 	}
 

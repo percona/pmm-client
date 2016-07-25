@@ -413,6 +413,26 @@ func FileExists(file string) bool {
 	return true
 }
 
+// SanitizeDSN remove password from DSN
+func SanitizeDSN(dsn string) string {
+	dsn = strings.TrimRight(strings.Split(dsn, "?")[0], "/")
+	if strings.HasPrefix(dsn, "mongodb://") {
+		dsn = dsn[10:]
+	}
+
+	if strings.Index(dsn, "@") > 0 {
+		dsnParts := strings.Split(dsn, "@")
+		userPart := dsnParts[0]
+		hostPart := ""
+		if len(dsnParts) > 1 {
+			hostPart = dsnParts[len(dsnParts)-1]
+		}
+		userPasswordParts := strings.Split(userPart, ":")
+		dsn = fmt.Sprintf("%s:***@%s", userPasswordParts[0], hostPart)
+	}
+	return dsn
+}
+
 // Sort rows of formatted table output (list, check-networks commands).
 type sortOutput []instanceStatus
 

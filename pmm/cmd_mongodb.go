@@ -19,7 +19,6 @@ package pmm
 
 import (
 	"fmt"
-	"strings"
 
 	consul "github.com/hashicorp/consul/api"
 	"github.com/roman-vynar/service"
@@ -95,7 +94,7 @@ func (a *Admin) AddMongoDB(uri, nodetype, replset, cluster string) error {
 
 	// Add info to Consul KV.
 	d := &consul.KVPair{Key: fmt.Sprintf("%s/mongodb-%d/dsn", a.Config.ClientName, port),
-		Value: []byte(SanitizeURI(uri))}
+		Value: []byte(SanitizeDSN(uri))}
 	a.consulapi.KV().Put(d, nil)
 
 	// Install and start service via platform service manager.
@@ -143,23 +142,4 @@ func (a *Admin) RemoveMongoDB(name string) error {
 	}
 
 	return nil
-}
-
-// SanitizeURI remove password from MongoDB uri
-func SanitizeURI(uri string) string {
-	if strings.HasPrefix(uri, "mongodb://") {
-		uri = uri[10:]
-	}
-
-	if strings.Index(uri, "@") > 0 {
-		dsnParts := strings.Split(uri, "@")
-		userPart := dsnParts[0]
-		hostPart := ""
-		if len(dsnParts) > 1 {
-			hostPart = dsnParts[1]
-		}
-		userPasswordParts := strings.Split(userPart, ":")
-		uri = fmt.Sprintf("%s:***@%s", userPasswordParts[0], hostPart)
-	}
-	return uri
 }
