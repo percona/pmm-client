@@ -137,7 +137,7 @@ func (a *Admin) AddQueries(info map[string]string) error {
 		"UUID":        in.UUID,
 		"CollectFrom": info["query_source"],
 	}
-	if err := a.startQAN(agentID, qanConfig); err != nil {
+	if err := a.manageQAN(agentID, "StartTool", "", qanConfig); err != nil {
 		return err
 	}
 
@@ -189,6 +189,11 @@ func (a *Admin) RemoveQueries(name string) error {
 		return errNoService
 	}
 
+	// Ensure qan-agent is started, otherwise it will be an error to stop QAN.
+	if err := startService(fmt.Sprintf("pmm-queries-exporter-%d", consulSvc.Port)); err != nil {
+		return err
+	}
+
 	// Get UUID of MySQL instance the agent is monitoring from KV.
 	key := fmt.Sprintf("%s/queries-%d/%s/qan_mysql_uuid", a.Config.ClientName, consulSvc.Port, name)
 	data, _, err := a.consulapi.KV().Get(key, nil)
@@ -202,7 +207,7 @@ func (a *Admin) RemoveQueries(name string) error {
 	if err != nil {
 		return err
 	}
-	if err := a.stopQAN(agentID, mysqlUUID); err != nil {
+	if err := a.manageQAN(agentID, "StopTool", mysqlUUID, nil); err != nil {
 		return err
 	}
 
@@ -282,22 +287,26 @@ func (a *Admin) getQanOSInstance(agentID string) (proto.Instance, error) {
 }
 
 // startQAN call QAN API to start agent.
-func (a *Admin) startQAN(agentID string, config map[string]string) error {
-	configBytes, _ := json.Marshal(config)
+func (a *Admin) manageQAN(agentID, cmdName, UUID string, config map[string]string) error {
+	var data []byte
+	if cmdName == "StartTool" {
+		data, _ = json.Marshal(config)
+	} else if cmdName == "StopTool" {
+		data = []byte(UUID)
+	}
 	cmd := proto.Cmd{
 		User:    fmt.Sprintf("pmm-admin@%s", a.qanapi.Hostname()),
 		Service: "qan",
-		Cmd:     "StartTool",
-		Data:    configBytes,
+		Cmd:     cmdName,
+		Data:    data,
 	}
 	cmdBytes, _ := json.Marshal(cmd)
 
-	// Send the StartTool cmd to the API which relays it to the agent, then
-	// relays the agent's reply back to here.
+	// Send the command to the API which relays it to the agent, then relays the agent's reply back to here.
 	url := a.qanapi.URL(a.Config.ServerAddress, qanAPIBasePath, "agents", agentID, "cmd")
 
 	// It takes a few seconds for agent to connect to QAN API once it is started via service manager.
-	// QAN API fails to start unconnected agent for QAN, so we retry the request when getting 404 response.
+	// QAN API fails to start/stop unconnected agent for QAN, so we retry the request when getting 404 response.
 RetryLoop:
 	for i := 0; i < 10; i++ {
 		resp, content, err := a.qanapi.Put(url, cmdBytes)
@@ -311,30 +320,6 @@ RetryLoop:
 		case http.StatusOK:
 			break RetryLoop
 		}
-		return a.qanapi.Error("PUT", url, resp.StatusCode, http.StatusOK, content)
-	}
-
-	return nil
-}
-
-// stopQAN call QAN API to stop agent.
-func (a *Admin) stopQAN(agentID string, UUID string) error {
-	cmd := proto.Cmd{
-		User:    fmt.Sprintf("pmm-admin@%s", a.qanapi.Hostname()),
-		Service: "qan",
-		Cmd:     "StopTool",
-		Data:    []byte(UUID),
-	}
-	cmdBytes, _ := json.Marshal(cmd)
-
-	// Send the StopTool cmd to the API which relays it to the agent, then
-	// relays the agent's reply back to here.
-	url := a.qanapi.URL(a.Config.ServerAddress, qanAPIBasePath, "agents", agentID, "cmd")
-	resp, content, err := a.qanapi.Put(url, cmdBytes)
-	if err != nil {
-		return err
-	}
-	if resp.StatusCode != http.StatusOK {
 		return a.qanapi.Error("PUT", url, resp.StatusCode, http.StatusOK, content)
 	}
 
