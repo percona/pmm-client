@@ -36,11 +36,11 @@
 		},
 		{
 			"ImportPath": "github.com/percona/pmm/proto",
-			"Rev": "284671ed97df56f5b638465d5829a299b7b07e7e"
+			"Rev": "8aefd5a9aea2f2dddf80ae8497b1f62bbf77217b"
 		},
 		{
 			"ImportPath": "github.com/percona/pmm/proto/config",
-			"Rev": "284671ed97df56f5b638465d5829a299b7b07e7e"
+			"Rev": "8aefd5a9aea2f2dddf80ae8497b1f62bbf77217b"
 		},
 		{
 			"ImportPath": "github.com/prometheus/client_golang/api/prometheus",
