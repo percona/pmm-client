@@ -1,6 +1,6 @@
 Percona Monitoring and Management (PMM) Client
 
-v1.0.2 unreleased 2016-07-21
+v1.0.2 released 2016-07-28
 
 * Full rewrite of pmm-admin utility:
   * more options, flexible usage and user-friendly CLI
