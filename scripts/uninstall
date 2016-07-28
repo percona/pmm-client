@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 
-set -eu
+# Stop services from older releases
+[ -e /etc/init.d/percona-prom-pm ] && /etc/init.d/percona-prom-pm stop
+[ -e /etc/init.d/percona-qan-agent ] && /etc/init.d/percona-qan-agent stop
 
-/etc/init.d/percona-prom-pm stop
-/etc/init.d/percona-qan-agent stop
+# Remove files from older releases
+rm -f /usr/bin/pmm-admin /usr/local/bin/pmm-admin /etc/init.d/percona-prom-pm /etc/init.d/percona-qan-agent
+
+rm -f /usr/sbin/pmm-admin
 rm -rf /usr/local/percona/pmm-client /usr/local/percona/qan-agent
-rm -f /usr/bin/pmm-admin /etc/init.d/percona-prom-pm /etc/init.d/percona-qan-agent
+
+

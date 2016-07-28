@@ -1,10 +1,8 @@
 *.tmp
 *.swp
 *.log
-distro/
-vendor/
 cache/
-bin/percona-prom-pm/percona-prom-pm
-bin/percona-prom-pm/*.log
-bin/percona-prom-pm/*.yml
-bin/percona-prom-pm/*_exporter
+distro/
+pmm-admin
+pmm.yml
+vendor/
