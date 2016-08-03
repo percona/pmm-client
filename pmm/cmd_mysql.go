@@ -50,6 +50,21 @@ func (a *Admin) AddMySQL(info map[string]string, mf MySQLFlags) error {
 		return err
 	}
 
+	// Opts to disable.
+	var optsToDisable []string
+	if mf.DisableTableStats {
+		optsToDisable = append(optsToDisable, "tablestats")
+	}
+	if mf.DisableUserStats {
+		optsToDisable = append(optsToDisable, "userstats")
+	}
+	if mf.DisableBinlogStats {
+		optsToDisable = append(optsToDisable, "binlogstats")
+	}
+	if mf.DisableProcesslist {
+		optsToDisable = append(optsToDisable, "processlist")
+	}
+
 	for job, port := range map[string]uint{"mysql-hr": port, "mysql-mr": port + 1, "mysql-lr": port + 2} {
 		// Add service to Consul.
 		serviceID := fmt.Sprintf("%s-%d", job, port)
@@ -73,28 +88,18 @@ func (a *Admin) AddMySQL(info map[string]string, mf MySQLFlags) error {
 			Value: []byte(info["safe_dsn"])}
 		a.consulapi.KV().Put(d, nil)
 
+		// Disable exporter options if set so.
 		args := mysqldExporterArgs[job]
-		if mf.DisablePerTableStats {
-			// Disable per table collector options.
-			for i, a := range args {
-				for _, d := range mysqldExporterPerTableArgs {
-					if strings.HasPrefix(a, d) {
-						args[i] = fmt.Sprintf("%sfalse", d)
+		for _, o := range optsToDisable {
+			for _, f := range mysqldExporterDisableArgs[o] {
+				for i, a := range args {
+					if strings.HasPrefix(a, f) {
+						args[i] = fmt.Sprintf("%sfalse", f)
+						break
 					}
 				}
 			}
-			d := &consul.KVPair{Key: fmt.Sprintf("%s/%s/per_table_metrics", a.Config.ClientName, serviceID),
-				Value: []byte("OFF")}
-			a.consulapi.KV().Put(d, nil)
-		}
-		if mf.DisableInfoSchema {
-			// Disable all information_schema related options.
-			for i, a := range args {
-				if strings.HasPrefix(a, "-collect.info_schema.") || strings.HasPrefix(a, "-collect.auto_increment.columns=") {
-					args[i] = fmt.Sprintf("%s=false", strings.Split(a, "=")[0])
-				}
-			}
-			d := &consul.KVPair{Key: fmt.Sprintf("%s/%s/info_schema", a.Config.ClientName, serviceID),
+			d := &consul.KVPair{Key: fmt.Sprintf("%s/%s/%s", a.Config.ClientName, serviceID, o),
 				Value: []byte("OFF")}
 			a.consulapi.KV().Put(d, nil)
 		}

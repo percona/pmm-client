@@ -40,7 +40,6 @@ var (
 
 const nodeExporterArgs = "-collectors.enabled=diskstats,filesystem,loadavg,meminfo,netdev,netstat,stat,time,uname,vmstat"
 
-// Among all, engine_tokudb_status and info_schema.innodb_tablespaces are false everywhere.
 var mysqldExporterArgs = map[string][]string{
 	"mysql-hr": {
 		"-collect.auto_increment.columns=false",
@@ -97,7 +96,7 @@ var mysqldExporterArgs = map[string][]string{
 		"-collect.info_schema.tables=true",
 		"-collect.info_schema.tablestats=true",
 		"-collect.info_schema.userstats=true",
-		"-collect.perf_schema.eventsstatements=true",
+		"-collect.perf_schema.eventsstatements=false",
 		"-collect.perf_schema.eventswaits=false",
 		"-collect.perf_schema.file_events=false",
 		"-collect.perf_schema.indexiowaits=true",
@@ -107,21 +106,23 @@ var mysqldExporterArgs = map[string][]string{
 	},
 }
 
-// Option prefixes which enable per table stats that we optionally disable to avoid performance issues
-// when running on MySQL with a huge number of databases or tables.
-var mysqldExporterPerTableArgs = []string{
-	"-collect.auto_increment.columns=",
-	"-collect.info_schema.tables=",
-	"-collect.info_schema.tablestats=",
-	"-collect.perf_schema.indexiowaits=",
-	"-collect.perf_schema.tableiowaits=",
-	"-collect.perf_schema.tablelocks=",
-}
+/* Args that are disabled completely:
+"-collect.engine_tokudb_status"
+"-collect.info_schema.innodb_tablespaces"
+"-collect.perf_schema.eventsstatements"
+*/
 
-// Conditionally problematic options. Not doing anything with them so far.
-var mysqldExporterCondProblematicArgs = []string{
-	"-collect.perf_schema.eventsstatements=",
-	"-collect.binlog_size=",
-	"-collect.info_schema.processlist=",
-	"-collect.info_schema.userstats=",
+// mysqld_exporter args to disable optionally.
+var mysqldExporterDisableArgs = map[string][]string{
+	"tablestats": []string{
+		"-collect.auto_increment.columns=",
+		"-collect.info_schema.tables=",
+		"-collect.info_schema.tablestats=",
+		"-collect.perf_schema.indexiowaits=",
+		"-collect.perf_schema.tableiowaits=",
+		"-collect.perf_schema.tablelocks=",
+	},
+	"userstats":   []string{"-collect.info_schema.userstats="},
+	"binlogstats": []string{"-collect.binlog_size="},
+	"processlist": []string{"-collect.info_schema.processlist="},
 }

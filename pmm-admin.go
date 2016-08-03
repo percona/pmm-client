@@ -466,8 +466,10 @@ func main() {
 	cmdAddMySQL.Flags().BoolVar(&flagM.CreateUser, "create-user", false, "create a new MySQL user")
 	cmdAddMySQL.Flags().BoolVar(&flagM.OldPasswords, "old-passwords", false, "use old passwords for a new user")
 	cmdAddMySQL.Flags().UintVar(&flagM.MaxUserConn, "user-connections", 5, "max user connections for a new user")
-	cmdAddMySQL.Flags().BoolVar(&flagM.DisableInfoSchema, "disable-infoschema", false, "disable all metrics from information_schema tables")
-	cmdAddMySQL.Flags().BoolVar(&flagM.DisablePerTableStats, "disable-per-table-stats", false, "disable per table metrics (for MySQL with a huge number of tables)")
+	cmdAddMySQL.Flags().BoolVar(&flagM.DisableTableStats, "disable-tablestats", false, "disable table statistics (for MySQL with a huge number of tables)")
+	cmdAddMySQL.Flags().BoolVar(&flagM.DisableUserStats, "disable-userstats", false, "disable user statistics")
+	cmdAddMySQL.Flags().BoolVar(&flagM.DisableBinlogStats, "disable-binlogstats", false, "disable binlog statistics")
+	cmdAddMySQL.Flags().BoolVar(&flagM.DisableProcesslist, "disable-processlist", false, "disable process state metrics")
 
 	cmdAddQueries.Flags().StringVar(&flagM.DefaultsFile, "defaults-file", "", "path to my.cnf")
 	cmdAddQueries.Flags().StringVar(&flagM.Host, "host", "", "MySQL host")
