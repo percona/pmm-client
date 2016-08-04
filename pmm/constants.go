@@ -19,7 +19,7 @@ package pmm
 
 import "fmt"
 
-var VERSION = "1.0.2"
+var VERSION = "1.0.3"
 
 const (
 	PMMBaseDir     = "/usr/local/percona/pmm-client"

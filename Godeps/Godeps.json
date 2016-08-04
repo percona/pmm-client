@@ -32,7 +32,7 @@
 		},
 		{
 			"ImportPath": "github.com/percona/go-mysql/dsn",
-			"Rev": "c3bee53177605dbc76df7bcf365c6aa00a36690f"
+			"Rev": "60ad788a64b0551305882f64fb5b789b51d3476a"
 		},
 		{
 			"ImportPath": "github.com/percona/kardianos-service",
