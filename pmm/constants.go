@@ -42,72 +42,43 @@ const nodeExporterArgs = "-collectors.enabled=diskstats,filesystem,loadavg,memin
 
 var mysqldExporterArgs = map[string][]string{
 	"mysql-hr": {
-		"-collect.auto_increment.columns=false",
-		"-collect.binlog_size=false",
-		"-collect.engine_tokudb_status=false",
 		"-collect.global_status=true",
 		"-collect.global_variables=false",
-		"-collect.info_schema.innodb_metrics=true",
-		"-collect.info_schema.innodb_tablespaces=false",
-		"-collect.info_schema.processlist=false",
-		"-collect.info_schema.query_response_time=false",
 		"-collect.info_schema.tables=false",
-		"-collect.info_schema.tablestats=false",
-		"-collect.info_schema.userstats=false",
-		"-collect.perf_schema.eventsstatements=false",
-		"-collect.perf_schema.eventswaits=false",
-		"-collect.perf_schema.file_events=false",
-		"-collect.perf_schema.indexiowaits=false",
-		"-collect.perf_schema.tableiowaits=false",
-		"-collect.perf_schema.tablelocks=false",
 		"-collect.slave_status=false",
+
+		"-collect.info_schema.innodb_metrics=true",
 	},
 	"mysql-mr": {
-		"-collect.auto_increment.columns=false",
-		"-collect.binlog_size=false",
-		"-collect.engine_tokudb_status=false",
 		"-collect.global_status=false",
 		"-collect.global_variables=false",
-		"-collect.info_schema.innodb_metrics=false",
-		"-collect.info_schema.innodb_tablespaces=false",
+		"-collect.info_schema.tables=false",
+		"-collect.slave_status=true",
+
 		"-collect.info_schema.processlist=true",
 		"-collect.info_schema.query_response_time=true",
-		"-collect.info_schema.tables=false",
-		"-collect.info_schema.tablestats=false",
-		"-collect.info_schema.userstats=false",
-		"-collect.perf_schema.eventsstatements=false",
 		"-collect.perf_schema.eventswaits=true",
 		"-collect.perf_schema.file_events=true",
-		"-collect.perf_schema.indexiowaits=false",
-		"-collect.perf_schema.tableiowaits=false",
 		"-collect.perf_schema.tablelocks=true",
-		"-collect.slave_status=true",
 	},
 	"mysql-lr": {
-		"-collect.auto_increment.columns=true",
-		"-collect.binlog_size=true",
-		"-collect.engine_tokudb_status=false",
 		"-collect.global_status=false",
 		"-collect.global_variables=true",
-		"-collect.info_schema.innodb_metrics=false",
-		"-collect.info_schema.innodb_tablespaces=false",
-		"-collect.info_schema.processlist=false",
-		"-collect.info_schema.query_response_time=false",
 		"-collect.info_schema.tables=true",
+		"-collect.slave_status=false",
+
+		"-collect.auto_increment.columns=true",
+		"-collect.binlog_size=true",
 		"-collect.info_schema.tablestats=true",
 		"-collect.info_schema.userstats=true",
-		"-collect.perf_schema.eventsstatements=false",
-		"-collect.perf_schema.eventswaits=false",
-		"-collect.perf_schema.file_events=false",
 		"-collect.perf_schema.indexiowaits=true",
 		"-collect.perf_schema.tableiowaits=true",
-		"-collect.perf_schema.tablelocks=false",
-		"-collect.slave_status=false",
 	},
 }
 
-/* Args that are disabled completely:
+/* Args that are not enabled anywhere:
 "-collect.engine_tokudb_status"
+"-collect.info_schema.clientstats",
 "-collect.info_schema.innodb_tablespaces"
 "-collect.perf_schema.eventsstatements"
 */
