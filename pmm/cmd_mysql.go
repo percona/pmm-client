@@ -22,7 +22,7 @@ import (
 	"strings"
 
 	consul "github.com/hashicorp/consul/api"
-	"github.com/roman-vynar/service"
+	"github.com/percona/kardianos-service"
 )
 
 // AddMySQL add mysql services to monitoring.

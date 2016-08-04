@@ -21,7 +21,7 @@ import (
 	"fmt"
 
 	consul "github.com/hashicorp/consul/api"
-	"github.com/roman-vynar/service"
+	"github.com/percona/kardianos-service"
 )
 
 // AddOS add OS service to monitoring.

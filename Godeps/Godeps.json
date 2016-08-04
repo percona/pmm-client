@@ -32,15 +32,19 @@
 		},
 		{
 			"ImportPath": "github.com/percona/go-mysql/dsn",
-			"Rev": "236e803a46a089f5316a432fa0ceef01da3a3c31"
+			"Rev": "c3bee53177605dbc76df7bcf365c6aa00a36690f"
+		},
+		{
+			"ImportPath": "github.com/percona/kardianos-service",
+			"Rev": "c6df4fd2af62975c63dfafcc0efb93b806c0b831"
 		},
 		{
 			"ImportPath": "github.com/percona/pmm/proto",
-			"Rev": "8aefd5a9aea2f2dddf80ae8497b1f62bbf77217b"
+			"Rev": "cd8afb3a5e7564ce9f040c60fbd88932fc95de8f"
 		},
 		{
 			"ImportPath": "github.com/percona/pmm/proto/config",
-			"Rev": "8aefd5a9aea2f2dddf80ae8497b1f62bbf77217b"
+			"Rev": "cd8afb3a5e7564ce9f040c60fbd88932fc95de8f"
 		},
 		{
 			"ImportPath": "github.com/prometheus/client_golang/api/prometheus",
@@ -50,10 +54,6 @@
 		{
 			"ImportPath": "github.com/prometheus/common/model",
 			"Rev": "ba1c9185b796b0ca48e40c09edf7951b1a18f349"
-		},
-		{
-			"ImportPath": "github.com/roman-vynar/service",
-			"Rev": "fff6854be40a6271fecc03185ccd89f983d5045d"
 		},
 		{
 			"ImportPath": "github.com/spf13/cobra",

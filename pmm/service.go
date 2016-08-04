@@ -18,7 +18,7 @@
 package pmm
 
 import (
-	"github.com/roman-vynar/service"
+	"github.com/percona/kardianos-service"
 )
 
 // Platform service manager handlers.
@@ -58,8 +58,10 @@ func uninstallService(name string) error {
 	if err != nil {
 		return err
 	}
-	if err := svc.Stop(); err != nil {
-		return err
+	if err := svc.Status(); err == nil {
+		if err := svc.Stop(); err != nil {
+			return err
+		}
 	}
 	if err := svc.Uninstall(); err != nil {
 		return err
