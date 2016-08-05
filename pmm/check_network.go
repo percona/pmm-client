@@ -53,9 +53,9 @@ func (a *Admin) CheckNetwork(noEmoji bool) error {
 	fmt.Println("PMM Network Status\n")
 	fmt.Printf("%-6s | %s\n", "Server", a.Config.ServerAddress)
 	fmt.Printf("%-6s | %s\n\n", "Client", a.Config.ClientAddress)
-	fmt.Println("* Client > Server")
+	fmt.Println("* Client --> Server")
 	fmt.Printf("%-15s %-13s\n", strings.Repeat("-", 15), strings.Repeat("-", 13))
-	fmt.Printf("%-15s %-13s\n", "SERVICE", "CONNECTIVITY")
+	fmt.Printf("%-15s %-13s\n", "SERVER SERVICE", "CONNECTIVITY")
 	fmt.Printf("%-15s %-13s\n", strings.Repeat("-", 15), strings.Repeat("-", 13))
 	fmt.Printf("%-15s %-13s\n", "Consul API", emojiStatus(noEmoji, consulStatus))
 	fmt.Printf("%-15s %-13s\n", "QAN API", emojiStatus(noEmoji, qanStatus))
@@ -76,7 +76,7 @@ func (a *Admin) CheckNetwork(noEmoji bool) error {
 		return nil
 	}
 
-	fmt.Println("* Server > Client")
+	fmt.Println("* Client <-- Server")
 	if len(node.Services) == 0 {
 		fmt.Println("No Prometheus endpoints found.\n")
 		return nil
@@ -86,11 +86,12 @@ func (a *Admin) CheckNetwork(noEmoji bool) error {
 	svcTable := []instanceStatus{}
 	errStatus := false
 	for _, svc := range node.Services {
-		metricType := svc.Service
+		if !strings.HasSuffix(svc.Service, ":metrics") {
+			continue
+		}
+		metricType := strings.Split(svc.Service, ":")[0]
 		if metricType == "mysql-hr" || metricType == "mysql-mr" || metricType == "mysql-lr" {
 			metricType = "mysql"
-		} else if metricType == "queries" {
-			continue
 		}
 
 		name := "-"
@@ -115,18 +116,23 @@ func (a *Admin) CheckNetwork(noEmoji bool) error {
 		svcTable = append(svcTable, row)
 	}
 
-	maxNameLen := 5
+	maxTypeLen := len("METRIC")
+	maxNameLen := len("NAME")
 	for _, in := range svcTable {
+		if len(in.Type) > maxTypeLen {
+			maxTypeLen = len(in.Type)
+		}
 		if len(in.Name) > maxNameLen {
 			maxNameLen = len(in.Name)
 		}
 	}
+	maxTypeLen++
 	maxNameLen++
-	linefmt := "%-8s %-" + fmt.Sprintf("%d", maxNameLen) + "s %-22s %-13s\n"
-	fmt.Printf(linefmt, strings.Repeat("-", 8), strings.Repeat("-", maxNameLen), strings.Repeat("-", 22),
+	linefmt := "%-" + fmt.Sprintf("%d", maxTypeLen) + "s %-" + fmt.Sprintf("%d", maxNameLen) + "s %-22s %-13s\n"
+	fmt.Printf(linefmt, strings.Repeat("-", maxTypeLen), strings.Repeat("-", maxNameLen), strings.Repeat("-", 22),
 		strings.Repeat("-", 13))
 	fmt.Printf(linefmt, "METRIC", "NAME", "PROMETHEUS ENDPOINT", "REMOTE STATE")
-	fmt.Printf(linefmt, strings.Repeat("-", 8), strings.Repeat("-", maxNameLen), strings.Repeat("-", 22),
+	fmt.Printf(linefmt, strings.Repeat("-", maxTypeLen), strings.Repeat("-", maxNameLen), strings.Repeat("-", 22),
 		strings.Repeat("-", 13))
 	sort.Sort(sortOutput(svcTable))
 	for _, i := range svcTable {

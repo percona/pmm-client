@@ -119,26 +119,26 @@ func (a *Admin) List() error {
 		return nil
 	}
 
-	// Parse all services except queries.
+	// Parse all services except mysql:queries.
 	var queryService *consul.AgentService
 	var svcTable []instanceStatus
 	for _, svc := range node.Services {
-		metricType := svc.Service
-		if metricType == "queries" {
+		svcType := svc.Service
+		if svcType == "mysql:queries" {
 			queryService = svc
 			continue
 		}
 
 		port := fmt.Sprintf("%d", svc.Port)
 		status := "NO"
-		if metricType == "mysql-hr" {
-			metricType = "mysql"
+		if svcType == "mysql-hr:metrics" {
+			svcType = "mysql:metrics"
 			port = fmt.Sprintf("%d-%d", svc.Port, svc.Port+2)
-		} else if metricType == "mysql-mr" || metricType == "mysql-lr" {
-			// If mysqld_exporter for mysql-hr job is running, we consider "mysql" status as running.
+		} else if svcType == "mysql-mr:metrics" || svcType == "mysql-lr:metrics" {
+			// If mysqld_exporter for mysql-hr job is running, we consider mysql status as running.
 			continue
 		}
-		if getServiceStatus(fmt.Sprintf("pmm-%s-exporter-%d", metricType, svc.Port)) {
+		if getServiceStatus(fmt.Sprintf("pmm-%s-%d", strings.Replace(svcType, ":", "-", 1), svc.Port)) {
 			status = "YES"
 		}
 		opts := []string{}
@@ -167,7 +167,7 @@ func (a *Admin) List() error {
 			opts = append(opts, tag)
 		}
 		row := instanceStatus{
-			Type:    metricType,
+			Type:    svcType,
 			Name:    name,
 			Port:    port,
 			Status:  status,
@@ -180,7 +180,7 @@ func (a *Admin) List() error {
 	// Parse queries service.
 	if queryService != nil {
 		status := "NO"
-		if getServiceStatus(fmt.Sprintf("pmm-queries-exporter-%d", queryService.Port)) {
+		if getServiceStatus(fmt.Sprintf("pmm-mysql-queries-%d", queryService.Port)) {
 			status = "YES"
 		}
 
@@ -210,7 +210,7 @@ func (a *Admin) List() error {
 				}
 			}
 			row := instanceStatus{
-				Type:    "queries",
+				Type:    queryService.Service,
 				Name:    name,
 				Port:    fmt.Sprintf("%d", queryService.Port),
 				Status:  status,
@@ -223,10 +223,14 @@ func (a *Admin) List() error {
 
 	// Print table.
 	// Info header.
-	maxNameLen := 5
-	maxDSNlen := 12
-	maxOptsLen := 7
+	maxTypeLen := len("SERVICE TYPE")
+	maxNameLen := len("NAME")
+	maxDSNlen := len("DATA SOURCE")
+	maxOptsLen := len("OPTIONS")
 	for _, in := range svcTable {
+		if len(in.Type) > maxTypeLen {
+			maxTypeLen = len(in.Type)
+		}
 		if len(in.Name) > maxNameLen {
 			maxNameLen = len(in.Name)
 		}
@@ -237,15 +241,16 @@ func (a *Admin) List() error {
 			maxOptsLen = len(in.Options)
 		}
 	}
+	maxTypeLen++
 	maxNameLen++
 	maxDSNlen++
 	maxOptsLen++
-	linefmt := "%-15s %-" + fmt.Sprintf("%d", maxNameLen) + "s %-12s %-8s %-" +
+	linefmt := "%-" + fmt.Sprintf("%d", maxTypeLen) + "s %-" + fmt.Sprintf("%d", maxNameLen) + "s %-12s %-8s %-" +
 		fmt.Sprintf("%d", maxDSNlen) + "s %-" + fmt.Sprintf("%d", maxOptsLen) + "s\n"
-	fmt.Printf(linefmt, strings.Repeat("-", 15), strings.Repeat("-", maxNameLen), strings.Repeat("-", 12),
+	fmt.Printf(linefmt, strings.Repeat("-", maxTypeLen), strings.Repeat("-", maxNameLen), strings.Repeat("-", 12),
 		strings.Repeat("-", 8), strings.Repeat("-", maxDSNlen), strings.Repeat("-", maxOptsLen))
-	fmt.Printf(linefmt, "METRIC SERVICE", "NAME", "CLIENT PORT", "RUNNING", "DATA SOURCE", "OPTIONS")
-	fmt.Printf(linefmt, strings.Repeat("-", 15), strings.Repeat("-", maxNameLen), strings.Repeat("-", 12),
+	fmt.Printf(linefmt, "SERVICE TYPE", "NAME", "CLIENT PORT", "RUNNING", "DATA SOURCE", "OPTIONS")
+	fmt.Printf(linefmt, strings.Repeat("-", maxTypeLen), strings.Repeat("-", maxNameLen), strings.Repeat("-", 12),
 		strings.Repeat("-", 8), strings.Repeat("-", maxDSNlen), strings.Repeat("-", maxOptsLen))
 	// Data table.
 	sort.Sort(sortOutput(svcTable))
@@ -276,10 +281,10 @@ func (a *Admin) ServerAlive() bool {
 }
 
 // StartStopMonitoring start/stop system service by its metric type and name.
-func (a *Admin) StartStopMonitoring(action, metric, name string) error {
-	consulMetric := metric
-	if metric == "mysql" {
-		consulMetric = "mysql-hr"
+func (a *Admin) StartStopMonitoring(action, svcType, name string) error {
+	consulMetric := svcType
+	if svcType == "mysql:metrics" {
+		consulMetric = "mysql-hr:metrics"
 	}
 	// Check if we have this service on Consul.
 	consulSvc, err := a.getConsulService(consulMetric, name)
@@ -291,17 +296,17 @@ func (a *Admin) StartStopMonitoring(action, metric, name string) error {
 	}
 
 	endPort := consulSvc.Port
-	if metric == "mysql" {
+	if svcType == "mysql:metrics" {
 		endPort = consulSvc.Port + 2
 	}
 	for i := consulSvc.Port; i <= endPort; i++ {
 		if action == "start" {
-			if err := startService(fmt.Sprintf("pmm-%s-exporter-%d", metric, i)); err != nil {
+			if err := startService(fmt.Sprintf("pmm-%s-%d", strings.Replace(svcType, ":", "-", 1), i)); err != nil {
 				return err
 			}
 			continue
 		}
-		if err := stopService(fmt.Sprintf("pmm-%s-exporter-%d", metric, i)); err != nil {
+		if err := stopService(fmt.Sprintf("pmm-%s-%d", strings.Replace(svcType, ":", "-", 1), i)); err != nil {
 			return err
 		}
 	}
@@ -318,16 +323,16 @@ func (a *Admin) StartStopAllMonitoring(action string) (error, bool) {
 
 	for _, svc := range node.Services {
 		metric := svc.Service
-		if metric == "mysql-hr" || metric == "mysql-mr" || metric == "mysql-lr" {
-			metric = "mysql"
+		if metric == "mysql-hr:metrics" || metric == "mysql-mr:metrics" || metric == "mysql-lr:metrics" {
+			metric = "mysql:metrics"
 		}
 		if action == "start" {
-			if err := startService(fmt.Sprintf("pmm-%s-exporter-%d", metric, svc.Port)); err != nil {
+			if err := startService(fmt.Sprintf("pmm-%s-%d", strings.Replace(metric, ":", "-", 1), svc.Port)); err != nil {
 				return err, false
 			}
 			continue
 		}
-		if err := stopService(fmt.Sprintf("pmm-%s-exporter-%d", metric, svc.Port)); err != nil {
+		if err := stopService(fmt.Sprintf("pmm-%s-%d", strings.Replace(metric, ":", "-", 1), svc.Port)); err != nil {
 			return err, false
 		}
 	}

@@ -24,10 +24,10 @@ import (
 	"github.com/percona/kardianos-service"
 )
 
-// AddMongoDB add mongodb service to monitoring.
-func (a *Admin) AddMongoDB(uri, nodetype, replset, cluster string) error {
+// AddMongoDBMetrics add mongodb metrics service to monitoring.
+func (a *Admin) AddMongoDBMetrics(uri, nodetype, replset, cluster string) error {
 	// Check if we have already this service on Consul.
-	consulSvc, err := a.getConsulService("mongodb", a.ServiceName)
+	consulSvc, err := a.getConsulService("mongodb:metrics", a.ServiceName)
 	if err != nil {
 		return err
 	}
@@ -61,8 +61,8 @@ func (a *Admin) AddMongoDB(uri, nodetype, replset, cluster string) error {
 
 	// Add service to Consul.
 	srv := consul.AgentService{
-		ID:      fmt.Sprintf("mongodb-%d", port),
-		Service: "mongodb",
+		ID:      fmt.Sprintf("mongodb:metrics-%d", port),
+		Service: "mongodb:metrics",
 		Tags:    tags,
 		Port:    int(port),
 	}
@@ -75,8 +75,8 @@ func (a *Admin) AddMongoDB(uri, nodetype, replset, cluster string) error {
 		return err
 	}
 
-	// Update os service with mongodb specific tags if exists preserving the port.
-	consulSvc, err = a.getConsulService("os", "")
+	// Update linux service with mongodb specific tags if exists preserving the port.
+	consulSvc, err = a.getConsulService("linux:metrics", "")
 	if err != nil {
 		return err
 	}
@@ -93,13 +93,13 @@ func (a *Admin) AddMongoDB(uri, nodetype, replset, cluster string) error {
 	}
 
 	// Add info to Consul KV.
-	d := &consul.KVPair{Key: fmt.Sprintf("%s/mongodb-%d/dsn", a.Config.ClientName, port),
+	d := &consul.KVPair{Key: fmt.Sprintf("%s/mongodb:metrics-%d/dsn", a.Config.ClientName, port),
 		Value: []byte(SanitizeDSN(uri))}
 	a.consulapi.KV().Put(d, nil)
 
 	// Install and start service via platform service manager.
 	svcConfig := &service.Config{
-		Name:        fmt.Sprintf("pmm-mongodb-exporter-%d", port),
+		Name:        fmt.Sprintf("pmm-mongodb-metrics-%d", port),
 		DisplayName: fmt.Sprintf("PMM Prometheus mongodb_exporter %d", port),
 		Description: fmt.Sprintf("PMM Prometheus mongodb_exporter %d", port),
 		Executable:  fmt.Sprintf("%s/mongodb_exporter", PMMBaseDir),
@@ -113,10 +113,10 @@ func (a *Admin) AddMongoDB(uri, nodetype, replset, cluster string) error {
 	return nil
 }
 
-// RemoveMongoDB remove mongodb service from monitoring.
-func (a *Admin) RemoveMongoDB(name string) error {
+// RemoveMongoDBMetrics remove mongodb metrics service from monitoring.
+func (a *Admin) RemoveMongoDBMetrics(name string) error {
 	// Check if we have this service on Consul.
-	consulSvc, err := a.getConsulService("mongodb", name)
+	consulSvc, err := a.getConsulService("mongodb:metrics", name)
 	if err != nil {
 		return err
 	}
@@ -137,7 +137,7 @@ func (a *Admin) RemoveMongoDB(name string) error {
 	a.consulapi.KV().DeleteTree(prefix, nil)
 
 	// Stop and uninstall service.
-	if err := uninstallService(fmt.Sprintf("pmm-mongodb-exporter-%d", consulSvc.Port)); err != nil {
+	if err := uninstallService(fmt.Sprintf("pmm-mongodb-metrics-%d", consulSvc.Port)); err != nil {
 		return err
 	}
 

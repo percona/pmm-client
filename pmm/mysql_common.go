@@ -27,18 +27,22 @@ import (
 	"github.com/percona/go-mysql/dsn"
 )
 
-// MySQL and agent specific options.
+// MySQL specific options.
 type MySQLFlags struct {
-	DefaultsFile       string
-	User               string
-	Password           string
-	Host               string
-	Port               string
-	Socket             string
-	QuerySource        string
-	MaxUserConn        uint
-	OldPasswords       bool
+	DefaultsFile string
+	User         string
+	Password     string
+	Host         string
+	Port         string
+	Socket       string
+
+	QuerySource string
+
 	CreateUser         bool
+	CreateUserPassword string
+	MaxUserConn        uint
+	Force              bool
+
 	DisableTableStats  bool
 	DisableUserStats   bool
 	DisableBinlogStats bool
@@ -46,13 +50,16 @@ type MySQLFlags struct {
 }
 
 // DetectMySQL detect MySQL, create user if needed, return DSN and MySQL info strings.
-func DetectMySQL(serviceType string, mf MySQLFlags) (map[string]string, error) {
+func DetectMySQL(mf MySQLFlags) (map[string]string, error) {
 	// Check for invalid mix of flags.
 	if mf.Socket != "" && mf.Host != "" {
 		return nil, fmt.Errorf("Flags --socket and --host are mutually exclusive.")
 	}
 	if mf.Socket != "" && mf.Port != "" {
 		return nil, fmt.Errorf("Flags --socket and --port are mutually exclusive.")
+	}
+	if !mf.CreateUser && mf.CreateUserPassword != "" {
+		return nil, fmt.Errorf("Flag --create-user-password should be used along with --create-user.")
 	}
 
 	userDSN := dsn.DSN{
@@ -62,17 +69,13 @@ func DetectMySQL(serviceType string, mf MySQLFlags) (map[string]string, error) {
 		Hostname:     mf.Host,
 		Port:         mf.Port,
 		Socket:       mf.Socket,
-		Params:       []string{dsn.ParseTimeParam}, // Probably needed for QAN.
+		Params:       []string{dsn.ParseTimeParam},
 	}
 	// Populate defaults to DSN for missed options.
 	userDSN, err := userDSN.AutoDetect()
 	if err != nil && err != dsn.ErrNoSocket {
 		err = fmt.Errorf("Problem with MySQL auto-detection: %s", err)
 		return nil, err
-	}
-
-	if mf.OldPasswords {
-		userDSN.Params = append(userDSN.Params, dsn.OldPasswordsParam)
 	}
 
 	// Get MySQL variables and test connection.
@@ -89,20 +92,19 @@ func DetectMySQL(serviceType string, mf MySQLFlags) (map[string]string, error) {
 		return nil, err
 	}
 
-	info["query_source"] = mf.QuerySource
 	if mf.QuerySource == "auto" {
 		// MySQL is local if the server hostname == MySQL hostname.
 		os_hostname, _ := os.Hostname()
 		if os_hostname == info["hostname"] {
-			info["query_source"] = "slowlog"
+			mf.QuerySource = "slowlog"
 		} else {
-			info["query_source"] = "perfschema"
+			mf.QuerySource = "perfschema"
 		}
 	}
 
 	// Create a new MySQL user.
 	if mf.CreateUser {
-		userDSN, err = createMySQLUser(userDSN, serviceType, info["query_source"], mf.MaxUserConn)
+		userDSN, err = createMySQLUser(userDSN, mf)
 		if err != nil {
 			err = fmt.Errorf("Cannot create MySQL user: %s\n\n%s\n%s", err,
 				"Verify that connecting MySQL user exists and has GRANT privilege.", helpTxt)
@@ -110,6 +112,7 @@ func DetectMySQL(serviceType string, mf MySQLFlags) (map[string]string, error) {
 		}
 	}
 
+	info["query_source"] = mf.QuerySource
 	info["dsn"] = userDSN.String()
 	info["safe_dsn"] = SanitizeDSN(userDSN.String())
 
@@ -118,7 +121,7 @@ func DetectMySQL(serviceType string, mf MySQLFlags) (map[string]string, error) {
 
 // --------------------------------------------------------------------------
 
-func createMySQLUser(userDSN dsn.DSN, serviceType, querySource string, maxUserConn uint) (dsn.DSN, error) {
+func createMySQLUser(userDSN dsn.DSN, mf MySQLFlags) (dsn.DSN, error) {
 	db, err := sql.Open("mysql", userDSN.String())
 	if err != nil {
 		return dsn.DSN{}, err
@@ -127,11 +130,11 @@ func createMySQLUser(userDSN dsn.DSN, serviceType, querySource string, maxUserCo
 
 	// New DSN has same host:port or socket, but different user and pass.
 	newDSN := userDSN
-	newDSN.Username = fmt.Sprintf("pmm-%s", serviceType)
+	newDSN.Username = "pmm"
 	newDSN.Password = generatePassword(20)
 
 	// Create a new MySQL user with necessary privs.
-	grants := makeGrant(newDSN, serviceType, querySource, maxUserConn)
+	grants := makeGrant(newDSN, mf)
 	for _, grant := range grants {
 		if _, err := db.Exec(grant); err != nil {
 			return dsn.DSN{}, fmt.Errorf("failed to execute %s: %s", grant, err)
@@ -143,7 +146,7 @@ func createMySQLUser(userDSN dsn.DSN, serviceType, querySource string, maxUserCo
 	if newDSN.Hostname == "localhost" {
 		newDSN_127 := newDSN
 		newDSN_127.Hostname = "127.0.0.1"
-		grants := makeGrant(newDSN_127, serviceType, querySource, maxUserConn)
+		grants := makeGrant(newDSN_127, mf)
 		for _, grant := range grants {
 			if _, err := db.Exec(grant); err != nil {
 				return dsn.DSN{}, fmt.Errorf("failed to execute %s: %s", grant, err)
@@ -159,7 +162,7 @@ func createMySQLUser(userDSN dsn.DSN, serviceType, querySource string, maxUserCo
 	return newDSN, nil
 }
 
-func makeGrant(dsn dsn.DSN, serviceType, querySource string, mysqlMaxUserConns uint) []string {
+func makeGrant(dsn dsn.DSN, mf MySQLFlags) []string {
 	host := "%"
 	if dsn.Socket != "" || dsn.Hostname == "localhost" {
 		host = "localhost"
@@ -167,30 +170,13 @@ func makeGrant(dsn dsn.DSN, serviceType, querySource string, mysqlMaxUserConns u
 		host = "127.0.0.1"
 	}
 
-	superPriv := ""
-	if querySource == "slowlog" {
-		superPriv = ", SUPER"
+	grants := []string{
+		fmt.Sprintf("GRANT SELECT, PROCESS, REPLICATION CLIENT, SUPER ON *.* TO '%s'@'%s' IDENTIFIED BY '%s' WITH MAX_USER_CONNECTIONS %d",
+			dsn.Username, host, dsn.Password, mf.MaxUserConn),
+		fmt.Sprintf("GRANT UPDATE, DELETE, DROP ON `performance_schema`.* TO '%s'@'%s'",
+			dsn.Username, host),
 	}
 
-	// Creating/updating a user's password doesn't work correctly if old_passwords is active.
-	// Just in case, disable it for this session.
-	grants := []string{"SET SESSION old_passwords=0"}
-	if serviceType == "queries" {
-		grants = append(grants,
-			fmt.Sprintf("GRANT SELECT, PROCESS%s ON *.* TO '%s'@'%s' IDENTIFIED BY '%s' WITH MAX_USER_CONNECTIONS %d",
-				superPriv, dsn.Username, host, dsn.Password, mysqlMaxUserConns),
-			fmt.Sprintf("GRANT SELECT, UPDATE, DELETE, DROP ON `performance_schema`.* TO '%s'@'%s'",
-				dsn.Username, host),
-		)
-	}
-	if serviceType == "mysql" {
-		grants = append(grants,
-			fmt.Sprintf("GRANT PROCESS, REPLICATION CLIENT ON *.* TO '%s'@'%s' IDENTIFIED BY '%s' WITH MAX_USER_CONNECTIONS %d",
-				dsn.Username, host, dsn.Password, mysqlMaxUserConns),
-			fmt.Sprintf("GRANT SELECT ON `performance_schema`.* TO '%s'@'%s'",
-				dsn.Username, host),
-		)
-	}
 	return grants
 }
 

@@ -25,10 +25,10 @@ import (
 	"github.com/percona/kardianos-service"
 )
 
-// AddMySQL add mysql services to monitoring.
-func (a *Admin) AddMySQL(info map[string]string, mf MySQLFlags) error {
+// AddMySQLMetrics add mysql metrics services to monitoring.
+func (a *Admin) AddMySQLMetrics(info map[string]string, mf MySQLFlags) error {
 	// Check if we have already this service on Consul.
-	consulSvc, err := a.getConsulService("mysql-hr", a.ServiceName)
+	consulSvc, err := a.getConsulService("mysql-hr:metrics", a.ServiceName)
 	if err != nil {
 		return err
 	}
@@ -67,10 +67,10 @@ func (a *Admin) AddMySQL(info map[string]string, mf MySQLFlags) error {
 
 	for job, port := range map[string]uint{"mysql-hr": port, "mysql-mr": port + 1, "mysql-lr": port + 2} {
 		// Add service to Consul.
-		serviceID := fmt.Sprintf("%s-%d", job, port)
+		serviceID := fmt.Sprintf("%s:metrics-%d", job, port)
 		srv := consul.AgentService{
 			ID:      serviceID,
-			Service: job,
+			Service: fmt.Sprintf("%s:metrics", job),
 			Tags:    []string{fmt.Sprintf("alias_%s", a.ServiceName)},
 			Port:    int(port),
 		}
@@ -106,7 +106,7 @@ func (a *Admin) AddMySQL(info map[string]string, mf MySQLFlags) error {
 
 		// Install and start service via platform service manager.
 		svcConfig := &service.Config{
-			Name:        fmt.Sprintf("pmm-mysql-exporter-%d", port),
+			Name:        fmt.Sprintf("pmm-mysql-metrics-%d", port),
 			DisplayName: fmt.Sprintf("PMM Prometheus mysqld_exporter %d", port),
 			Description: fmt.Sprintf("PMM Prometheus mysqld_exporter %d", port),
 			Executable:  fmt.Sprintf("%s/mysqld_exporter", PMMBaseDir),
@@ -121,10 +121,10 @@ func (a *Admin) AddMySQL(info map[string]string, mf MySQLFlags) error {
 	return nil
 }
 
-// RemoveMySQL remove mysql services from monitoring.
-func (a *Admin) RemoveMySQL(name string) error {
+// RemoveMySQLMetrics remove mysql metrics services from monitoring.
+func (a *Admin) RemoveMySQLMetrics(name string) error {
 	// Check if we have this service on Consul.
-	consulSvc, err := a.getConsulService("mysql-hr", name)
+	consulSvc, err := a.getConsulService("mysql-hr:metrics", name)
 	if err != nil {
 		return err
 	}
@@ -134,7 +134,7 @@ func (a *Admin) RemoveMySQL(name string) error {
 
 	for job, port := range map[string]int{"mysql-hr": consulSvc.Port, "mysql-mr": consulSvc.Port + 1,
 		"mysql-lr": consulSvc.Port + 2} {
-		serviceID := fmt.Sprintf("%s-%d", job, port)
+		serviceID := fmt.Sprintf("%s:metrics-%d", job, port)
 		// Remove service from Consul.
 		dereg := consul.CatalogDeregistration{
 			Node:      a.Config.ClientName,
@@ -148,7 +148,7 @@ func (a *Admin) RemoveMySQL(name string) error {
 		a.consulapi.KV().DeleteTree(prefix, nil)
 
 		// Stop and uninstall service.
-		if err := uninstallService(fmt.Sprintf("pmm-mysql-exporter-%d", port)); err != nil {
+		if err := uninstallService(fmt.Sprintf("pmm-mysql-metrics-%d", port)); err != nil {
 			return err
 		}
 	}

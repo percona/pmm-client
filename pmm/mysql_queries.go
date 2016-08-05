@@ -31,10 +31,10 @@ import (
 	"github.com/percona/pmm/proto/config"
 )
 
-// AddQueries add mysql instance to QAN.
-func (a *Admin) AddQueries(info map[string]string) error {
+// AddMySQLQueries add mysql instance to QAN.
+func (a *Admin) AddMySQLQueries(info map[string]string) error {
 	// Check if we have already this service on Consul.
-	consulSvc, err := a.getConsulService("queries", a.ServiceName)
+	consulSvc, err := a.getConsulService("mysql:queries", a.ServiceName)
 	if err != nil {
 		return err
 	}
@@ -42,13 +42,13 @@ func (a *Admin) AddQueries(info map[string]string) error {
 		return errDuplicate
 	}
 
-	// Now check if there are any queries services.
-	consulSvc, err = a.getConsulService("queries", "")
+	// Now check if there are any mysql:queries services.
+	consulSvc, err = a.getConsulService("mysql:queries", "")
 	if err != nil {
 		return err
 	}
 
-	// Don't install service if we have already another "queries".
+	// Don't install service if we have already another "mysql:queries".
 	// 1 agent handles multiple MySQL instances for QAN.
 	var port uint
 	if consulSvc == nil {
@@ -66,7 +66,7 @@ func (a *Admin) AddQueries(info map[string]string) error {
 		// Install and start service via platform service manager.
 		// We have to run agent before adding it to QAN.
 		svcConfig := &service.Config{
-			Name:        fmt.Sprintf("pmm-queries-exporter-%d", port),
+			Name:        fmt.Sprintf("pmm-mysql-queries-%d", port),
 			DisplayName: "PMM Query Analytics agent",
 			Description: "PMM Query Analytics agent",
 			Executable:  fmt.Sprintf("%s/bin/percona-qan-agent", agentBaseDir),
@@ -79,7 +79,7 @@ func (a *Admin) AddQueries(info map[string]string) error {
 	} else {
 		port = uint(consulSvc.Port)
 		// Ensure qan-agent is started if service exists, otherwise it won't be enabled for QAN.
-		if err := startService(fmt.Sprintf("pmm-queries-exporter-%d", port)); err != nil {
+		if err := startService(fmt.Sprintf("pmm-mysql-queries-%d", port)); err != nil {
 			return err
 		}
 	}
@@ -148,10 +148,10 @@ func (a *Admin) AddQueries(info map[string]string) error {
 	}
 
 	// Add or update service to Consul.
-	serviceID := fmt.Sprintf("queries-%d", port)
+	serviceID := fmt.Sprintf("mysql:queries-%d", port)
 	srv := consul.AgentService{
 		ID:      serviceID,
-		Service: "queries",
+		Service: "mysql:queries",
 		Tags:    tags,
 		Port:    int(port),
 	}
@@ -178,10 +178,10 @@ func (a *Admin) AddQueries(info map[string]string) error {
 	return nil
 }
 
-// RemoveQueries remove mysql instance from QAN.
-func (a *Admin) RemoveQueries(name string) error {
+// RemoveMySQLQueries remove mysql instance from QAN.
+func (a *Admin) RemoveMySQLQueries(name string) error {
 	// Check if we have this service on Consul.
-	consulSvc, err := a.getConsulService("queries", name)
+	consulSvc, err := a.getConsulService("mysql:queries", name)
 	if err != nil {
 		return err
 	}
@@ -190,12 +190,12 @@ func (a *Admin) RemoveQueries(name string) error {
 	}
 
 	// Ensure qan-agent is started, otherwise it will be an error to stop QAN.
-	if err := startService(fmt.Sprintf("pmm-queries-exporter-%d", consulSvc.Port)); err != nil {
+	if err := startService(fmt.Sprintf("pmm-mysql-queries-%d", consulSvc.Port)); err != nil {
 		return err
 	}
 
 	// Get UUID of MySQL instance the agent is monitoring from KV.
-	key := fmt.Sprintf("%s/queries-%d/%s/qan_mysql_uuid", a.Config.ClientName, consulSvc.Port, name)
+	key := fmt.Sprintf("%s/mysql:queries-%d/%s/qan_mysql_uuid", a.Config.ClientName, consulSvc.Port, name)
 	data, _, err := a.consulapi.KV().Get(key, nil)
 	if err != nil {
 		return err
@@ -246,7 +246,7 @@ func (a *Admin) RemoveQueries(name string) error {
 		}
 
 		// Stop and uninstall service.
-		if err := uninstallService(fmt.Sprintf("pmm-queries-exporter-%d", consulSvc.Port)); err != nil {
+		if err := uninstallService(fmt.Sprintf("pmm-mysql-queries-%d", consulSvc.Port)); err != nil {
 			return err
 		}
 	} else {
