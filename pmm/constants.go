@@ -19,7 +19,7 @@ package pmm
 
 import "fmt"
 
-var VERSION = "1.0.2"
+var VERSION = "1.0.3"
 
 const (
 	PMMBaseDir     = "/usr/local/percona/pmm-client"
@@ -40,88 +40,60 @@ var (
 
 const nodeExporterArgs = "-collectors.enabled=diskstats,filesystem,loadavg,meminfo,netdev,netstat,stat,time,uname,vmstat"
 
-// Among all, engine_tokudb_status and info_schema.innodb_tablespaces are false everywhere.
 var mysqldExporterArgs = map[string][]string{
 	"mysql-hr": {
-		"-collect.auto_increment.columns=false",
-		"-collect.binlog_size=false",
-		"-collect.engine_tokudb_status=false",
 		"-collect.global_status=true",
 		"-collect.global_variables=false",
-		"-collect.info_schema.innodb_metrics=true",
-		"-collect.info_schema.innodb_tablespaces=false",
-		"-collect.info_schema.processlist=false",
-		"-collect.info_schema.query_response_time=false",
 		"-collect.info_schema.tables=false",
-		"-collect.info_schema.tablestats=false",
-		"-collect.info_schema.userstats=false",
-		"-collect.perf_schema.eventsstatements=false",
-		"-collect.perf_schema.eventswaits=false",
-		"-collect.perf_schema.file_events=false",
-		"-collect.perf_schema.indexiowaits=false",
-		"-collect.perf_schema.tableiowaits=false",
-		"-collect.perf_schema.tablelocks=false",
 		"-collect.slave_status=false",
+
+		"-collect.info_schema.innodb_metrics=true",
 	},
 	"mysql-mr": {
-		"-collect.auto_increment.columns=false",
-		"-collect.binlog_size=false",
-		"-collect.engine_tokudb_status=false",
 		"-collect.global_status=false",
 		"-collect.global_variables=false",
-		"-collect.info_schema.innodb_metrics=false",
-		"-collect.info_schema.innodb_tablespaces=false",
+		"-collect.info_schema.tables=false",
+		"-collect.slave_status=true",
+
 		"-collect.info_schema.processlist=true",
 		"-collect.info_schema.query_response_time=true",
-		"-collect.info_schema.tables=false",
-		"-collect.info_schema.tablestats=false",
-		"-collect.info_schema.userstats=false",
-		"-collect.perf_schema.eventsstatements=false",
 		"-collect.perf_schema.eventswaits=true",
 		"-collect.perf_schema.file_events=true",
-		"-collect.perf_schema.indexiowaits=false",
-		"-collect.perf_schema.tableiowaits=false",
 		"-collect.perf_schema.tablelocks=true",
-		"-collect.slave_status=true",
 	},
 	"mysql-lr": {
-		"-collect.auto_increment.columns=true",
-		"-collect.binlog_size=true",
-		"-collect.engine_tokudb_status=false",
 		"-collect.global_status=false",
 		"-collect.global_variables=true",
-		"-collect.info_schema.innodb_metrics=false",
-		"-collect.info_schema.innodb_tablespaces=false",
-		"-collect.info_schema.processlist=false",
-		"-collect.info_schema.query_response_time=false",
 		"-collect.info_schema.tables=true",
+		"-collect.slave_status=false",
+
+		"-collect.auto_increment.columns=true",
+		"-collect.binlog_size=true",
 		"-collect.info_schema.tablestats=true",
 		"-collect.info_schema.userstats=true",
-		"-collect.perf_schema.eventsstatements=true",
-		"-collect.perf_schema.eventswaits=false",
-		"-collect.perf_schema.file_events=false",
 		"-collect.perf_schema.indexiowaits=true",
 		"-collect.perf_schema.tableiowaits=true",
-		"-collect.perf_schema.tablelocks=false",
-		"-collect.slave_status=false",
 	},
 }
 
-// Option prefixes which enable per table stats that we optionally disable to avoid performance issues
-// when running on MySQL with a huge number of databases or tables.
-var mysqldExporterPerTableArgs = []string{
-	"-collect.auto_increment.columns=",
-	"-collect.info_schema.tables=",
-	"-collect.info_schema.tablestats=",
-	"-collect.perf_schema.indexiowaits=",
-	"-collect.perf_schema.tableiowaits=",
-	"-collect.perf_schema.tablelocks=",
-}
+/* Args that are not enabled anywhere:
+"-collect.engine_tokudb_status"
+"-collect.info_schema.clientstats",
+"-collect.info_schema.innodb_tablespaces"
+"-collect.perf_schema.eventsstatements"
+*/
 
-// Conditionally problematic options. Not doing anything with them so far.
-var mysqldExporterCondProblematicArgs = []string{
-	"-collect.perf_schema.eventsstatements=",
-	"-collect.binlog_size=",
-	"-collect.info_schema.processlist=",
-	"-collect.info_schema.userstats=",
+// mysqld_exporter args to disable optionally.
+var mysqldExporterDisableArgs = map[string][]string{
+	"tablestats": []string{
+		"-collect.auto_increment.columns=",
+		"-collect.info_schema.tables=",
+		"-collect.info_schema.tablestats=",
+		"-collect.perf_schema.indexiowaits=",
+		"-collect.perf_schema.tableiowaits=",
+		"-collect.perf_schema.tablelocks=",
+	},
+	"userstats":   []string{"-collect.info_schema.userstats="},
+	"binlogstats": []string{"-collect.binlog_size="},
+	"processlist": []string{"-collect.info_schema.processlist="},
 }

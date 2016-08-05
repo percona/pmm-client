@@ -27,7 +27,7 @@ import (
 	"time"
 
 	consul "github.com/hashicorp/consul/api"
-	"github.com/roman-vynar/service"
+	"github.com/percona/kardianos-service"
 	"gopkg.in/yaml.v2"
 )
 

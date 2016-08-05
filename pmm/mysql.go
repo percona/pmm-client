@@ -29,18 +29,20 @@ import (
 
 // MySQL and agent specific options.
 type MySQLFlags struct {
-	DefaultsFile         string
-	User                 string
-	Password             string
-	Host                 string
-	Port                 string
-	Socket               string
-	QuerySource          string
-	MaxUserConn          uint
-	OldPasswords         bool
-	CreateUser           bool
-	DisableInfoSchema    bool
-	DisablePerTableStats bool
+	DefaultsFile       string
+	User               string
+	Password           string
+	Host               string
+	Port               string
+	Socket             string
+	QuerySource        string
+	MaxUserConn        uint
+	OldPasswords       bool
+	CreateUser         bool
+	DisableTableStats  bool
+	DisableUserStats   bool
+	DisableBinlogStats bool
+	DisableProcesslist bool
 }
 
 // DetectMySQL detect MySQL, create user if needed, return DSN and MySQL info strings.

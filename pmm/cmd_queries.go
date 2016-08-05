@@ -26,9 +26,9 @@ import (
 	"time"
 
 	consul "github.com/hashicorp/consul/api"
+	"github.com/percona/kardianos-service"
 	"github.com/percona/pmm/proto"
 	"github.com/percona/pmm/proto/config"
-	"github.com/roman-vynar/service"
 )
 
 // AddQueries add mysql instance to QAN.
@@ -71,7 +71,7 @@ func (a *Admin) AddQueries(info map[string]string) error {
 			Description: "PMM Query Analytics agent",
 			Executable:  fmt.Sprintf("%s/bin/percona-qan-agent", agentBaseDir),
 			Arguments: []string{fmt.Sprintf("-listen=127.0.0.1:%d", port), "-basedir", agentBaseDir,
-				"-pid-file", ""},
+				"-pid-file", "\"\""},
 		}
 		if err := installService(svcConfig); err != nil {
 			return err

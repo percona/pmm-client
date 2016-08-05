@@ -1,5 +1,14 @@
 Percona Monitoring and Management (PMM) Client
 
+v1.0.3 released 2016-08-05
+
+* "queries" service (percona-qan-agent) did not start when using unix-systemv.
+* Fixed error where removing stopped services "os", "mysql" using linux-upstart.
+* Fixed password auto-detection for MySQL 5.7.
+* Added --disable-userstats, --disable-binlogstats, --disable-processlist MySQL flags.
+* Renamed --disable-per-table-stats to --disable-tablestats.
+* Removed unnecessary flag --disable-infoschema.
+
 v1.0.2 released 2016-07-28
 
 * Full rewrite of pmm-admin utility:
