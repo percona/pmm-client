@@ -20,6 +20,7 @@ package pmm
 import (
 	"bytes"
 	"compress/gzip"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -27,23 +28,24 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"time"
 )
 
 type API struct {
-	headers  map[string]string
-	hostname string
+	headers     map[string]string
+	hostname    string
+	insecureSSL bool
 }
 
 type apiError struct {
 	Error string
 }
 
-func NewAPI(headers map[string]string) *API {
+func NewAPI(insecureFlag bool) *API {
 	hostname, _ := os.Hostname()
 	a := &API{
-		headers:  headers,
-		hostname: hostname,
+		headers:     nil,
+		hostname:    hostname,
+		insecureSSL: insecureFlag,
 	}
 	return a
 }
@@ -63,7 +65,7 @@ func (a *API) Ping(url string) error {
 		}
 	}
 
-	client := newClient()
+	client := a.newClient()
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
@@ -79,20 +81,8 @@ func (a *API) Ping(url string) error {
 	return nil // success
 }
 
-func (a *API) URL(addr string, paths ...string) string {
-	schema := "http://"
-	httpPrefix := "http://"
-	if strings.HasPrefix(addr, httpPrefix) {
-		addr = strings.TrimPrefix(addr, httpPrefix)
-	}
-	//if strings.HasPrefix(addr, "localhost") || strings.HasPrefix(addr, "127.0.0.1") {
-	//	schema = httpPrefix
-	//}
-	slash := "/"
-	if len(paths) > 0 && paths[0][0] == 0x2F {
-		slash = ""
-	}
-	return schema + addr + slash + strings.Join(paths, "/")
+func (a *API) URL(paths ...string) string {
+	return strings.Join(paths, "/")
 }
 
 func (a *API) Get(url string) (*http.Response, []byte, error) {
@@ -106,7 +96,7 @@ func (a *API) Get(url string) (*http.Response, []byte, error) {
 		}
 	}
 
-	client := newClient()
+	client := a.newClient()
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, nil, err
@@ -162,8 +152,14 @@ func (a *API) Error(method, url string, gotStatusCode, expectedStatusCode int, c
 
 // --------------------------------------------------------------------------
 
-func newClient() *http.Client {
-	return &http.Client{Timeout: time.Duration(30 * time.Second)}
+func (a *API) newClient() *http.Client {
+	client := &http.Client{Timeout: apiTimeout}
+	if a.insecureSSL {
+		client.Transport = &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+	}
+	return client
 }
 
 func (a *API) send(method, url string, data []byte) (*http.Response, []byte, error) {
@@ -183,7 +179,7 @@ func (a *API) send(method, url string, data []byte) (*http.Response, []byte, err
 		}
 	}
 
-	client := newClient()
+	client := a.newClient()
 	resp, err := client.Do(req)
 	if err != nil {
 		return resp, nil, err

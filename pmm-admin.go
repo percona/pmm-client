@@ -30,17 +30,19 @@ var (
 
 	rootCmd = &cobra.Command{
 		Use: "pmm-admin",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Usage()
-			os.Exit(1)
-		},
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			// NOTE: this function pre-runs with every command or sub-command except "config".
+
 			// This flag will not run anywhere else than on rootCmd as this flag is not persistent one
 			// and we want it only here without any config checks.
 			if flagVersion {
 				fmt.Println(pmm.VERSION)
 				os.Exit(0)
+			}
+
+			// No checks when running w/o commands.
+			if cmd.Name() == "pmm-admin" {
+				return
 			}
 
 			// Read config file.
@@ -58,17 +60,25 @@ var (
 				fmt.Println(flagConfigFile, "exists but some options are missed. Run 'pmm-admin config --help'.")
 				os.Exit(1)
 			}
-			admin.SetAPI()
 
+			// "pmm-admin info" should display info w/o connectivity.
+			if cmd.Name() == "info" {
+				return
+			}
+
+			admin.SetAPI()
 			// Check if server is alive.
-			// Does not apply to "pmm-admin" and "pmm-admin info" commands.
-			if !admin.ServerAlive() && cmd.Name() != "pmm-admin" && cmd.Name() != "info" {
+			if !admin.ServerAlive() {
 				fmt.Printf("Unable to connect to PMM server by address: %s\n\n", admin.Config.ServerAddress)
 				fmt.Println(`Check if the configured address is correct.
 If server container is running on non-default port, ensure it was specified along with the address.
 You may also check the firewall settings.`)
 				os.Exit(1)
 			}
+		},
+		Run: func(cmd *cobra.Command, args []string) {
+			cmd.Usage()
+			os.Exit(1)
 		},
 	}
 
@@ -409,7 +419,6 @@ The command did not stop when one of the services is missed or failed to remove.
 		Short: "Display PMM Client information.",
 		Long:  "This command displays PMM client configuration details.",
 		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Root().PersistentPreRun(cmd.Root(), args)
 			admin.PrintInfo()
 		},
 	}
@@ -417,14 +426,12 @@ The command did not stop when one of the services is missed or failed to remove.
 	cmdConfig = &cobra.Command{
 		Use:   "config",
 		Short: "Configure PMM Client.",
-		Long:  "This command configures pmm-admin to communicate with PMM server.",
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := admin.SetConfig(flagServerAddr, flagClientAddr, flagClientName); err != nil {
-				fmt.Printf("Error configuring PMM client: %s\n", err)
-				os.Exit(1)
-			}
-			fmt.Println("OK, PMM server is", admin.Config.ServerAddress)
-		},
+		Long: `This command configures pmm-admin to communicate with PMM server.
+
+You can enable SSL or setup HTTP basic authentication.
+When HTTP password and no user is given, the default username will be "pmm".
+
+IMPORTANT: resetting server address clears up SSL and HTTP authentication if no corresponding flags are provided.`,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			// Cancel root's PersistentPreRun as we do not require config file to exist here.
 			// If the config does not exist, we will init an empty and write on Run.
@@ -432,6 +439,17 @@ The command did not stop when one of the services is missed or failed to remove.
 				fmt.Printf("Error reading %s: %s\n", flagConfigFile, err)
 				os.Exit(1)
 			}
+		},
+		Run: func(cmd *cobra.Command, args []string) {
+			if flagC.ServerSSL && flagC.ServerInsecureSSL {
+				fmt.Println("Flags --enable-ssl and --enable-insecure-ssl are mutually exclusive.")
+				os.Exit(1)
+			}
+			if err := admin.SetConfig(flagC); err != nil {
+				fmt.Printf("Error configuring PMM client: %s\n", err)
+				os.Exit(1)
+			}
+			fmt.Println("OK, PMM server is", admin.Config.ServerAddress)
 		},
 	}
 
@@ -452,7 +470,6 @@ In case, some of the endpoints are in problem state, please check if the corresp
 If all endpoints are down here and "pmm-admin list" shows all services are up,
 please check the firewall settings whether this system allows incoming connections by address:port in question.`,
 		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Root().PersistentPreRun(cmd.Root(), args)
 			if err := admin.CheckNetwork(flagNoEmoji); err != nil {
 				fmt.Println("Error checking network status:", err)
 				os.Exit(1)
@@ -465,7 +482,6 @@ please check the firewall settings whether this system allows incoming connectio
 		Short: "Check if PMM server is alive.",
 		Long:  "This command verifies the connectivity with PMM server.",
 		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Root().PersistentPreRun(cmd.Root(), args)
 			// It's all good if PersistentPreRun didn't fail.
 			fmt.Println("OK")
 		},
@@ -563,12 +579,12 @@ please check the firewall settings whether this system allows incoming connectio
 		},
 	}
 
-	flagConfigFile, flagServerAddr, flagClientAddr, flagClientName      string
-	flagVersion, flagNoEmoji, flagAll                                   bool
-	flagServicePort                                                     uint
-	flagMongoURI, flagMongoNodeType, flagMongoReplSet, flagMongoCluster string
+	flagConfigFile, flagMongoURI, flagMongoNodeType, flagMongoReplSet, flagMongoCluster string
 
-	flagM pmm.MySQLFlags
+	flagVersion, flagNoEmoji, flagAll bool
+	flagServicePort                   uint
+	flagM                             pmm.MySQLFlags
+	flagC                             pmm.Config
 )
 
 func main() {
@@ -583,9 +599,13 @@ func main() {
 	rootCmd.PersistentFlags().StringVarP(&flagConfigFile, "config-file", "c", pmm.ConfigFile, "PMM config file")
 	rootCmd.Flags().BoolVarP(&flagVersion, "version", "v", false, "show version")
 
-	cmdConfig.Flags().StringVar(&flagServerAddr, "server-addr", "", "PMM server address")
-	cmdConfig.Flags().StringVar(&flagClientAddr, "client-addr", "", "Client address")
-	cmdConfig.Flags().StringVar(&flagClientName, "client-name", "", "Client name (node identifier on Consul)")
+	cmdConfig.Flags().StringVar(&flagC.ServerAddress, "server-addr", "", "PMM server address, optionally with port number")
+	cmdConfig.Flags().StringVar(&flagC.ClientAddress, "client-addr", "", "Client address")
+	cmdConfig.Flags().StringVar(&flagC.ClientName, "client-name", "", "Client name (node identifier on Consul)")
+	cmdConfig.Flags().StringVar(&flagC.HttpUser, "http-user", "pmm", "HTTP user for PMM Server")
+	cmdConfig.Flags().StringVar(&flagC.HttpPassword, "http-password", "", "HTTP password for PMM Server")
+	cmdConfig.Flags().BoolVar(&flagC.ServerSSL, "enable-ssl", false, "Enable SSL to communicate with PMM Server")
+	cmdConfig.Flags().BoolVar(&flagC.ServerInsecureSSL, "enable-insecure-ssl", false, "Enable insecure SSL (self-signed certificate) to communicate with PMM Server")
 
 	cmdAdd.PersistentFlags().UintVar(&flagServicePort, "service-port", 0, "service port")
 

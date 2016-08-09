@@ -18,6 +18,7 @@
 package pmm
 
 import (
+	"crypto/tls"
 	"fmt"
 	"net"
 	"net/http"
@@ -25,7 +26,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/prometheus/client_golang/api/prometheus"
 	"golang.org/x/net/context"
 )
 
@@ -36,18 +36,18 @@ func (a *Admin) CheckNetwork(noEmoji bool) error {
 
 	// Check QAN API health.
 	qanStatus := false
-	url := a.qanapi.URL(a.Config.ServerAddress, qanAPIBasePath, "ping")
+	url := a.qanapi.URL(a.serverUrl, qanAPIBasePath, "ping")
 	if resp, _, err := a.qanapi.Get(url); err == nil {
 		if resp.StatusCode == http.StatusOK && resp.Header.Get("X-Percona-Qan-Api-Version") != "" {
 			qanStatus = true
 		}
 	}
 
-	// Check Prometheus API.
-	promStatus := false
-	promData := a.getPromTargets()
-	if promData != "" {
-		promStatus = true
+	// Check Prometheus API by retriving all "up" time series.
+	promStatus := true
+	promData, err := a.promapi.Query(context.Background(), "up", time.Now())
+	if err != nil {
+		promStatus = false
 	}
 
 	fmt.Println("PMM Network Status\n")
@@ -103,7 +103,7 @@ func (a *Admin) CheckNetwork(noEmoji bool) error {
 
 		}
 
-		status := a.checkPromTargetStatus(promData, name, metricType, svc.Port)
+		status := a.checkPromTargetStatus(promData.String(), name, metricType, svc.Port)
 		if !status {
 			errStatus = true
 		}
@@ -149,21 +149,6 @@ please check the firewall settings whether this system allows incoming connectio
 	return nil
 }
 
-// getPromTargets get Prometheus targets and states.
-func (a *Admin) getPromTargets() string {
-	config := prometheus.Config{Address: fmt.Sprintf("http://%s/prometheus", a.Config.ServerAddress)}
-	client, err := prometheus.New(config)
-	if err != nil {
-		return ""
-	}
-
-	// Retrieve all "up" time series.
-	if res, err := prometheus.NewQueryAPI(client).Query(context.Background(), "up", time.Now()); err == nil {
-		return res.String()
-	}
-	return ""
-}
-
 // checkPromTargetStatus check Prometheus target state by metric labels.
 func (a *Admin) checkPromTargetStatus(data, alias, job string, port int) bool {
 	query := fmt.Sprintf(`up{alias="%s", instance="%s:%d", job="%s"}`, alias, a.Config.ClientAddress, port, job)
@@ -183,22 +168,27 @@ func (a *Admin) checkPromTargetStatus(data, alias, job string, port int) bool {
 
 // testNetwork measure round trip duration of server connection.
 func (a *Admin) testNetwork() {
+	insecureFlag := false
+	if a.Config.ServerInsecureSSL {
+		insecureFlag = true
+	}
+
 	conn := &networkTransport{
 		dialer: &net.Dialer{
-			Timeout:   30 * time.Second,
-			KeepAlive: 30 * time.Second,
+			Timeout:   apiTimeout,
+			KeepAlive: apiTimeout,
 		},
 	}
 	conn.rtp = &http.Transport{
-		Proxy: http.ProxyFromEnvironment,
-		Dial:  conn.dial,
+		Proxy:           http.ProxyFromEnvironment,
+		Dial:            conn.dial,
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: insecureFlag},
 	}
 	client := &http.Client{Transport: conn}
 
-	resp, err := client.Get(fmt.Sprintf("http://%s", a.Config.ServerAddress))
+	resp, err := client.Get(a.serverUrl)
 	if err != nil {
-		fmt.Println("Unable to measure a connection performance as it takes longer than 30 sec.")
-		fmt.Println("Looks like there is a bad connectivity and it may affect your monitoring.")
+		fmt.Println("Unable to measure the connection performance.")
 		return
 	}
 	defer resp.Body.Close()

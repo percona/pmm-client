@@ -17,7 +17,10 @@
 
 package pmm
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 var VERSION = "1.0.4"
 
@@ -28,6 +31,7 @@ const (
 	emojiUnhappy   = "😡"
 	emojiHappy     = "🙂"
 	noMonitoring   = "No monitoring registered for this node under identifier"
+	apiTimeout     = 30 * time.Second
 )
 
 var (

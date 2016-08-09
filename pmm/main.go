@@ -18,24 +18,30 @@
 package pmm
 
 import (
+	"crypto/tls"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"sort"
 	"strings"
-	"time"
 
 	consul "github.com/hashicorp/consul/api"
 	"github.com/percona/kardianos-service"
+	"github.com/prometheus/client_golang/api/prometheus"
 	"gopkg.in/yaml.v2"
 )
 
 // PMM client config structure.
 type Config struct {
-	ServerAddress string `yaml:"server_address"`
-	ClientAddress string `yaml:"client_address"`
-	ClientName    string `yaml:"client_name"`
+	ServerAddress     string `yaml:"server_address"`
+	ClientAddress     string `yaml:"client_address"`
+	ClientName        string `yaml:"client_name"`
+	HttpUser          string `yaml:"http_user,omitempty"`
+	HttpPassword      string `yaml:"http_password,omitempty"`
+	ServerSSL         bool   `yaml:"server_ssl,omitempty"`
+	ServerInsecureSSL bool   `yaml:"server_insecure_ssl,omitempty"`
+	MySQLPassword     string `yaml:"mysql_password,omitempty"`
 }
 
 // Service status description.
@@ -54,8 +60,10 @@ type Admin struct {
 	ServicePort uint
 	Config      *Config
 	filename    string
+	serverUrl   string
 	qanapi      *API
 	consulapi   *consul.Client
+	promapi     prometheus.QueryAPI
 }
 
 // LoadConfig read PMM client config file.
@@ -76,20 +84,37 @@ func (a *Admin) LoadConfig(filename string) error {
 }
 
 // SetConfig configure PMM client with server and client addresses, write them to the config.
-func (a *Admin) SetConfig(serverAddress, clientAddress, clientName string) error {
-	if (clientAddress != "" && a.Config.ClientAddress != "" && clientAddress != a.Config.ClientAddress) ||
-		(clientName != "" && a.Config.ClientName != "" && clientName != a.Config.ClientName) {
+func (a *Admin) SetConfig(cf Config) error {
+	if (cf.ClientAddress != "" && a.Config.ClientAddress != "" && cf.ClientAddress != a.Config.ClientAddress) ||
+		(cf.ClientName != "" && a.Config.ClientName != "" && cf.ClientName != a.Config.ClientName) {
 		return fmt.Errorf("changing of client address or name will disassociate this client from PMM server.")
 	}
 
-	if serverAddress != "" {
-		a.Config.ServerAddress = serverAddress
+	if cf.ServerAddress != "" {
+		a.Config.ServerAddress = cf.ServerAddress
+		// Resetting server address clears up SSL and HTTP auth.
+		a.Config.ServerSSL = false
+		a.Config.ServerInsecureSSL = false
+		a.Config.HttpUser = ""
+		a.Config.HttpPassword = ""
 	}
-	if clientAddress != "" {
-		a.Config.ClientAddress = clientAddress
+	if cf.ClientAddress != "" {
+		a.Config.ClientAddress = cf.ClientAddress
 	}
-	if clientName != "" {
-		a.Config.ClientName = clientName
+	if cf.ClientName != "" {
+		a.Config.ClientName = cf.ClientName
+	}
+	if cf.HttpPassword != "" {
+		a.Config.HttpUser = cf.HttpUser
+		a.Config.HttpPassword = cf.HttpPassword
+	}
+	if cf.ServerSSL {
+		a.Config.ServerSSL = true
+		a.Config.ServerInsecureSSL = false
+	}
+	if cf.ServerInsecureSSL {
+		a.Config.ServerSSL = false
+		a.Config.ServerInsecureSSL = true
 	}
 
 	bytes, _ := yaml.Marshal(a.Config)
@@ -98,12 +123,43 @@ func (a *Admin) SetConfig(serverAddress, clientAddress, clientName string) error
 
 // SetAPI setup Consul and QAN APIs.
 func (a *Admin) SetAPI() {
+	scheme := "http"
+	insecureTransport := &http.Transport{}
+	if a.Config.ServerInsecureSSL {
+		scheme = "https"
+		insecureTransport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	}
+	if a.Config.ServerSSL {
+		scheme = "https"
+	}
+
+	// Consul API.
 	config := consul.Config{
 		Address:    a.Config.ServerAddress,
-		HttpClient: &http.Client{Timeout: 30 * time.Second},
+		HttpClient: &http.Client{Timeout: apiTimeout},
+		Scheme:     scheme,
+	}
+	if a.Config.ServerInsecureSSL {
+		config.HttpClient.Transport = insecureTransport
+	}
+	if a.Config.HttpUser != "" {
+		config.HttpAuth = &consul.HttpBasicAuth{Username: a.Config.HttpUser, Password: a.Config.HttpPassword}
 	}
 	a.consulapi, _ = consul.NewClient(&config)
-	a.qanapi = NewAPI(nil)
+
+	// Full URL.
+	a.serverUrl = fmt.Sprintf("%s://%s:%s@%s", scheme, a.Config.HttpUser, a.Config.HttpPassword, a.Config.ServerAddress)
+
+	// QAN API.
+	a.qanapi = NewAPI(a.Config.ServerInsecureSSL)
+
+	// Prometheus API.
+	cfg := prometheus.Config{Address: fmt.Sprintf("%s/prometheus", a.serverUrl)}
+	if a.Config.ServerInsecureSSL {
+		cfg.Transport = insecureTransport
+	}
+	client, _ := prometheus.New(cfg)
+	a.promapi = prometheus.NewQueryAPI(client)
 }
 
 // List get all services from Consul.

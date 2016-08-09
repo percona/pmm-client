@@ -105,7 +105,7 @@ func (a *Admin) AddMySQLQueries(info map[string]string) error {
 		Version:    info["version"],
 	}
 	inBytes, _ := json.Marshal(in)
-	url := a.qanapi.URL(a.Config.ServerAddress, qanAPIBasePath, "instances")
+	url := a.qanapi.URL(a.serverUrl, qanAPIBasePath, "instances")
 	resp, content, err := a.qanapi.Post(url, inBytes)
 	if err != nil {
 		return err
@@ -212,7 +212,7 @@ func (a *Admin) RemoveMySQLQueries(name string) error {
 	}
 
 	// Remove MySQL instance from QAN.
-	url := a.qanapi.URL(a.Config.ServerAddress, qanAPIBasePath, "instances", mysqlUUID)
+	url := a.qanapi.URL(a.serverUrl, qanAPIBasePath, "instances", mysqlUUID)
 	resp, content, err := a.qanapi.Delete(url)
 	if err != nil {
 		return err
@@ -268,7 +268,7 @@ func (a *Admin) RemoveMySQLQueries(name string) error {
 // getQanOSInstance get os instance from QAN API that the local agent is associated with.
 func (a *Admin) getQanOSInstance(agentID string) (proto.Instance, error) {
 	var in proto.Instance
-	url := a.qanapi.URL(a.Config.ServerAddress, qanAPIBasePath, "instances", agentID)
+	url := a.qanapi.URL(a.serverUrl, qanAPIBasePath, "instances", agentID)
 	resp, bytes, err := a.qanapi.Get(url)
 	if err != nil {
 		return in, err
@@ -303,7 +303,7 @@ func (a *Admin) manageQAN(agentID, cmdName, UUID string, config map[string]strin
 	cmdBytes, _ := json.Marshal(cmd)
 
 	// Send the command to the API which relays it to the agent, then relays the agent's reply back to here.
-	url := a.qanapi.URL(a.Config.ServerAddress, qanAPIBasePath, "agents", agentID, "cmd")
+	url := a.qanapi.URL(a.serverUrl, qanAPIBasePath, "agents", agentID, "cmd")
 
 	// It takes a few seconds for agent to connect to QAN API once it is started via service manager.
 	// QAN API fails to start/stop unconnected agent for QAN, so we retry the request when getting 404 response.
