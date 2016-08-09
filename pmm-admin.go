@@ -31,7 +31,8 @@ var (
 	rootCmd = &cobra.Command{
 		Use: "pmm-admin",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			// NOTE: this function pre-runs with every command or sub-command except "config".
+			// NOTE: this function pre-runs with every command or sub-command with
+			// the only exception "pmm-admin config" which bypasses it.
 
 			// This flag will not run anywhere else than on rootCmd as this flag is not persistent one
 			// and we want it only here without any config checks.
@@ -43,6 +44,11 @@ var (
 			// No checks when running w/o commands.
 			if cmd.Name() == "pmm-admin" {
 				return
+			}
+
+			if path := pmm.CheckBinaries(); path != "" {
+				fmt.Println("Installation problem, one of the binaries does not exist:", path)
+				os.Exit(1)
 			}
 
 			// Read config file.
@@ -70,9 +76,10 @@ var (
 			// Check if server is alive.
 			if !admin.ServerAlive() {
 				fmt.Printf("Unable to connect to PMM server by address: %s\n\n", admin.Config.ServerAddress)
-				fmt.Println(`Check if the configured address is correct.
-If server container is running on non-default port, ensure it was specified along with the address.
-You may also check the firewall settings.`)
+				fmt.Println(`* Check if the configured address is correct.
+* If server container is running on non-default port, ensure it was specified along with the address.
+* If server is enabled for SSL or self-signed SSL or password protected, ensure the corresponding flags were set.
+* You may also check the firewall settings.`)
 				os.Exit(1)
 			}
 		},
@@ -599,8 +606,8 @@ func main() {
 	rootCmd.PersistentFlags().StringVarP(&flagConfigFile, "config-file", "c", pmm.ConfigFile, "PMM config file")
 	rootCmd.Flags().BoolVarP(&flagVersion, "version", "v", false, "show version")
 
-	cmdConfig.Flags().StringVar(&flagC.ServerAddress, "server-addr", "", "PMM server address, optionally with port number")
-	cmdConfig.Flags().StringVar(&flagC.ClientAddress, "client-addr", "", "Client address")
+	cmdConfig.Flags().StringVar(&flagC.ServerAddress, "server-address", "", "PMM server address, optionally with port number")
+	cmdConfig.Flags().StringVar(&flagC.ClientAddress, "client-address", "", "Client address")
 	cmdConfig.Flags().StringVar(&flagC.ClientName, "client-name", "", "Client name (node identifier on Consul)")
 	cmdConfig.Flags().StringVar(&flagC.HttpUser, "http-user", "pmm", "HTTP user for PMM Server")
 	cmdConfig.Flags().StringVar(&flagC.HttpPassword, "http-password", "", "HTTP password for PMM Server")

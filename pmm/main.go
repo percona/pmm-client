@@ -321,7 +321,21 @@ func (a *Admin) List() error {
 // GetInfo print PMM client info.
 func (a *Admin) PrintInfo() {
 	fmt.Printf("pmm-admin %s\n\n", VERSION)
-	fmt.Printf("%-15s | %s\n", "PMM Server", a.Config.ServerAddress)
+	var labels []string
+	if a.Config.ServerSSL {
+		labels = append(labels, "SSL")
+	}
+	if a.Config.ServerInsecureSSL {
+		labels = append(labels, "insecure SSL")
+	}
+	if a.Config.HttpUser != "" {
+		labels = append(labels, "password-protected")
+	}
+	info := ""
+	if len(labels) > 0 {
+		info = fmt.Sprintf("(%s)", strings.Join(labels, ", "))
+	}
+	fmt.Printf("%-15s | %s %s\n", "PMM Server", a.Config.ServerAddress, info)
 	fmt.Printf("%-15s | %s\n", "Client Name", a.Config.ClientName)
 	fmt.Printf("%-15s | %s\n", "Client Address", a.Config.ClientAddress)
 	fmt.Printf("%-15s | %s\n\n", "Service manager", service.Platform())
@@ -492,6 +506,22 @@ func SanitizeDSN(dsn string) string {
 		dsn = fmt.Sprintf("%s:***@%s", userPasswordParts[0], hostPart)
 	}
 	return dsn
+}
+
+// CheckBinaries check if all PMM Client binaries are at their paths
+func CheckBinaries() string {
+	paths := []string{"node_exporter", "mysqld_exporter", "mongodb_exporter"}
+	for _, p := range paths {
+		f := fmt.Sprintf("%s/%s", PMMBaseDir, p)
+		if !FileExists(f) {
+			return f
+		}
+	}
+	f := fmt.Sprintf("%s/bin/percona-qan-agent", agentBaseDir)
+	if !FileExists(f) {
+		return f
+	}
+	return ""
 }
 
 // Sort rows of formatted table output (list, check-networks commands).
