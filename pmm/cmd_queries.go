@@ -100,7 +100,7 @@ func (a *Admin) AddQueries(info map[string]string) error {
 		Subsystem:  "mysql",
 		ParentUUID: qanOSInstance.ParentUUID,
 		Name:       a.ServiceName, // unique ID
-		DSN:        info["dsn"],
+		DSN:        info["safe_dsn"],
 		Distro:     info["distro"],
 		Version:    info["version"],
 	}
@@ -136,6 +136,7 @@ func (a *Admin) AddQueries(info map[string]string) error {
 	qanConfig := map[string]string{
 		"UUID":        in.UUID,
 		"CollectFrom": info["query_source"],
+		"DSN":         info["dsn"],
 	}
 	if err := a.manageQAN(agentID, "StartTool", "", qanConfig); err != nil {
 		return err
