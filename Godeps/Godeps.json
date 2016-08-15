@@ -48,8 +48,8 @@
 		},
 		{
 			"ImportPath": "github.com/prometheus/client_golang/api/prometheus",
-			"Comment": "0.7.0-85-g9f1ed1e",
-			"Rev": "9f1ed1ed4a5f754c9b626e5cf8ec1ea7d622e017"
+			"Comment": "0.7.0-103-g66058aa",
+			"Rev": "66058aac3a83021948e5fb12f1f408ff556b9037"
 		},
 		{
 			"ImportPath": "github.com/prometheus/common/model",

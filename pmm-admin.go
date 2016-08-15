@@ -41,11 +41,6 @@ var (
 				os.Exit(0)
 			}
 
-			// No checks when running w/o commands.
-			if cmd.Name() == "pmm-admin" {
-				return
-			}
-
 			if path := pmm.CheckBinaries(); path != "" {
 				fmt.Println("Installation problem, one of the binaries does not exist:", path)
 				os.Exit(1)
@@ -122,29 +117,42 @@ a new user 'pmm@' automatically using the given (auto-detected) MySQL credential
 				os.Exit(1)
 			}
 
-			if err := admin.AddLinuxMetrics(); err != nil {
+			err := admin.AddLinuxMetrics()
+			if err == pmm.ErrOneLinux {
+				fmt.Println("OK, already monitoring this system.")
+			} else if err != nil {
 				fmt.Println("Error adding linux metrics:", err)
 				os.Exit(1)
+			} else {
+				fmt.Println("OK, now monitoring this system.")
 			}
-			fmt.Println("OK, now monitoring this system.")
 
-			info, err := pmm.DetectMySQL(flagM)
+			info, err := admin.DetectMySQL(flagM)
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
 			}
-			if err := admin.AddMySQLMetrics(info, flagM); err != nil {
+
+			err = admin.AddMySQLMetrics(info, flagM)
+			if err == pmm.ErrDuplicate {
+				fmt.Println("OK, already monitoring MySQL metrics.")
+			} else if err != nil {
 				fmt.Println("Error adding MySQL metrics:", err)
 				os.Exit(1)
+			} else {
+				fmt.Println("OK, now monitoring MySQL metrics using DSN", info["safe_dsn"])
 			}
-			fmt.Println("OK, now monitoring MySQL metrics using DSN", info["safe_dsn"])
 
-			if err := admin.AddMySQLQueries(info); err != nil {
+			err = admin.AddMySQLQueries(info)
+			if err == pmm.ErrDuplicate {
+				fmt.Println("OK, already monitoring MySQL queries.")
+			} else if err != nil {
 				fmt.Println("Error adding MySQL queries:", err)
 				os.Exit(1)
+			} else {
+				fmt.Println("OK, now monitoring MySQL queries from", info["query_source"], "using DSN",
+					info["safe_dsn"])
 			}
-			fmt.Println("OK, now monitoring MySQL queries from", info["query_source"], "using DSN",
-				info["safe_dsn"])
 		},
 	}
 	cmdAddLinuxMetrics = &cobra.Command{
@@ -179,7 +187,7 @@ a new user 'pmm@' automatically using the given (auto-detected) MySQL credential
   pmm-admin add mysql:metrics --password abc123 --host 192.168.1.2 --create-user
   pmm-admin add mysql:metrics --user rdsuser --password abc123 --host my-rds.1234567890.us-east-1.rds.amazonaws.com my-rds`,
 		Run: func(cmd *cobra.Command, args []string) {
-			info, err := pmm.DetectMySQL(flagM)
+			info, err := admin.DetectMySQL(flagM)
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
@@ -211,7 +219,7 @@ a new user 'pmm@' automatically using the given (auto-detected) MySQL credential
 				fmt.Println("Flag --query-source can take the following values: auto, slowlog, perfschema.")
 				os.Exit(1)
 			}
-			info, err := pmm.DetectMySQL(flagM)
+			info, err := admin.DetectMySQL(flagM)
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
@@ -244,17 +252,25 @@ Use additional options to specify MongoDB node type, cluster, replSet etc.
 				os.Exit(1)
 			}
 
-			if err := admin.AddLinuxMetrics(); err != nil {
+			err := admin.AddLinuxMetrics()
+			if err == pmm.ErrOneLinux {
+				fmt.Println("OK, already monitoring this system.")
+			} else if err != nil {
 				fmt.Println("Error adding linux metrics:", err)
 				os.Exit(1)
+			} else {
+				fmt.Println("OK, now monitoring this system.")
 			}
-			fmt.Println("OK, now monitoring this system.")
 
-			if err := admin.AddMongoDBMetrics(flagMongoURI, flagMongoNodeType, flagMongoReplSet, flagMongoCluster); err != nil {
+			err = admin.AddMongoDBMetrics(flagMongoURI, flagMongoNodeType, flagMongoReplSet, flagMongoCluster)
+			if err == pmm.ErrDuplicate {
+				fmt.Println("OK, already monitoring MongoDB metrics.")
+			} else if err != nil {
 				fmt.Println("Error adding MongoDB metrics:", err)
 				os.Exit(1)
+			} else {
+				fmt.Println("OK, now monitoring MongoDB metrics using URI", pmm.SanitizeDSN(flagMongoURI))
 			}
-			fmt.Println("OK, now monitoring MongoDB metrics using URI", pmm.SanitizeDSN(flagMongoURI))
 		},
 	}
 	cmdAddMongoDBMetrics = &cobra.Command{
@@ -311,19 +327,28 @@ The command did not stop when one of the services is missed or failed to remove.
 		Run: func(cmd *cobra.Command, args []string) {
 			name := args[0]
 
-			if err := admin.RemoveLinuxMetrics(name); err != nil {
+			err := admin.RemoveLinuxMetrics(name)
+			if err == pmm.ErrNoService {
+				fmt.Printf("OK, no system %s under monitoring.\n", name)
+			} else if err != nil {
 				fmt.Printf("Error removing linux metrics %s: %s\n", name, err)
 			} else {
 				fmt.Printf("OK, removed system %s from monitoring.\n", name)
 			}
 
-			if err := admin.RemoveMySQLMetrics(name); err != nil {
+			err = admin.RemoveMySQLMetrics(name)
+			if err == pmm.ErrNoService {
+				fmt.Printf("OK, no MySQL metrics %s under monitoring.\n", name)
+			} else if err != nil {
 				fmt.Printf("Error removing MySQL metrics %s: %s\n", name, err)
 			} else {
 				fmt.Printf("OK, removed MySQL metrics %s from monitoring.\n", name)
 			}
 
-			if err := admin.RemoveMySQLQueries(name); err != nil {
+			err = admin.RemoveMySQLQueries(name)
+			if err == pmm.ErrNoService {
+				fmt.Printf("OK, no MySQL queries %s under monitoring.\n", name)
+			} else if err != nil {
 				fmt.Printf("Error removing MySQL queries %s: %s\n", name, err)
 			} else {
 				fmt.Printf("OK, removed MySQL queries %s from monitoring.\n", name)
@@ -379,13 +404,19 @@ The command did not stop when one of the services is missed or failed to remove.
 		Run: func(cmd *cobra.Command, args []string) {
 			name := args[0]
 
-			if err := admin.RemoveLinuxMetrics(name); err != nil {
+			err := admin.RemoveLinuxMetrics(name)
+			if err == pmm.ErrNoService {
+				fmt.Printf("OK, no system %s under monitoring.\n", name)
+			} else if err != nil {
 				fmt.Printf("Error removing linux metrics %s: %s\n", name, err)
 			} else {
 				fmt.Printf("OK, removed system %s from monitoring.\n", name)
 			}
 
-			if err := admin.RemoveMongoDBMetrics(name); err != nil {
+			err = admin.RemoveMongoDBMetrics(name)
+			if err == pmm.ErrNoService {
+				fmt.Printf("OK, no MongoDB metrics %s under monitoring.\n", name)
+			} else if err != nil {
 				fmt.Printf("Error removing MongoDB metrics %s: %s\n", name, err)
 			} else {
 				fmt.Printf("OK, removed MongoDB metrics %s from monitoring.\n", name)
@@ -625,7 +656,7 @@ func main() {
 	cmdAddMySQL.Flags().BoolVar(&flagM.CreateUser, "create-user", false, "create a new MySQL user")
 	cmdAddMySQL.Flags().StringVar(&flagM.CreateUserPassword, "create-user-password", "", "optional password for a new MySQL user")
 	cmdAddMySQL.Flags().UintVar(&flagM.MaxUserConn, "create-user-maxconn", 5, "max user connections for a new user")
-	cmdAddMySQL.Flags().BoolVar(&flagM.Force, "force", false, "force to create or update MySQL user")
+	cmdAddMySQL.Flags().BoolVar(&flagM.Force, "force", false, "force to create/update MySQL user")
 	cmdAddMySQL.Flags().BoolVar(&flagM.DisableTableStats, "disable-tablestats", false, "disable table statistics (for MySQL with a huge number of tables)")
 	cmdAddMySQL.Flags().BoolVar(&flagM.DisableUserStats, "disable-userstats", false, "disable user statistics")
 	cmdAddMySQL.Flags().BoolVar(&flagM.DisableBinlogStats, "disable-binlogstats", false, "disable binlog statistics")
@@ -641,7 +672,7 @@ func main() {
 	cmdAddMySQLMetrics.Flags().BoolVar(&flagM.CreateUser, "create-user", false, "create a new MySQL user")
 	cmdAddMySQLMetrics.Flags().StringVar(&flagM.CreateUserPassword, "create-user-password", "", "optional password for a new MySQL user")
 	cmdAddMySQLMetrics.Flags().UintVar(&flagM.MaxUserConn, "create-user-maxconn", 5, "max user connections for a new user")
-	cmdAddMySQLMetrics.Flags().BoolVar(&flagM.Force, "force", false, "force to create or update MySQL user")
+	cmdAddMySQLMetrics.Flags().BoolVar(&flagM.Force, "force", false, "force to create/update MySQL user")
 	cmdAddMySQLMetrics.Flags().BoolVar(&flagM.DisableTableStats, "disable-tablestats", false, "disable table statistics (for MySQL with a huge number of tables)")
 	cmdAddMySQLMetrics.Flags().BoolVar(&flagM.DisableUserStats, "disable-userstats", false, "disable user statistics")
 	cmdAddMySQLMetrics.Flags().BoolVar(&flagM.DisableBinlogStats, "disable-binlogstats", false, "disable binlog statistics")
@@ -656,7 +687,7 @@ func main() {
 	cmdAddMySQLQueries.Flags().BoolVar(&flagM.CreateUser, "create-user", false, "create a new MySQL user")
 	cmdAddMySQLQueries.Flags().StringVar(&flagM.CreateUserPassword, "create-user-password", "", "optional password for a new MySQL user")
 	cmdAddMySQLQueries.Flags().UintVar(&flagM.MaxUserConn, "create-user-maxconn", 5, "max user connections for a new user")
-	cmdAddMySQLQueries.Flags().BoolVar(&flagM.Force, "force", false, "force to create or update MySQL user")
+	cmdAddMySQLQueries.Flags().BoolVar(&flagM.Force, "force", false, "force to create/update MySQL user")
 	cmdAddMySQLQueries.Flags().StringVar(&flagM.QuerySource, "query-source", "auto", "source of SQL queries: auto, slowlog, perfschema")
 
 	cmdAddMongoDB.Flags().StringVar(&flagMongoURI, "uri", "mongodb://localhost:27017", "MongoDB URI")

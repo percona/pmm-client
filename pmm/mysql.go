@@ -1,0 +1,294 @@
+/*
+   Copyright (c) 2016, Percona LLC and/or its affiliates. All rights reserved.
+
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU Affero General Public License as published by
+   the Free Software Foundation, either version 3 of the License, or
+   (at your option) any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU Affero General Public License for more details.
+
+   You should have received a copy of the GNU Affero General Public License
+   along with this program.  If not, see <http://www.gnu.org/licenses/>
+*/
+
+package pmm
+
+import (
+	"database/sql"
+	"fmt"
+	"math/rand"
+	"os"
+	"time"
+
+	"github.com/percona/go-mysql/dsn"
+	"strings"
+)
+
+// MySQL specific options.
+type MySQLFlags struct {
+	DefaultsFile string
+	User         string
+	Password     string
+	Host         string
+	Port         string
+	Socket       string
+
+	QuerySource string
+
+	CreateUser         bool
+	CreateUserPassword string
+	MaxUserConn        uint
+	Force              bool
+
+	DisableTableStats  bool
+	DisableUserStats   bool
+	DisableBinlogStats bool
+	DisableProcesslist bool
+}
+
+// DetectMySQL detect MySQL, create user if needed, return DSN and MySQL info strings.
+func (a *Admin) DetectMySQL(mf MySQLFlags) (map[string]string, error) {
+	// Check for invalid mix of flags.
+	if mf.Socket != "" && mf.Host != "" {
+		return nil, fmt.Errorf("Flags --socket and --host are mutually exclusive.")
+	}
+	if mf.Socket != "" && mf.Port != "" {
+		return nil, fmt.Errorf("Flags --socket and --port are mutually exclusive.")
+	}
+	if !mf.CreateUser && mf.CreateUserPassword != "" {
+		return nil, fmt.Errorf("Flag --create-user-password should be used along with --create-user.")
+	}
+
+	userDSN := dsn.DSN{
+		DefaultsFile: mf.DefaultsFile,
+		Username:     mf.User,
+		Password:     mf.Password,
+		Hostname:     mf.Host,
+		Port:         mf.Port,
+		Socket:       mf.Socket,
+		Params:       []string{dsn.ParseTimeParam},
+	}
+	// Populate defaults to DSN for missed options.
+	userDSN, err := userDSN.AutoDetect()
+	if err != nil && err != dsn.ErrNoSocket {
+		err = fmt.Errorf("Problem with MySQL auto-detection: %s", err)
+		return nil, err
+	}
+
+	db, err := sql.Open("mysql", userDSN.String())
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+
+	// Test access using detected credentials and stored password.
+	accessOK := false
+	if a.Config.MySQLPassword != "" {
+		pmmDSN := userDSN
+		pmmDSN.Username = "pmm"
+		pmmDSN.Password = a.Config.MySQLPassword
+		if err := testConnection(pmmDSN); err == nil {
+			//fmt.Println("Using stored credentials, DSN is", pmmDSN.String())
+			accessOK = true
+			userDSN = pmmDSN
+			// Not setting this into db connection as it will never have GRANT
+			// in case we want to create a new user below.
+		}
+	}
+
+	// If the above fails, test MySQL access simply using detected credentials.
+	if !accessOK {
+		if err := testConnection(userDSN); err != nil {
+			err = fmt.Errorf("Cannot connect to MySQL: %s\n\n%s\n%s", err,
+				"Verify that MySQL user exists and has the correct privileges.",
+				"Use additional flags --user, --password, --host, --port, --socket if needed.")
+			return nil, err
+		}
+	}
+
+	// At this point, we verified the MySQL access, so no need to handle SQL errors below
+	// if our queries are predictably good.
+
+	// Get MySQL variables.
+	info := getMysqlInfo(db)
+
+	if mf.QuerySource == "auto" {
+		// MySQL is local if the server hostname == MySQL hostname.
+		os_hostname, _ := os.Hostname()
+		if os_hostname == info["hostname"] {
+			mf.QuerySource = "slowlog"
+		} else {
+			mf.QuerySource = "perfschema"
+		}
+	}
+
+	// Create a new MySQL user.
+	if mf.CreateUser {
+		userDSN, err = createMySQLUser(db, userDSN, mf)
+		if err != nil {
+			return nil, err
+		}
+
+		// Store generated password.
+		a.Config.MySQLPassword = userDSN.Password
+		a.writeConfig()
+	}
+
+	info["query_source"] = mf.QuerySource
+	info["dsn"] = userDSN.String()
+	info["safe_dsn"] = SanitizeDSN(userDSN.String())
+
+	return info, nil
+}
+
+func createMySQLUser(db *sql.DB, userDSN dsn.DSN, mf MySQLFlags) (dsn.DSN, error) {
+	// New DSN has same host:port or socket, but different user and pass.
+	userDSN.Username = "pmm"
+	if mf.CreateUserPassword != "" {
+		userDSN.Password = mf.CreateUserPassword
+	} else {
+		userDSN.Password = generatePassword(20)
+	}
+
+	hosts := []string{"%"}
+	if userDSN.Socket != "" || userDSN.Hostname == "localhost" {
+		hosts = []string{"localhost", "127.0.0.1"}
+	} else if userDSN.Hostname == "127.0.0.1" {
+		hosts = []string{"127.0.0.1"}
+	}
+
+	if !mf.Force {
+		if err := mysqlCheck(db, hosts); err != nil {
+			return dsn.DSN{}, err
+		}
+	}
+
+	// Create a new MySQL user with the necessary privs.
+	grants := makeGrants(userDSN, hosts, mf.MaxUserConn)
+	for _, grant := range grants {
+		if _, err := db.Exec(grant); err != nil {
+			err = fmt.Errorf("Problem creating a new MySQL user. Failed to execute %s: %s\n\n%s",
+				grant, err, "Verify that connecting MySQL user has GRANT privilege.")
+			return dsn.DSN{}, err
+		}
+	}
+
+	// Verify new MySQL user works. If this fails, the new DSN or grant statements are wrong.
+	if err := testConnection(userDSN); err != nil {
+		err = fmt.Errorf("Problem creating a new MySQL user. Insufficient privileges: %s", err)
+		return dsn.DSN{}, err
+	}
+
+	return userDSN, nil
+}
+
+func mysqlCheck(db *sql.DB, hosts []string) error {
+	var (
+		errors []string
+		varVal string
+	)
+
+	// Check for read_only.
+	if db.QueryRow("SELECT @@read_only").Scan(&varVal); varVal == "1" {
+		errors = append(errors, "You are trying to create a new user on read-only MySQL host.")
+	}
+
+	// Check for slave.
+	slaveStatusRows, _ := db.Query("SHOW SLAVE STATUS")
+	if slaveStatusRows.Next() {
+		errors = append(errors, "You are trying to create a new user on MySQL replication slave.")
+	}
+
+	// Check if user exists.
+	for _, host := range hosts {
+		if _, err := db.Query(fmt.Sprintf("SHOW GRANTS FOR 'pmm'@'%s'", host)); err == nil {
+			if host == "%" {
+				host = "%%"
+			}
+			errors = append(errors, fmt.Sprintf("MySQL user pmm@%s already exists. %s", host,
+				"Try without --create-user flag or use the existing `pmm` user credentials."))
+			break
+		}
+	}
+
+	if len(errors) > 0 {
+		errors = append(errors, "", "If you think the above is okay, you can proceed anyway with --force flag.")
+		return fmt.Errorf(strings.Join(errors, "\n"))
+	}
+
+	return nil
+}
+
+func makeGrants(dsn dsn.DSN, hosts []string, conn uint) []string {
+	var grants []string
+	for _, host := range hosts {
+		grants = append(grants,
+			fmt.Sprintf("GRANT SELECT, PROCESS, REPLICATION CLIENT, SUPER ON *.* TO '%s'@'%s' IDENTIFIED BY '%s' WITH MAX_USER_CONNECTIONS %d",
+				dsn.Username, host, dsn.Password, conn),
+			fmt.Sprintf("GRANT UPDATE, DELETE, DROP ON `performance_schema`.* TO '%s'@'%s'",
+				dsn.Username, host))
+	}
+
+	return grants
+}
+
+func testConnection(userDSN dsn.DSN) error {
+	db, err := sql.Open("mysql", userDSN.String())
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	// Must call sql.DB.Ping to test actual MySQL connection.
+	if err = db.Ping(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func getMysqlInfo(db *sql.DB) map[string]string {
+	var (
+		hostname string
+		port     string
+		distro   string
+		version  string
+	)
+	db.QueryRow("SELECT @@hostname, @@port, @@version_comment, @@version").Scan(&hostname, &port, &distro, &version)
+
+	return map[string]string{
+		"hostname": hostname,
+		"port":     port,
+		"distro":   distro,
+		"version":  version,
+	}
+}
+
+// generatePassword generate password to satisfy MySQL 5.7 default password policy.
+func generatePassword(size int) string {
+	rand.Seed(time.Now().UnixNano())
+	required := []string{
+		"abcdefghijklmnopqrstuvwxyz", "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "0123456789", "_,;-",
+	}
+	var b []rune
+
+	for _, source := range required {
+		rsource := []rune(source)
+		for i := 0; i < int(size/len(required))+1; i++ {
+			b = append(b, rsource[rand.Intn(len(rsource))])
+		}
+	}
+	// Scramble.
+	for _ = range b {
+		pos1 := rand.Intn(len(b))
+		pos2 := rand.Intn(len(b))
+		a := b[pos1]
+		b[pos1] = b[pos2]
+		b[pos2] = a
+	}
+	return string(b)[:size]
+}

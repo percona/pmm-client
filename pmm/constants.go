@@ -38,8 +38,9 @@ var (
 	ConfigFile      = fmt.Sprintf("%s/pmm.yml", PMMBaseDir)
 	agentConfigFile = fmt.Sprintf("%s/config/agent.conf", agentBaseDir)
 
-	errDuplicate = fmt.Errorf("you have already the instance with this name under monitoring.")
-	errNoService = fmt.Errorf("no service found.")
+	ErrDuplicate = fmt.Errorf("you have already the instance with this name under monitoring.")
+	ErrNoService = fmt.Errorf("no service found.")
+	ErrOneLinux  = fmt.Errorf("there could be only one instance of linux metrics being monitored for this system.")
 )
 
 const nodeExporterArgs = "-collectors.enabled=diskstats,filesystem,loadavg,meminfo,netdev,netstat,stat,time,uname,vmstat"

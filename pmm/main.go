@@ -117,6 +117,11 @@ func (a *Admin) SetConfig(cf Config) error {
 		a.Config.ServerInsecureSSL = true
 	}
 
+	return a.writeConfig()
+}
+
+// writeConfig write config to the file.
+func (a *Admin) writeConfig() error {
 	bytes, _ := yaml.Marshal(a.Config)
 	return ioutil.WriteFile(a.filename, bytes, 0644)
 }
@@ -362,7 +367,7 @@ func (a *Admin) StartStopMonitoring(action, svcType, name string) error {
 		return err
 	}
 	if consulSvc == nil {
-		return errNoService
+		return ErrNoService
 	}
 
 	endPort := consulSvc.Port

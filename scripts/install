@@ -114,17 +114,17 @@ echo
 echo "  Get info on what is being monitored:"
 echo "      pmm-admin list"
 echo
-echo "  Enable monitoring of this OS (CPU, storage, etc.):"
-echo "      pmm-admin add os"
+echo "  Enable monitoring of this system (CPU, storage, etc.):"
+echo "      pmm-admin add linux:metrics"
 echo
 echo "  Enable monitoring MySQL on this server:"
-echo "      pmm-admin add mysql [flags]"
+echo "      pmm-admin add mysql:metrics [flags]"
 echo
 echo "  Enable MySQL query analytics on this server:"
-echo "      pmm-admin add queries [flags]"
+echo "      pmm-admin add mysql:queries [flags]"
 echo
 echo "  Enable monitoring MongoDB on this server:"
-echo "      pmm-admin add mongodb [flags]"
+echo "      pmm-admin add mongodb:metrics [flags]"
 echo
 echo "To see more commands and options, run: pmm-admin --help"
 echo "Metrics should appear shortly by the link http://$SERVER_ADDR"

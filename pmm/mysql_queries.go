@@ -39,7 +39,7 @@ func (a *Admin) AddMySQLQueries(info map[string]string) error {
 		return err
 	}
 	if consulSvc != nil {
-		return errDuplicate
+		return ErrDuplicate
 	}
 
 	// Now check if there are any mysql:queries services.
@@ -100,7 +100,7 @@ func (a *Admin) AddMySQLQueries(info map[string]string) error {
 		Subsystem:  "mysql",
 		ParentUUID: qanOSInstance.ParentUUID,
 		Name:       a.ServiceName, // unique ID
-		DSN:        info["dsn"],
+		DSN:        info["safe_dsn"],
 		Distro:     info["distro"],
 		Version:    info["version"],
 	}
@@ -136,6 +136,7 @@ func (a *Admin) AddMySQLQueries(info map[string]string) error {
 	qanConfig := map[string]string{
 		"UUID":        in.UUID,
 		"CollectFrom": info["query_source"],
+		"DSN":         info["dsn"],
 	}
 	if err := a.manageQAN(agentID, "StartTool", "", qanConfig); err != nil {
 		return err
@@ -186,7 +187,7 @@ func (a *Admin) RemoveMySQLQueries(name string) error {
 		return err
 	}
 	if consulSvc == nil {
-		return errNoService
+		return ErrNoService
 	}
 
 	// Ensure qan-agent is started, otherwise it will be an error to stop QAN.

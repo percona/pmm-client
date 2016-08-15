@@ -32,7 +32,7 @@ func (a *Admin) AddMongoDBMetrics(uri, nodetype, replset, cluster string) error 
 		return err
 	}
 	if consulSvc != nil {
-		return errDuplicate
+		return ErrDuplicate
 	}
 
 	// Choose port.
@@ -121,7 +121,7 @@ func (a *Admin) RemoveMongoDBMetrics(name string) error {
 		return err
 	}
 	if consulSvc == nil {
-		return errNoService
+		return ErrNoService
 	}
 
 	// Remove service from Consul.

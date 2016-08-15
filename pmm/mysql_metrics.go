@@ -33,7 +33,7 @@ func (a *Admin) AddMySQLMetrics(info map[string]string, mf MySQLFlags) error {
 		return err
 	}
 	if consulSvc != nil {
-		return errDuplicate
+		return ErrDuplicate
 	}
 
 	// Choose port.
@@ -129,7 +129,7 @@ func (a *Admin) RemoveMySQLMetrics(name string) error {
 		return err
 	}
 	if consulSvc == nil {
-		return errNoService
+		return ErrNoService
 	}
 
 	for job, port := range map[string]int{"mysql-hr": consulSvc.Port, "mysql-mr": consulSvc.Port + 1,

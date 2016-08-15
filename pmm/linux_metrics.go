@@ -32,7 +32,7 @@ func (a *Admin) AddLinuxMetrics() error {
 		return err
 	}
 	if consulSvc != nil {
-		return fmt.Errorf("there could be only one instance of linux metrics being monitored for this system.")
+		return ErrOneLinux
 	}
 
 	// Choose port.
@@ -88,7 +88,7 @@ func (a *Admin) RemoveLinuxMetrics(name string) error {
 		return err
 	}
 	if consulSvc == nil {
-		return errNoService
+		return ErrNoService
 	}
 
 	// Remove service from Consul.
