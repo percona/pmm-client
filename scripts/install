@@ -28,7 +28,7 @@ install_pmm_admin() {
     ln -sf "$PMM_DIR/pmm-admin" /usr/sbin/pmm-admin
 
     set +e
-    /usr/sbin/pmm-admin config --server-address $SERVER_ADDR --client-address $CLIENT_ADDR --client-name $CLIENT_NAME > /dev/null
+    /usr/sbin/pmm-admin config --server $SERVER_ADDR --client $CLIENT_ADDR --name $CLIENT_NAME > /dev/null
     if [ $? -ne 0 ]; then
         err "looks like you changed the client address or hostname from previous run.
 If this is ok, remove $PMM_DIR/pmm.yml and try again."

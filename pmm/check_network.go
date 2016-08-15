@@ -90,9 +90,6 @@ func (a *Admin) CheckNetwork(noEmoji bool) error {
 			continue
 		}
 		metricType := strings.Split(svc.Service, ":")[0]
-		if metricType == "mysql-hr" || metricType == "mysql-mr" || metricType == "mysql-lr" {
-			metricType = "mysql"
-		}
 
 		name := "-"
 		for _, tag := range svc.Tags {

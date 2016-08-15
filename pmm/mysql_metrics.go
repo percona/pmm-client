@@ -25,10 +25,10 @@ import (
 	"github.com/percona/kardianos-service"
 )
 
-// AddMySQLMetrics add mysql metrics services to monitoring.
+// AddMySQLMetrics add mysql metrics service to monitoring.
 func (a *Admin) AddMySQLMetrics(info map[string]string, mf MySQLFlags) error {
 	// Check if we have already this service on Consul.
-	consulSvc, err := a.getConsulService("mysql-hr:metrics", a.ServiceName)
+	consulSvc, err := a.getConsulService("mysql:metrics", a.ServiceName)
 	if err != nil {
 		return err
 	}
@@ -65,66 +65,64 @@ func (a *Admin) AddMySQLMetrics(info map[string]string, mf MySQLFlags) error {
 		optsToDisable = append(optsToDisable, "processlist")
 	}
 
-	for job, port := range map[string]uint{"mysql-hr": port, "mysql-mr": port + 1, "mysql-lr": port + 2} {
-		// Add service to Consul.
-		serviceID := fmt.Sprintf("%s:metrics-%d", job, port)
-		srv := consul.AgentService{
-			ID:      serviceID,
-			Service: fmt.Sprintf("%s:metrics", job),
-			Tags:    []string{fmt.Sprintf("alias_%s", a.ServiceName)},
-			Port:    int(port),
-		}
-		reg := consul.CatalogRegistration{
-			Node:    a.Config.ClientName,
-			Address: a.Config.ClientAddress,
-			Service: &srv,
-		}
-		if _, err := a.consulapi.Catalog().Register(&reg, nil); err != nil {
-			return err
-		}
+	// Add service to Consul.
+	serviceID := fmt.Sprintf("mysql:metrics-%d", port)
+	srv := consul.AgentService{
+		ID:      serviceID,
+		Service: fmt.Sprintf("mysql:metrics"),
+		Tags:    []string{fmt.Sprintf("alias_%s", a.ServiceName)},
+		Port:    int(port),
+	}
+	reg := consul.CatalogRegistration{
+		Node:    a.Config.ClientName,
+		Address: a.Config.ClientAddress,
+		Service: &srv,
+	}
+	if _, err := a.consulapi.Catalog().Register(&reg, nil); err != nil {
+		return err
+	}
 
-		// Add info to Consul KV.
-		d := &consul.KVPair{Key: fmt.Sprintf("%s/%s/dsn", a.Config.ClientName, serviceID),
-			Value: []byte(info["safe_dsn"])}
-		a.consulapi.KV().Put(d, nil)
+	// Add info to Consul KV.
+	d := &consul.KVPair{Key: fmt.Sprintf("%s/%s/dsn", a.Config.ClientName, serviceID),
+		Value: []byte(info["safe_dsn"])}
+	a.consulapi.KV().Put(d, nil)
 
-		// Disable exporter options if set so.
-		args := mysqldExporterArgs[job]
-		for _, o := range optsToDisable {
-			for _, f := range mysqldExporterDisableArgs[o] {
-				for i, a := range args {
-					if strings.HasPrefix(a, f) {
-						args[i] = fmt.Sprintf("%sfalse", f)
-						break
-					}
+	// Disable exporter options if set so.
+	args := mysqldExporterArgs
+	for _, o := range optsToDisable {
+		for _, f := range mysqldExporterDisableArgs[o] {
+			for i, a := range mysqldExporterArgs {
+				if strings.HasPrefix(a, f) {
+					args[i] = fmt.Sprintf("%sfalse", f)
+					break
 				}
 			}
-			d := &consul.KVPair{Key: fmt.Sprintf("%s/%s/%s", a.Config.ClientName, serviceID, o),
-				Value: []byte("OFF")}
-			a.consulapi.KV().Put(d, nil)
 		}
+		d := &consul.KVPair{Key: fmt.Sprintf("%s/%s/%s", a.Config.ClientName, serviceID, o),
+			Value: []byte("OFF")}
+		a.consulapi.KV().Put(d, nil)
+	}
 
-		// Install and start service via platform service manager.
-		svcConfig := &service.Config{
-			Name:        fmt.Sprintf("pmm-mysql-metrics-%d", port),
-			DisplayName: fmt.Sprintf("PMM Prometheus mysqld_exporter %d", port),
-			Description: fmt.Sprintf("PMM Prometheus mysqld_exporter %d", port),
-			Executable:  fmt.Sprintf("%s/mysqld_exporter", PMMBaseDir),
-			Arguments:   append(args, fmt.Sprintf("-web.listen-address=%s:%d", a.Config.ClientAddress, port)),
-			Option:      service.KeyValue{"Environment": fmt.Sprintf("DATA_SOURCE_NAME=%s", info["dsn"])},
-		}
-		if err := installService(svcConfig); err != nil {
-			return err
-		}
+	// Install and start service via platform service manager.
+	svcConfig := &service.Config{
+		Name:        fmt.Sprintf("pmm-mysql-metrics-%d", port),
+		DisplayName: fmt.Sprintf("PMM Prometheus mysqld_exporter %d", port),
+		Description: fmt.Sprintf("PMM Prometheus mysqld_exporter %d", port),
+		Executable:  fmt.Sprintf("%s/mysqld_exporter", PMMBaseDir),
+		Arguments:   append(args, fmt.Sprintf("-web.listen-address=%s:%d", a.Config.ClientAddress, port)),
+		Option:      service.KeyValue{"Environment": fmt.Sprintf("DATA_SOURCE_NAME=%s", info["dsn"])},
+	}
+	if err := installService(svcConfig); err != nil {
+		return err
 	}
 
 	return nil
 }
 
-// RemoveMySQLMetrics remove mysql metrics services from monitoring.
+// RemoveMySQLMetrics remove mysql metrics service from monitoring.
 func (a *Admin) RemoveMySQLMetrics(name string) error {
 	// Check if we have this service on Consul.
-	consulSvc, err := a.getConsulService("mysql-hr:metrics", name)
+	consulSvc, err := a.getConsulService("mysql:metrics", name)
 	if err != nil {
 		return err
 	}
@@ -132,25 +130,22 @@ func (a *Admin) RemoveMySQLMetrics(name string) error {
 		return ErrNoService
 	}
 
-	for job, port := range map[string]int{"mysql-hr": consulSvc.Port, "mysql-mr": consulSvc.Port + 1,
-		"mysql-lr": consulSvc.Port + 2} {
-		serviceID := fmt.Sprintf("%s:metrics-%d", job, port)
-		// Remove service from Consul.
-		dereg := consul.CatalogDeregistration{
-			Node:      a.Config.ClientName,
-			ServiceID: serviceID,
-		}
-		if _, err := a.consulapi.Catalog().Deregister(&dereg, nil); err != nil {
-			return err
-		}
+	serviceID := fmt.Sprintf("mysql:metrics-%d", consulSvc.Port)
+	// Remove service from Consul.
+	dereg := consul.CatalogDeregistration{
+		Node:      a.Config.ClientName,
+		ServiceID: serviceID,
+	}
+	if _, err := a.consulapi.Catalog().Deregister(&dereg, nil); err != nil {
+		return err
+	}
 
-		prefix := fmt.Sprintf("%s/%s/", a.Config.ClientName, serviceID)
-		a.consulapi.KV().DeleteTree(prefix, nil)
+	prefix := fmt.Sprintf("%s/%s/", a.Config.ClientName, serviceID)
+	a.consulapi.KV().DeleteTree(prefix, nil)
 
-		// Stop and uninstall service.
-		if err := uninstallService(fmt.Sprintf("pmm-mysql-metrics-%d", port)); err != nil {
-			return err
-		}
+	// Stop and uninstall service.
+	if err := uninstallService(fmt.Sprintf("pmm-mysql-metrics-%d", consulSvc.Port)); err != nil {
+		return err
 	}
 
 	return nil

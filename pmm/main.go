@@ -190,15 +190,7 @@ func (a *Admin) List() error {
 			continue
 		}
 
-		port := fmt.Sprintf("%d", svc.Port)
 		status := "NO"
-		if svcType == "mysql-hr:metrics" {
-			svcType = "mysql:metrics"
-			port = fmt.Sprintf("%d-%d", svc.Port, svc.Port+2)
-		} else if svcType == "mysql-mr:metrics" || svcType == "mysql-lr:metrics" {
-			// If mysqld_exporter for mysql-hr job is running, we consider mysql status as running.
-			continue
-		}
 		if getServiceStatus(fmt.Sprintf("pmm-%s-%d", strings.Replace(svcType, ":", "-", 1), svc.Port)) {
 			status = "YES"
 		}
@@ -230,7 +222,7 @@ func (a *Admin) List() error {
 		row := instanceStatus{
 			Type:    svcType,
 			Name:    name,
-			Port:    port,
+			Port:    fmt.Sprintf("%d", svc.Port),
 			Status:  status,
 			DSN:     dsn,
 			Options: strings.Join(opts, ", "),
@@ -357,12 +349,8 @@ func (a *Admin) ServerAlive() bool {
 
 // StartStopMonitoring start/stop system service by its metric type and name.
 func (a *Admin) StartStopMonitoring(action, svcType, name string) error {
-	consulMetric := svcType
-	if svcType == "mysql:metrics" {
-		consulMetric = "mysql-hr:metrics"
-	}
 	// Check if we have this service on Consul.
-	consulSvc, err := a.getConsulService(consulMetric, name)
+	consulSvc, err := a.getConsulService(svcType, name)
 	if err != nil {
 		return err
 	}
@@ -370,20 +358,14 @@ func (a *Admin) StartStopMonitoring(action, svcType, name string) error {
 		return ErrNoService
 	}
 
-	endPort := consulSvc.Port
-	if svcType == "mysql:metrics" {
-		endPort = consulSvc.Port + 2
-	}
-	for i := consulSvc.Port; i <= endPort; i++ {
-		if action == "start" {
-			if err := startService(fmt.Sprintf("pmm-%s-%d", strings.Replace(svcType, ":", "-", 1), i)); err != nil {
-				return err
-			}
-			continue
-		}
-		if err := stopService(fmt.Sprintf("pmm-%s-%d", strings.Replace(svcType, ":", "-", 1), i)); err != nil {
+	if action == "start" {
+		if err := startService(fmt.Sprintf("pmm-%s-%d", strings.Replace(svcType, ":", "-", 1), consulSvc.Port)); err != nil {
 			return err
 		}
+		return nil
+	}
+	if err := stopService(fmt.Sprintf("pmm-%s-%d", strings.Replace(svcType, ":", "-", 1), consulSvc.Port)); err != nil {
+		return err
 	}
 
 	return nil
@@ -398,9 +380,6 @@ func (a *Admin) StartStopAllMonitoring(action string) (error, bool) {
 
 	for _, svc := range node.Services {
 		metric := svc.Service
-		if metric == "mysql-hr:metrics" || metric == "mysql-mr:metrics" || metric == "mysql-lr:metrics" {
-			metric = "mysql:metrics"
-		}
 		if action == "start" {
 			if err := startService(fmt.Sprintf("pmm-%s-%d", strings.Replace(metric, ":", "-", 1), svc.Port)); err != nil {
 				return err, false
@@ -451,7 +430,7 @@ func (a *Admin) choosePort(port uint, userDefined bool) (uint, error) {
 		}
 		return port, fmt.Errorf("port %d is used by other service. Choose the different one.", port)
 	}
-	// Find the first available port starting the given one.
+	// Find the first available port starting the default one.
 	for i := port; i < port+50; i++ {
 		ok, err := a.availablePort(i)
 		if err != nil {

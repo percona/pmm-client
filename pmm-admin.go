@@ -637,9 +637,9 @@ func main() {
 	rootCmd.PersistentFlags().StringVarP(&flagConfigFile, "config-file", "c", pmm.ConfigFile, "PMM config file")
 	rootCmd.Flags().BoolVarP(&flagVersion, "version", "v", false, "show version")
 
-	cmdConfig.Flags().StringVar(&flagC.ServerAddress, "server-address", "", "PMM server address, optionally with port number")
-	cmdConfig.Flags().StringVar(&flagC.ClientAddress, "client-address", "", "Client address")
-	cmdConfig.Flags().StringVar(&flagC.ClientName, "client-name", "", "Client name (node identifier on Consul)")
+	cmdConfig.Flags().StringVar(&flagC.ServerAddress, "server", "", "PMM server address, optionally with port number")
+	cmdConfig.Flags().StringVar(&flagC.ClientAddress, "client", "", "Client address")
+	cmdConfig.Flags().StringVar(&flagC.ClientName, "name", "", "Client name (node identifier on Consul)")
 	cmdConfig.Flags().StringVar(&flagC.HttpUser, "http-user", "pmm", "HTTP user for PMM Server")
 	cmdConfig.Flags().StringVar(&flagC.HttpPassword, "http-password", "", "HTTP password for PMM Server")
 	cmdConfig.Flags().BoolVar(&flagC.ServerSSL, "enable-ssl", false, "Enable SSL to communicate with PMM Server")

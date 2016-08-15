@@ -42,7 +42,7 @@ func (a *Admin) AddMongoDBMetrics(uri, nodetype, replset, cluster string) error 
 		port, err = a.choosePort(a.ServicePort, true)
 	} else {
 		// Choose first port available starting the given default one.
-		port, err = a.choosePort(42005, false)
+		port, err = a.choosePort(42003, false)
 	}
 	if err != nil {
 		return err
