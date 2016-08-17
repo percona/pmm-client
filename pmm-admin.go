@@ -185,7 +185,7 @@ a new user 'pmm@' automatically using the given (auto-detected) MySQL credential
 		`,
 		Example: `  pmm-admin add mysql:metrics --password abc123
   pmm-admin add mysql:metrics --password abc123 --host 192.168.1.2 --create-user
-  pmm-admin add mysql:metrics --user rdsuser --password abc123 --host my-rds.1234567890.us-east-1.rds.amazonaws.com my-rds`,
+  pmm-admin add mysql:metrics my-rds --user rdsuser --password abc123 --host my-rds.1234567890.us-east-1.rds.amazonaws.com`,
 		Run: func(cmd *cobra.Command, args []string) {
 			info, err := admin.DetectMySQL(flagM)
 			if err != nil {
@@ -212,7 +212,7 @@ a new user 'pmm@' automatically using the given (auto-detected) MySQL credential
 		`,
 		Example: `  pmm-admin add mysql:queries --password abc123
   pmm-admin add mysql:queries --password abc123 --host 192.168.1.2 --create-user
-  pmm-admin add mysql:queries --user rdsuser --password abc123 --host my-rds.1234567890.us-east-1.rds.amazonaws.com my-rds`,
+  pmm-admin add mysql:queries my-rds --user rdsuser --password abc123 --host my-rds.1234567890.us-east-1.rds.amazonaws.com`,
 		Run: func(cmd *cobra.Command, args []string) {
 			// Check --query-source flag.
 			if flagM.QuerySource != "auto" && flagM.QuerySource != "slowlog" && flagM.QuerySource != "perfschema" {
@@ -690,12 +690,12 @@ func main() {
 	cmdAddMySQLQueries.Flags().BoolVar(&flagM.Force, "force", false, "force to create/update MySQL user")
 	cmdAddMySQLQueries.Flags().StringVar(&flagM.QuerySource, "query-source", "auto", "source of SQL queries: auto, slowlog, perfschema")
 
-	cmdAddMongoDB.Flags().StringVar(&flagMongoURI, "uri", "mongodb://localhost:27017", "MongoDB URI")
+	cmdAddMongoDB.Flags().StringVar(&flagMongoURI, "uri", "localhost:27017", "MongoDB URI, format: [mongodb://][user:pass@]host[:port][/database][?options]")
 	cmdAddMongoDB.Flags().StringVar(&flagMongoNodeType, "nodetype", "", "node type: mongod, mongos, config, arbiter")
 	cmdAddMongoDB.Flags().StringVar(&flagMongoCluster, "cluster", "", "cluster name")
 	cmdAddMongoDB.Flags().StringVar(&flagMongoReplSet, "replset", "", "replSet name")
 
-	cmdAddMongoDBMetrics.Flags().StringVar(&flagMongoURI, "uri", "mongodb://localhost:27017", "MongoDB URI")
+	cmdAddMongoDBMetrics.Flags().StringVar(&flagMongoURI, "uri", "localhost:27017", "MongoDB URI, format: [mongodb://][user:pass@]host[:port][/database][?options]")
 	cmdAddMongoDBMetrics.Flags().StringVar(&flagMongoNodeType, "nodetype", "", "node type: mongod, mongos, config, arbiter")
 	cmdAddMongoDBMetrics.Flags().StringVar(&flagMongoCluster, "cluster", "", "cluster name")
 	cmdAddMongoDBMetrics.Flags().StringVar(&flagMongoReplSet, "replset", "", "replSet name")

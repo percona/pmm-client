@@ -100,7 +100,7 @@ func (a *Admin) CheckNetwork(noEmoji bool) error {
 
 		}
 
-		status := a.checkPromTargetStatus(promData.String(), name, metricType, svc.Port)
+		status := checkPromTargetStatus(promData.String(), name, metricType)
 		if !status {
 			errStatus = true
 		}
@@ -144,23 +144,6 @@ please check the firewall settings whether this system allows incoming connectio
 	}
 	fmt.Println()
 	return nil
-}
-
-// checkPromTargetStatus check Prometheus target state by metric labels.
-func (a *Admin) checkPromTargetStatus(data, alias, job string, port int) bool {
-	query := fmt.Sprintf(`up{alias="%s", instance="%s:%d", job="%s"}`, alias, a.Config.ClientAddress, port, job)
-	for _, row := range strings.Split(data, "\n") {
-		vals := strings.Split(row, " => ")
-		if vals[0] != query || len(vals) != 2 {
-			continue
-		}
-		if string(vals[1][0]) == "1" {
-			return true
-		} else {
-			return false
-		}
-	}
-	return false
 }
 
 // testNetwork measure round trip duration of server connection.
@@ -216,6 +199,23 @@ func (conn *networkTransport) dial(network, addr string) (net.Conn, error) {
 	cn, err := conn.dialer.Dial(network, addr)
 	conn.connEnd = time.Now()
 	return cn, err
+}
+
+// checkPromTargetStatus check Prometheus target state by metric labels.
+func checkPromTargetStatus(data, alias, job string) bool {
+	query := fmt.Sprintf(`up{instance="%s", job="%s"}`, alias, job)
+	for _, row := range strings.Split(data, "\n") {
+		vals := strings.Split(row, " => ")
+		if vals[0] != query || len(vals) != 2 {
+			continue
+		}
+		if string(vals[1][0]) == "1" {
+			return true
+		} else {
+			return false
+		}
+	}
+	return false
 }
 
 // Map status to emoji or text.
