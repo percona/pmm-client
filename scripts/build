@@ -8,26 +8,6 @@ err() {
    echo "ERROR: $*" >&2
    exit 1
 }
-
-download_pkgs() {
-   local IFS=","
-   while read pkg url; do
-      pkg_file="${url##*/}"
-      if [ -f $ROOT_DIR/cache/$pkg_file ]; then
-         echo "Copying $pkg from cache"
-         cp -f $ROOT_DIR/cache/$pkg_file .
-      else
-         echo "Downloading $pkg..."
-         curl -s -LO $url
-         [ -f $pkg_file ] || err "$url did not save as $pkg_file"
-      fi
-   done < $ROOT_DIR/pkglist
-}
-
-# ###########################################################################
-# Script starts here
-# ###########################################################################
-
 # Find and cd to repo root dir.
 [ "$(basename "$PWD")" = "scripts" ] && cd ..
 if [ -d ".git" ]; then
@@ -114,7 +94,6 @@ fi
 cd $PKG_DIR
 mkdir scripts
 mkdir bin
-download_pkgs
 
 # Default build for linux, not Darwin.
 export GOOS=linux
@@ -127,7 +106,9 @@ chmod +x $PKG_DIR/bin/pmm-admin
 
 # Copy what we need into the pkg dir.
 cd $ROOT_DIR
-cp pkglist CHANGELOG.md README.md LICENSE scripts/install scripts/uninstall $PKG_DIR
+cp CHANGELOG.md README.md LICENSE scripts/install scripts/uninstall $PKG_DIR
+cp binaries/{node,mysqld,mongodb}_exporter $PKG_DIR/bin
+cp binaries/percona-qan-agent{,-installer} $PKG_DIR/bin
 
 cd distro
 tar czf $PKG_NAME.tar.gz $PKG_NAME

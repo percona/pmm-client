@@ -8,25 +8,14 @@ err() {
     exit 1
 }
 
-set_pkg_file() {
-    local url="$1"
-    pkg_file="${url##*/}"
-    pkg_dir="${pkg_file%.tar.gz}"
+copy_binaries() {
+    cp -f bin/pmm-admin $PMM_DIR
+    cp -f bin/{node,mysqld,mongodb}_exporter $PMM_DIR
+    cp -f bin/percona-qan-agent $QAN_AGENT_DIR/bin/
+    ln -sf $PMM_DIR/pmm-admin /usr/sbin/pmm-admin
 }
 
-check_pkgs() {
-    local IFS=","
-    while read pkg url; do
-        set_pkg_file "$url"
-        [ ! -f "$pkg_file" ] && err "missing $pkg_file from $url"
-    done < pkglist
-    return 0
-}
-
-install_pmm_admin() {
-    cp -f bin/pmm-admin "$PMM_DIR"
-    ln -sf "$PMM_DIR/pmm-admin" /usr/sbin/pmm-admin
-
+configure_pmm() {
     set +e
     /usr/sbin/pmm-admin config --server $SERVER_ADDR --client $CLIENT_ADDR --name $CLIENT_NAME > /dev/null
     if [ $? -ne 0 ]; then
@@ -45,11 +34,7 @@ If this is ok, remove $PMM_DIR/pmm.yml and try again."
     set -e
 }
 
-install_qan_agent() {
-    set_pkg_file "$(grep "^percona-qan-agent" pkglist | cut -d, -f2)"
-    tar xfz "$pkg_file"
-    cd "$pkg_dir"
-
+register_qan_agent() {
     # Run agent installer only if config does not exist.
     if [ ! -e "$QAN_AGENT_DIR/config/agent.conf" ]; then
         set +e
@@ -60,17 +45,6 @@ install_qan_agent() {
         fi
         set -e
     fi
-
-    cp -f bin/percona-qan-agent $QAN_AGENT_DIR/bin/
-    cd ..
-}
-
-install_prom_exporters() {
-    for exporter in "node_exporter" "mysqld_exporter" "mongodb_exporter"; do
-        set_pkg_file "$(grep "^$exporter" pkglist | cut -d, -f2)"
-        tar xfz "$pkg_file"
-        cp "$pkg_dir"/"$exporter" "$PMM_DIR"
-    done
 }
 
 # ###########################################################################
@@ -95,36 +69,30 @@ if [ ${EUID:-$(id -u)} -ne 0 ]; then
     err "the script requires superuser privileges."
 fi
 
-mkdir -p "$PMM_DIR"
+mkdir -p $PMM_DIR $QAN_AGENT_DIR/bin
 
-check_pkgs
+#check_pkgs
 
-echo "[1/3] Installing pmm-admin..."
-install_pmm_admin
+echo "[1/3] Copying binaries..."
+copy_binaries
 
-echo "[2/3] Installing Query Analytics Agent..."
-install_qan_agent
+echo "[2/3] Configuring PMM Client..."
+configure_pmm
 
-echo "[3/3] Installing Prometheus exporters..."
-install_prom_exporters
+echo "[3/3] Registering Query Analytics Agent..."
+register_qan_agent
 
 echo
 echo "Done installing PMM client. Next steps:"
 echo
-echo "  Get info on what is being monitored:"
-echo "      pmm-admin list"
-echo
-echo "  Enable monitoring of this system (CPU, storage, etc.):"
-echo "      pmm-admin add linux:metrics"
-echo
 echo "  Enable monitoring MySQL on this server:"
-echo "      pmm-admin add mysql:metrics [flags]"
-echo
-echo "  Enable MySQL query analytics on this server:"
-echo "      pmm-admin add mysql:queries [flags]"
+echo "      pmm-admin add mysql"
 echo
 echo "  Enable monitoring MongoDB on this server:"
-echo "      pmm-admin add mongodb:metrics [flags]"
+echo "      pmm-admin add mongodb"
+echo
+echo "  Get info on what is being monitored:"
+echo "      pmm-admin list"
 echo
 echo "To see more commands and options, run: pmm-admin --help"
 echo "Metrics should appear shortly by the link http://$SERVER_ADDR"
