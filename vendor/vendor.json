@@ -1,0 +1,189 @@
+{
+	"comment": "",
+	"ignore": "test",
+	"package": [
+		{
+			"checksumSHA1": "jEXpLrWXoQvH/zk1lW5Si0swr6Y=",
+			"path": "github.com/go-sql-driver/mysql",
+			"revision": "0b58b37b664c21f3010e836f1b931e1d0b0b0685",
+			"revisionTime": "2016-08-02T11:38:42Z"
+		},
+		{
+			"checksumSHA1": "cxdWYcVwthH/BegaJX1OjXCSntQ=",
+			"path": "github.com/hashicorp/consul/api",
+			"revision": "359541a67d46a81411070894a2287bef092aeebb",
+			"revisionTime": "2016-05-13T04:38:43Z"
+		},
+		{
+			"checksumSHA1": "fSe5y1UgTDeYlnFfUcDA1zzcw+U=",
+			"origin": "github.com/hashicorp/consul/vendor/github.com/hashicorp/go-cleanhttp",
+			"path": "github.com/hashicorp/go-cleanhttp",
+			"revision": "359541a67d46a81411070894a2287bef092aeebb",
+			"revisionTime": "2016-05-13T04:38:43Z"
+		},
+		{
+			"checksumSHA1": "oO8c5+ZEFssewIqvHJkGEXHV+i0=",
+			"origin": "github.com/hashicorp/consul/vendor/github.com/hashicorp/serf/coordinate",
+			"path": "github.com/hashicorp/serf/coordinate",
+			"revision": "359541a67d46a81411070894a2287bef092aeebb",
+			"revisionTime": "2016-05-13T04:38:43Z"
+		},
+		{
+			"checksumSHA1": "40vJyUB4ezQSn/NSadsKEOrudMc=",
+			"path": "github.com/inconshreveable/mousetrap",
+			"revision": "76626ae9c91c4f2a10f34cad8ce83ea42c93bb75",
+			"revisionTime": "2014-10-17T20:07:13Z"
+		},
+		{
+			"checksumSHA1": "tewA7jXVGCw1zb5mA0BDecWi4iQ=",
+			"path": "github.com/jtolds/gls",
+			"revision": "8ddce2a84170772b95dd5d576c48d517b22cac63",
+			"revisionTime": "2016-01-05T22:08:40Z"
+		},
+		{
+			"checksumSHA1": "6nmAJBw2phU9MUmkUnqFvbO5urg=",
+			"path": "github.com/kardianos/osext",
+			"revision": "29ae4ffbc9a6fe9fb2bc5029050ce6996ea1d3bc",
+			"revisionTime": "2015-12-22T15:32:29Z"
+		},
+		{
+			"checksumSHA1": "vk+uy33TWBWgtLGYwx0SgrWqdKo=",
+			"path": "github.com/percona/go-mysql/dsn",
+			"revision": "60ad788a64b0551305882f64fb5b789b51d3476a",
+			"revisionTime": "2016-08-04T17:45:23Z"
+		},
+		{
+			"checksumSHA1": "RyWgmwlGEMMckt0wbyxW/Z3sAnw=",
+			"path": "github.com/percona/kardianos-service",
+			"revision": "c6df4fd2af62975c63dfafcc0efb93b806c0b831",
+			"revisionTime": "2016-08-04T10:41:11Z"
+		},
+		{
+			"checksumSHA1": "4WDCCBdzsQT0oxEDCXqSl6afVvs=",
+			"path": "github.com/percona/pmm/proto",
+			"revision": "cd8afb3a5e7564ce9f040c60fbd88932fc95de8f",
+			"revisionTime": "2016-08-04T08:58:49Z"
+		},
+		{
+			"checksumSHA1": "4PZPiCVqMIRH+S2V2PSQ/8IybO0=",
+			"path": "github.com/percona/pmm/proto/config",
+			"revision": "cd8afb3a5e7564ce9f040c60fbd88932fc95de8f",
+			"revisionTime": "2016-08-04T08:58:49Z"
+		},
+		{
+			"checksumSHA1": "vzeidZ3FlpAOQOzUAinE8zzxVRk=",
+			"path": "github.com/prometheus/client_golang/api/prometheus",
+			"revision": "66058aac3a83021948e5fb12f1f408ff556b9037",
+			"revisionTime": "2016-08-15T11:47:46Z"
+		},
+		{
+			"checksumSHA1": "IwxsYOL9A/K9rvHvGxfyY37dusk=",
+			"path": "github.com/prometheus/common/model",
+			"revision": "ba1c9185b796b0ca48e40c09edf7951b1a18f349",
+			"revisionTime": "2016-05-17T13:00:36Z"
+		},
+		{
+			"checksumSHA1": "OieGcyWgc9NzZb4TWXcufX560pc=",
+			"path": "github.com/smartystreets/assertions",
+			"revision": "287b4346dc4e71a038c346375a9d572453bc469b",
+			"revisionTime": "2016-02-05T03:39:31Z"
+		},
+		{
+			"checksumSHA1": "9iA8MD7dsY0eid8vy+1ixJHkR+M=",
+			"path": "github.com/smartystreets/assertions/internal/go-render/render",
+			"revision": "287b4346dc4e71a038c346375a9d572453bc469b",
+			"revisionTime": "2016-02-05T03:39:31Z"
+		},
+		{
+			"checksumSHA1": "QCsUvPHx/Ifqm+sJmocjSvePAIc=",
+			"path": "github.com/smartystreets/assertions/internal/oglematchers",
+			"revision": "287b4346dc4e71a038c346375a9d572453bc469b",
+			"revisionTime": "2016-02-05T03:39:31Z"
+		},
+		{
+			"checksumSHA1": "fQeXVv5U9dlo3ufH2vjk1GNf4Lo=",
+			"path": "github.com/smartystreets/goconvey/convey",
+			"revision": "bf58a9a1291224109919756b4dcc469c670cc7e4",
+			"revisionTime": "2016-02-05T03:35:52Z"
+		},
+		{
+			"checksumSHA1": "9LakndErFi5uCXtY1KWl0iRnT4c=",
+			"path": "github.com/smartystreets/goconvey/convey/gotest",
+			"revision": "bf58a9a1291224109919756b4dcc469c670cc7e4",
+			"revisionTime": "2016-02-05T03:35:52Z"
+		},
+		{
+			"checksumSHA1": "4NSMMeBraoAH+oebwoNzR9z25MM=",
+			"path": "github.com/smartystreets/goconvey/convey/reporting",
+			"revision": "bf58a9a1291224109919756b4dcc469c670cc7e4",
+			"revisionTime": "2016-02-05T03:35:52Z"
+		},
+		{
+			"checksumSHA1": "58DHZSuvG0+mKl+Ijks8uF60+fw=",
+			"path": "github.com/spf13/cobra",
+			"revision": "6a8bd97bdb1fc0d08a83459940498ea49d3e8c93",
+			"revisionTime": "2016-06-21T20:47:55Z"
+		},
+		{
+			"checksumSHA1": "45OZzM/Hyc8mwjG2zn38n6bKZws=",
+			"path": "github.com/spf13/pflag",
+			"revision": "367864438f1b1a3c7db4da06a2f55b144e6784e0",
+			"revisionTime": "2016-06-10T19:09:02Z"
+		},
+		{
+			"checksumSHA1": "9jjO5GjLa0XF/nfWihF02RoH4qc=",
+			"path": "golang.org/x/net/context",
+			"revision": "b400c2eff1badec7022a8c8f5bea058b6315eed7",
+			"revisionTime": "2016-06-19T19:44:24Z"
+		},
+		{
+			"checksumSHA1": "Do+l129/Bafh54VFaquooqtCcfk=",
+			"path": "golang.org/x/net/context/ctxhttp",
+			"revision": "b400c2eff1badec7022a8c8f5bea058b6315eed7",
+			"revisionTime": "2016-06-19T19:44:24Z"
+		},
+		{
+			"checksumSHA1": "42L+GOKH+OoRYqVyIohUcj8bLzI=",
+			"path": "golang.org/x/sys/windows",
+			"revision": "a408501be4d17ee978c04a618e7a1b22af058c0e",
+			"revisionTime": "2016-07-03T23:56:20Z"
+		},
+		{
+			"checksumSHA1": "Qvq4DjtYrcpGgBT0O1s8nTTeFWQ=",
+			"path": "golang.org/x/sys/windows/registry",
+			"revision": "a408501be4d17ee978c04a618e7a1b22af058c0e",
+			"revisionTime": "2016-07-03T23:56:20Z"
+		},
+		{
+			"checksumSHA1": "IRqLaXM/VQRzkbXPuiqOxTb2W0Y=",
+			"path": "golang.org/x/sys/windows/svc",
+			"revision": "a408501be4d17ee978c04a618e7a1b22af058c0e",
+			"revisionTime": "2016-07-03T23:56:20Z"
+		},
+		{
+			"checksumSHA1": "uVlUSSKplihZG7N+QJ6fzDZ4Kh8=",
+			"path": "golang.org/x/sys/windows/svc/eventlog",
+			"revision": "a408501be4d17ee978c04a618e7a1b22af058c0e",
+			"revisionTime": "2016-07-03T23:56:20Z"
+		},
+		{
+			"checksumSHA1": "6dvXhF7BOHN87mMJ8SaAuFxai0Q=",
+			"path": "golang.org/x/sys/windows/svc/mgr",
+			"revision": "a408501be4d17ee978c04a618e7a1b22af058c0e",
+			"revisionTime": "2016-07-03T23:56:20Z"
+		},
+		{
+			"checksumSHA1": "Y35MHhSfkpeVLQuiVQggArnXpQI=",
+			"path": "gopkg.in/DATA-DOG/go-sqlmock.v1",
+			"revision": "9958e5c69de03e97ec215b23f6fcae1f600c3fb6",
+			"revisionTime": "2016-02-26T19:13:42Z"
+		},
+		{
+			"checksumSHA1": "Ww6wiSKdA8LwxoJz4DNUF+crH4g=",
+			"path": "gopkg.in/yaml.v2",
+			"revision": "f7716cbe52baa25d2e9b0d0da546fcf909fc16b4",
+			"revisionTime": "2015-12-01T16:27:45Z"
+		}
+	],
+	"rootPath": "github.com/percona/pmm-client"
+}
