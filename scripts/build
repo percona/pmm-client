@@ -11,12 +11,12 @@ err() {
 # Find and cd to repo root dir.
 [ "$(basename "$PWD")" = "scripts" ] && cd ..
 if [ -d ".git" ]; then
-   ROOT_DIR="$PWD"
+   SOURCE_DIR="$PWD"
 else
    err "Run this script from the repo root dir or the build/ dir."
 fi
 
-cd $ROOT_DIR
+cd $SOURCE_DIR
 
 PLATFORM=`uname -m`
 if [ "$PLATFORM" = "x86_64" ]; then
@@ -32,7 +32,7 @@ fi
 # we presume dev build.
 DEV="yes"
 DIRTY_BUILD="${DIRTY_BUILD:-"no"}"
-VER="$(awk '/var VERSION/ {print $4}' $ROOT_DIR/pmm/constants.go | sed 's/"//g')"
+VER="$(awk '/var VERSION/ {print $4}' $SOURCE_DIR/pmm/constants.go | sed 's/"//g')"
 REV="$(git log -n 1 --no-walk --pretty="%h")"
 BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 if [ "$BRANCH" = "master" ]; then
@@ -98,17 +98,20 @@ mkdir bin
 # Default build for linux, not Darwin.
 export GOOS=linux
 
-# Build pmm-admin.
 echo "Building pmm-admin..."
-cd $ROOT_DIR
+cd $SOURCE_DIR
 go build -ldflags "-X github.com/percona/pmm-client/pmm.VERSION=$VER" -o $PKG_DIR/bin/pmm-admin
-chmod +x $PKG_DIR/bin/pmm-admin
+
+echo "Building percona-qan-agent..."
+go build -ldflags "-X github.com/percona/qan-agent/agent/release.VERSION=$VER" -o $PKG_DIR/bin/percona-qan-agent github.com/percona/qan-agent/bin/percona-qan-agent
+
+echo "Building percona-qan-agent-installer..."
+go build -ldflags "-X github.com/percona/qan-agent/agent/release.VERSION=$VER" -o $PKG_DIR/bin/percona-qan-agent-installer github.com/percona/qan-agent/bin/percona-qan-agent-installer
 
 # Copy what we need into the pkg dir.
-cd $ROOT_DIR
+cd $SOURCE_DIR
 cp CHANGELOG.md README.md LICENSE scripts/install scripts/uninstall $PKG_DIR
 cp binaries/{node,mysqld,mongodb}_exporter $PKG_DIR/bin
-cp binaries/percona-qan-agent{,-installer} $PKG_DIR/bin
 
 cd distro
 tar czf $PKG_NAME.tar.gz $PKG_NAME
