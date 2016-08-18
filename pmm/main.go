@@ -428,10 +428,10 @@ func (a *Admin) choosePort(port uint, userDefined bool) (uint, error) {
 		if ok {
 			return port, nil
 		}
-		return port, fmt.Errorf("port %d is used by other service. Choose the different one.", port)
+		return port, fmt.Errorf("port %d is reserved by other service. Choose the different one.", port)
 	}
 	// Find the first available port starting the default one.
-	for i := port; i < port+50; i++ {
+	for i := port; i < port+1000; i++ {
 		ok, err := a.availablePort(i)
 		if err != nil {
 			return port, err
@@ -440,8 +440,8 @@ func (a *Admin) choosePort(port uint, userDefined bool) (uint, error) {
 			return i, nil
 		}
 	}
-	return port, fmt.Errorf("ports %d-%d are used by other service. Try to specify the other port using --service-port",
-		port, port+50)
+	return port, fmt.Errorf("ports %d-%d are reserved by other services. Try to specify the other port using --service-port",
+		port, port+1000)
 }
 
 // availablePort check if port is occupied by any service on Consul.
