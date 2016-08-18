@@ -25,13 +25,21 @@ import (
 )
 
 // AddLinuxMetrics add linux service to monitoring.
-func (a *Admin) AddLinuxMetrics() error {
+func (a *Admin) AddLinuxMetrics(force bool) error {
 	// Check if we have already this service on Consul.
-	consulSvc, err := a.getConsulService("linux:metrics", "")
+	// When using force, we allow adding another service with different name.
+	name := ""
+	if force {
+		name = a.ServiceName
+	}
+	consulSvc, err := a.getConsulService("linux:metrics", name)
 	if err != nil {
 		return err
 	}
 	if consulSvc != nil {
+		if force {
+			return ErrDuplicate
+		}
 		return ErrOneLinux
 	}
 
@@ -50,7 +58,7 @@ func (a *Admin) AddLinuxMetrics() error {
 
 	// Add service to Consul.
 	srv := consul.AgentService{
-		ID:      "linux:metrics",
+		ID:      fmt.Sprintf("linux:metrics-%d", port),
 		Service: "linux:metrics",
 		Tags:    []string{fmt.Sprintf("alias_%s", a.ServiceName)},
 		Port:    int(port),

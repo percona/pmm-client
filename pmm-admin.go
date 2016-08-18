@@ -117,7 +117,7 @@ a new user 'pmm@' automatically using the given (auto-detected) MySQL credential
 				os.Exit(1)
 			}
 
-			err := admin.AddLinuxMetrics()
+			err := admin.AddLinuxMetrics(flagForce)
 			if err == pmm.ErrOneLinux {
 				fmt.Println("[linux:metrics] OK, already monitoring this system.")
 			} else if err != nil {
@@ -160,12 +160,14 @@ a new user 'pmm@' automatically using the given (auto-detected) MySQL credential
 		Short: "Add this system to metrics monitoring.",
 		Long: `This command adds this system to linux metrics monitoring.
 
-There could be only one instance of linux metrics being monitored for this system.
+You cannot monitor linux metrics from remote machines because the metric exporter requires an access to the local filesystem.
+It is supposed there could be only one instance of linux metrics being monitored for this system.
+However, you can add another one with the different name just for testing purpose using --force flag.
 
 [name] is an optional argument, by default it is set to the client name of this PMM client.
 		`,
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := admin.AddLinuxMetrics(); err != nil {
+			if err := admin.AddLinuxMetrics(flagForce); err != nil {
 				fmt.Println("Error adding linux metrics:", err)
 				os.Exit(1)
 			}
@@ -245,7 +247,7 @@ Use additional options to specify MongoDB node type, cluster, replSet etc.
 		Example: `  pmm-admin add mongodb
   pmm-admin add mongodb --nodetype mongod --cluster cluster-1.2 --replset rs1`,
 		Run: func(cmd *cobra.Command, args []string) {
-			err := admin.AddLinuxMetrics()
+			err := admin.AddLinuxMetrics(flagForce)
 			if err == pmm.ErrOneLinux {
 				fmt.Println("[linux:metrics]   OK, already monitoring this system.")
 			} else if err != nil {
@@ -614,10 +616,11 @@ please check the firewall settings whether this system allows incoming connectio
 
 	flagConfigFile, flagMongoURI, flagMongoNodeType, flagMongoReplSet, flagMongoCluster string
 
-	flagVersion, flagNoEmoji, flagAll bool
-	flagServicePort                   uint
-	flagM                             pmm.MySQLFlags
-	flagC                             pmm.Config
+	flagVersion, flagNoEmoji, flagAll, flagForce bool
+
+	flagServicePort uint
+	flagM           pmm.MySQLFlags
+	flagC           pmm.Config
 )
 
 func main() {
@@ -641,6 +644,8 @@ func main() {
 	cmdConfig.Flags().BoolVar(&flagC.ServerInsecureSSL, "enable-insecure-ssl", false, "Enable insecure SSL (self-signed certificate) to communicate with PMM Server")
 
 	cmdAdd.PersistentFlags().UintVar(&flagServicePort, "service-port", 0, "service port")
+
+	cmdAddLinuxMetrics.Flags().BoolVar(&flagForce, "force", false, "force to add another linux:metrics instance with different name for testing purpose")
 
 	cmdAddMySQL.Flags().StringVar(&flagM.DefaultsFile, "defaults-file", "", "path to my.cnf")
 	cmdAddMySQL.Flags().StringVar(&flagM.Host, "host", "", "MySQL host")
