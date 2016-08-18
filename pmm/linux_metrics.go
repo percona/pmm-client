@@ -81,9 +81,9 @@ func (a *Admin) AddLinuxMetrics() error {
 }
 
 // RemoveLinuxMetrics remove linux service from monitoring.
-func (a *Admin) RemoveLinuxMetrics(name string) error {
+func (a *Admin) RemoveLinuxMetrics() error {
 	// Check if we have this service on Consul.
-	consulSvc, err := a.getConsulService("linux:metrics", name)
+	consulSvc, err := a.getConsulService("linux:metrics", a.ServiceName)
 	if err != nil {
 		return err
 	}

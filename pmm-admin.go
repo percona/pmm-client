@@ -99,7 +99,7 @@ var (
 	}
 	cmdAddMySQL = &cobra.Command{
 		Use:   "mysql [name]",
-		Short: "Add complete monitoring for MySQL instance.",
+		Short: "Add complete monitoring for MySQL instance (linux and mysql metrics, queries).",
 		Long: `This command adds the given MySQL instance to system, metrics and queries monitoring.
 
 When adding a MySQL instance, this tool tries to auto-detect the DSN and credentials.
@@ -234,7 +234,7 @@ a new user 'pmm@' automatically using the given (auto-detected) MySQL credential
 	}
 	cmdAddMongoDB = &cobra.Command{
 		Use:   "mongodb [name]",
-		Short: "Add complete monitoring for MongoDB instance.",
+		Short: "Add complete monitoring for MongoDB instance (linux and mongodb metrics).",
 		Long: `This command adds the given MongoDB instance to system and metrics monitoring.
 
 When adding a MongoDB instance, you may provide --uri if the default one does not work for you.
@@ -310,130 +310,133 @@ the name of MongoDB instance and also sets the same options such as node type, c
 		Long:    "This command is used to remove a monitoring service.",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			cmd.Root().PersistentPreRun(cmd.Root(), args)
-			if len(args) == 0 {
-				fmt.Println("No name specified.\n")
-				cmd.Usage()
-				os.Exit(1)
+			admin.ServiceName = admin.Config.ClientName
+			if len(args) > 0 {
+				admin.ServiceName = args[0]
 			}
 		},
 	}
 	cmdRemoveMySQL = &cobra.Command{
-		Use:   "mysql NAME",
-		Short: "Remove all monitoring for MySQL instance.",
-		Long: `This command removes all monitoring for MySQL instance specified by NAME.
+		Use:   "mysql [name]",
+		Short: "Remove all monitoring for MySQL instance (linux and mysql metrics, queries).",
+		Long: `This command removes all monitoring for MySQL instance (linux and mysql metrics, queries).
 
-The command did not stop when one of the services is missed or failed to remove.
+[name] is an optional argument, by default it is set to the client name of this PMM client.
 		`,
 		Run: func(cmd *cobra.Command, args []string) {
-			name := args[0]
-
-			err := admin.RemoveLinuxMetrics(name)
+			err := admin.RemoveLinuxMetrics()
 			if err == pmm.ErrNoService {
-				fmt.Printf("OK, no system %s under monitoring.\n", name)
+				fmt.Printf("OK, no system %s under monitoring.\n", admin.ServiceName)
 			} else if err != nil {
-				fmt.Printf("Error removing linux metrics %s: %s\n", name, err)
+				fmt.Printf("Error removing linux metrics %s: %s\n", admin.ServiceName, err)
 			} else {
-				fmt.Printf("OK, removed system %s from monitoring.\n", name)
+				fmt.Printf("OK, removed system %s from monitoring.\n", admin.ServiceName)
 			}
 
-			err = admin.RemoveMySQLMetrics(name)
+			err = admin.RemoveMySQLMetrics()
 			if err == pmm.ErrNoService {
-				fmt.Printf("OK, no MySQL metrics %s under monitoring.\n", name)
+				fmt.Printf("OK, no MySQL metrics %s under monitoring.\n", admin.ServiceName)
 			} else if err != nil {
-				fmt.Printf("Error removing MySQL metrics %s: %s\n", name, err)
+				fmt.Printf("Error removing MySQL metrics %s: %s\n", admin.ServiceName, err)
 			} else {
-				fmt.Printf("OK, removed MySQL metrics %s from monitoring.\n", name)
+				fmt.Printf("OK, removed MySQL metrics %s from monitoring.\n", admin.ServiceName)
 			}
 
-			err = admin.RemoveMySQLQueries(name)
+			err = admin.RemoveMySQLQueries()
 			if err == pmm.ErrNoService {
-				fmt.Printf("OK, no MySQL queries %s under monitoring.\n", name)
+				fmt.Printf("OK, no MySQL queries %s under monitoring.\n", admin.ServiceName)
 			} else if err != nil {
-				fmt.Printf("Error removing MySQL queries %s: %s\n", name, err)
+				fmt.Printf("Error removing MySQL queries %s: %s\n", admin.ServiceName, err)
 			} else {
-				fmt.Printf("OK, removed MySQL queries %s from monitoring.\n", name)
+				fmt.Printf("OK, removed MySQL queries %s from monitoring.\n", admin.ServiceName)
 			}
 		},
 	}
 	cmdRemoveLinuxMetrics = &cobra.Command{
-		Use:   "linux:metrics NAME",
+		Use:   "linux:metrics [name]",
 		Short: "Remove this system from metrics monitoring.",
-		Long:  "This command removes system specified by NAME from linux metrics monitoring.",
+		Long: `This command removes this system from linux metrics monitoring.
+
+[name] is an optional argument, by default it is set to the client name of this PMM client.
+		`,
 		Run: func(cmd *cobra.Command, args []string) {
-			name := args[0]
-			if err := admin.RemoveLinuxMetrics(name); err != nil {
-				fmt.Printf("Error removing linux metrics %s: %s\n", name, err)
+			if err := admin.RemoveLinuxMetrics(); err != nil {
+				fmt.Printf("Error removing linux metrics %s: %s\n", admin.ServiceName, err)
 				os.Exit(1)
 			}
-			fmt.Printf("OK, removed system %s from monitoring.\n", name)
+			fmt.Printf("OK, removed system %s from monitoring.\n", admin.ServiceName)
 		},
 	}
 	cmdRemoveMySQLMetrics = &cobra.Command{
-		Use:   "mysql:metrics NAME",
+		Use:   "mysql:metrics [name]",
 		Short: "Remove MySQL instance from metrics monitoring.",
-		Long:  "This command removes MySQL instance specified by NAME from metrics monitoring.",
+		Long: `This command removes MySQL instance from metrics monitoring.
+
+[name] is an optional argument, by default it is set to the client name of this PMM client.
+		`,
 		Run: func(cmd *cobra.Command, args []string) {
-			name := args[0]
-			if err := admin.RemoveMySQLMetrics(name); err != nil {
-				fmt.Printf("Error removing MySQL metrics %s: %s\n", name, err)
+			if err := admin.RemoveMySQLMetrics(); err != nil {
+				fmt.Printf("Error removing MySQL metrics %s: %s\n", admin.ServiceName, err)
 				os.Exit(1)
 			}
-			fmt.Printf("OK, removed MySQL metrics %s from monitoring.\n", name)
+			fmt.Printf("OK, removed MySQL metrics %s from monitoring.\n", admin.ServiceName)
 		},
 	}
 	cmdRemoveMySQLQueries = &cobra.Command{
-		Use:   "mysql:queries NAME",
+		Use:   "mysql:queries [name]",
 		Short: "Remove MySQL instance from Query Analytics.",
-		Long:  "This command removes MySQL instance specified by NAME from Query Analytics.",
+		Long: `This command removes MySQL instance from Query Analytics.
+
+[name] is an optional argument, by default it is set to the client name of this PMM client.
+		`,
 		Run: func(cmd *cobra.Command, args []string) {
-			name := args[0]
-			if err := admin.RemoveMySQLQueries(name); err != nil {
-				fmt.Printf("Error removing MySQL queries %s: %s\n", name, err)
+			if err := admin.RemoveMySQLQueries(); err != nil {
+				fmt.Printf("Error removing MySQL queries %s: %s\n", admin.ServiceName, err)
 				os.Exit(1)
 			}
-			fmt.Printf("OK, removed MySQL queries %s from monitoring.\n", name)
+			fmt.Printf("OK, removed MySQL queries %s from monitoring.\n", admin.ServiceName)
 		},
 	}
 	cmdRemoveMongoDB = &cobra.Command{
-		Use:   "mongodb NAME",
-		Short: "Remove all monitoring for MongoDB instance.",
-		Long: `This command removes all monitoring for MongoDB instance specified by NAME.
+		Use:   "mongodb [name]",
+		Short: "Remove all monitoring for MongoDB instance (linux and mongodb metrics).",
+		Long: `This command removes all monitoring for MongoDB instance (linux and mongodb metrics).
 
-The command did not stop when one of the services is missed or failed to remove.
+[name] is an optional argument, by default it is set to the client name of this PMM client.
 		`,
 		Run: func(cmd *cobra.Command, args []string) {
-			name := args[0]
-
-			err := admin.RemoveLinuxMetrics(name)
+			err := admin.RemoveLinuxMetrics()
 			if err == pmm.ErrNoService {
-				fmt.Printf("OK, no system %s under monitoring.\n", name)
+				fmt.Printf("OK, no system %s under monitoring.\n", admin.ServiceName)
 			} else if err != nil {
-				fmt.Printf("Error removing linux metrics %s: %s\n", name, err)
+				fmt.Printf("Error removing linux metrics %s: %s\n", admin.ServiceName, err)
 			} else {
-				fmt.Printf("OK, removed system %s from monitoring.\n", name)
+				fmt.Printf("OK, removed system %s from monitoring.\n", admin.ServiceName)
 			}
 
-			err = admin.RemoveMongoDBMetrics(name)
+			err = admin.RemoveMongoDBMetrics()
 			if err == pmm.ErrNoService {
-				fmt.Printf("OK, no MongoDB metrics %s under monitoring.\n", name)
+				fmt.Printf("OK, no MongoDB metrics %s under monitoring.\n", admin.ServiceName)
 			} else if err != nil {
-				fmt.Printf("Error removing MongoDB metrics %s: %s\n", name, err)
+				fmt.Printf("Error removing MongoDB metrics %s: %s\n", admin.ServiceName, err)
 			} else {
-				fmt.Printf("OK, removed MongoDB metrics %s from monitoring.\n", name)
+				fmt.Printf("OK, removed MongoDB metrics %s from monitoring.\n", admin.ServiceName)
 			}
 		},
 	}
 	cmdRemoveMongoDBMetrics = &cobra.Command{
-		Use:   "mongodb:metrics NAME",
+		Use:   "mongodb:metrics [name]",
 		Short: "Remove MongoDB instance from metrics monitoring.",
-		Long:  "This command removes MongoDB instance specified by NAME from metrics monitoring.",
+		Long: `This command removes MongoDB instance from metrics monitoring.
+
+[name] is an optional argument, by default it is set to the client name of this PMM client.
+		`,
 		Run: func(cmd *cobra.Command, args []string) {
-			name := args[0]
-			if err := admin.RemoveMongoDBMetrics(name); err != nil {
-				fmt.Printf("Error removing MongoDB metrics %s: %s\n", name, err)
+			if err := admin.RemoveMongoDBMetrics(); err != nil {
+				fmt.Printf("Error removing MongoDB metrics %s: %s\n", admin.ServiceName, err)
 				os.Exit(1)
 			}
-			fmt.Printf("OK, removed MongoDB metrics %s from monitoring.\n", name)
+			fmt.Printf("OK, removed MongoDB metrics %s from monitoring.\n", admin.ServiceName)
 		},
 	}
 

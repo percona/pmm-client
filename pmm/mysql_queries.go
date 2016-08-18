@@ -180,9 +180,9 @@ func (a *Admin) AddMySQLQueries(info map[string]string) error {
 }
 
 // RemoveMySQLQueries remove mysql instance from QAN.
-func (a *Admin) RemoveMySQLQueries(name string) error {
+func (a *Admin) RemoveMySQLQueries() error {
 	// Check if we have this service on Consul.
-	consulSvc, err := a.getConsulService("mysql:queries", name)
+	consulSvc, err := a.getConsulService("mysql:queries", a.ServiceName)
 	if err != nil {
 		return err
 	}
@@ -196,7 +196,7 @@ func (a *Admin) RemoveMySQLQueries(name string) error {
 	}
 
 	// Get UUID of MySQL instance the agent is monitoring from KV.
-	key := fmt.Sprintf("%s/mysql:queries-%d/%s/qan_mysql_uuid", a.Config.ClientName, consulSvc.Port, name)
+	key := fmt.Sprintf("%s/%s/%s/qan_mysql_uuid", a.Config.ClientName, consulSvc.ID, a.ServiceName)
 	data, _, err := a.consulapi.KV().Get(key, nil)
 	if err != nil {
 		return err
@@ -224,14 +224,14 @@ func (a *Admin) RemoveMySQLQueries(name string) error {
 		return a.qanapi.Error("DELETE", url, resp.StatusCode, http.StatusNoContent, content)
 	}
 
-	prefix := fmt.Sprintf("%s/%s/%s/", a.Config.ClientName, consulSvc.ID, name)
+	prefix := fmt.Sprintf("%s/%s/%s/", a.Config.ClientName, consulSvc.ID, a.ServiceName)
 	a.consulapi.KV().DeleteTree(prefix, nil)
 
 	// Remove queries service from Consul only if we have only 1 tag alias_ (the instance in question).
 	var tags []string
 	for _, tag := range consulSvc.Tags {
 		if strings.HasPrefix(tag, "alias_") {
-			if tag != fmt.Sprintf("alias_%s", name) {
+			if tag != fmt.Sprintf("alias_%s", a.ServiceName) {
 				tags = append(tags, tag)
 			}
 		}

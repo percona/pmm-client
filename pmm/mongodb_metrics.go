@@ -114,9 +114,9 @@ func (a *Admin) AddMongoDBMetrics(uri, nodetype, replset, cluster string) error 
 }
 
 // RemoveMongoDBMetrics remove mongodb metrics service from monitoring.
-func (a *Admin) RemoveMongoDBMetrics(name string) error {
+func (a *Admin) RemoveMongoDBMetrics() error {
 	// Check if we have this service on Consul.
-	consulSvc, err := a.getConsulService("mongodb:metrics", name)
+	consulSvc, err := a.getConsulService("mongodb:metrics", a.ServiceName)
 	if err != nil {
 		return err
 	}

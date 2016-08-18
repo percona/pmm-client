@@ -120,9 +120,9 @@ func (a *Admin) AddMySQLMetrics(info map[string]string, mf MySQLFlags) error {
 }
 
 // RemoveMySQLMetrics remove mysql metrics service from monitoring.
-func (a *Admin) RemoveMySQLMetrics(name string) error {
+func (a *Admin) RemoveMySQLMetrics() error {
 	// Check if we have this service on Consul.
-	consulSvc, err := a.getConsulService("mysql:metrics", name)
+	consulSvc, err := a.getConsulService("mysql:metrics", a.ServiceName)
 	if err != nil {
 		return err
 	}
@@ -130,17 +130,16 @@ func (a *Admin) RemoveMySQLMetrics(name string) error {
 		return ErrNoService
 	}
 
-	serviceID := fmt.Sprintf("mysql:metrics-%d", consulSvc.Port)
 	// Remove service from Consul.
 	dereg := consul.CatalogDeregistration{
 		Node:      a.Config.ClientName,
-		ServiceID: serviceID,
+		ServiceID: consulSvc.ID,
 	}
 	if _, err := a.consulapi.Catalog().Deregister(&dereg, nil); err != nil {
 		return err
 	}
 
-	prefix := fmt.Sprintf("%s/%s/", a.Config.ClientName, serviceID)
+	prefix := fmt.Sprintf("%s/%s/", a.Config.ClientName, consulSvc.ID)
 	a.consulapi.KV().DeleteTree(prefix, nil)
 
 	// Stop and uninstall service.

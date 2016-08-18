@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -203,16 +204,10 @@ func (conn *networkTransport) dial(network, addr string) (net.Conn, error) {
 
 // checkPromTargetStatus check Prometheus target state by metric labels.
 func checkPromTargetStatus(data, alias, job string) bool {
-	query := fmt.Sprintf(`up{instance="%s", job="%s"}`, alias, job)
+	r, _ := regexp.Compile(fmt.Sprintf(`up{.*instance="%s".*job="%s".*} => 1`, alias, job))
 	for _, row := range strings.Split(data, "\n") {
-		vals := strings.Split(row, " => ")
-		if vals[0] != query || len(vals) != 2 {
-			continue
-		}
-		if string(vals[1][0]) == "1" {
+		if r.MatchString(row) {
 			return true
-		} else {
-			return false
 		}
 	}
 	return false
