@@ -179,6 +179,18 @@
 			"revisionTime": "2016-02-26T19:13:42Z"
 		},
 		{
+			"checksumSHA1": "bwoDoFgIlpD57NfX1zuf0W3Gut0=",
+			"path": "gopkg.in/mgo.v2",
+			"revision": "b6e2fa371e64216a45e61072a96d4e3859f169da",
+			"revisionTime": "2016-02-23T13:38:14Z"
+		},
+		{
+			"checksumSHA1": "fOxeCpKRYNTTM2VCrsU2S/KEd1s=",
+			"path": "gopkg.in/mgo.v2/internal/scram",
+			"revision": "b6e2fa371e64216a45e61072a96d4e3859f169da",
+			"revisionTime": "2016-02-23T13:38:14Z"
+		},
+		{
 			"checksumSHA1": "gORq5ldNSj1K5uKl5HrOr4mqvB8=",
 			"path": "gopkg.in/yaml.v2",
 			"revision": "f7716cbe52baa25d2e9b0d0da546fcf909fc16b4",

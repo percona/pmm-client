@@ -119,38 +119,38 @@ a new user 'pmm@' automatically using the given (auto-detected) MySQL credential
 
 			err := admin.AddLinuxMetrics()
 			if err == pmm.ErrOneLinux {
-				fmt.Println("OK, already monitoring this system.")
+				fmt.Println("[linux:metrics] OK, already monitoring this system.")
 			} else if err != nil {
-				fmt.Println("Error adding linux metrics:", err)
+				fmt.Println("[linux:metrics] Error adding linux metrics:", err)
 				os.Exit(1)
 			} else {
-				fmt.Println("OK, now monitoring this system.")
+				fmt.Println("[linux:metrics] OK, now monitoring this system.")
 			}
 
 			info, err := admin.DetectMySQL(flagM)
 			if err != nil {
-				fmt.Println(err)
+				fmt.Printf("[mysql:metrics] %s\n", err)
 				os.Exit(1)
 			}
 
 			err = admin.AddMySQLMetrics(info, flagM)
 			if err == pmm.ErrDuplicate {
-				fmt.Println("OK, already monitoring MySQL metrics.")
+				fmt.Println("[mysql:metrics] OK, already monitoring MySQL metrics.")
 			} else if err != nil {
-				fmt.Println("Error adding MySQL metrics:", err)
+				fmt.Println("[mysql:metrics] Error adding MySQL metrics:", err)
 				os.Exit(1)
 			} else {
-				fmt.Println("OK, now monitoring MySQL metrics using DSN", info["safe_dsn"])
+				fmt.Println("[mysql:metrics] OK, now monitoring MySQL metrics using DSN", info["safe_dsn"])
 			}
 
 			err = admin.AddMySQLQueries(info)
 			if err == pmm.ErrDuplicate {
-				fmt.Println("OK, already monitoring MySQL queries.")
+				fmt.Println("[mysql:queries] OK, already monitoring MySQL queries.")
 			} else if err != nil {
-				fmt.Println("Error adding MySQL queries:", err)
+				fmt.Println("[mysql:queries] Error adding MySQL queries:", err)
 				os.Exit(1)
 			} else {
-				fmt.Println("OK, now monitoring MySQL queries from", info["query_source"], "using DSN",
+				fmt.Println("[mysql:queries] OK, now monitoring MySQL queries from", info["query_source"], "using DSN",
 					info["safe_dsn"])
 			}
 		},
@@ -245,31 +245,28 @@ Use additional options to specify MongoDB node type, cluster, replSet etc.
 		Example: `  pmm-admin add mongodb
   pmm-admin add mongodb --nodetype mongod --cluster cluster-1.2 --replset rs1`,
 		Run: func(cmd *cobra.Command, args []string) {
-			// Check --nodetype flag.
-			if flagMongoNodeType != "" && flagMongoNodeType != "mongod" && flagMongoNodeType != "mongos" &&
-				flagMongoNodeType != "config" && flagMongoNodeType != "arbiter" {
-				fmt.Println("Flag --nodetype can take the following values: mongod, mongos, config, arbiter.")
-				os.Exit(1)
-			}
-
 			err := admin.AddLinuxMetrics()
 			if err == pmm.ErrOneLinux {
-				fmt.Println("OK, already monitoring this system.")
+				fmt.Println("[linux:metrics]   OK, already monitoring this system.")
 			} else if err != nil {
-				fmt.Println("Error adding linux metrics:", err)
+				fmt.Println("[linux:metrics]   Error adding linux metrics:", err)
 				os.Exit(1)
 			} else {
-				fmt.Println("OK, now monitoring this system.")
+				fmt.Println("[linux:metrics]   OK, now monitoring this system.")
 			}
 
+			if err := admin.DetectMongoDB(flagMongoURI, flagMongoNodeType); err != nil {
+				fmt.Printf("[mongodb:metrics] %s\n", err)
+				os.Exit(1)
+			}
 			err = admin.AddMongoDBMetrics(flagMongoURI, flagMongoNodeType, flagMongoReplSet, flagMongoCluster)
 			if err == pmm.ErrDuplicate {
-				fmt.Println("OK, already monitoring MongoDB metrics.")
+				fmt.Println("[mongodb:metrics] OK, already monitoring MongoDB metrics.")
 			} else if err != nil {
-				fmt.Println("Error adding MongoDB metrics:", err)
+				fmt.Println("[mongodb:metrics] Error adding MongoDB metrics:", err)
 				os.Exit(1)
 			} else {
-				fmt.Println("OK, now monitoring MongoDB metrics using URI", pmm.SanitizeDSN(flagMongoURI))
+				fmt.Println("[mongodb:metrics] OK, now monitoring MongoDB metrics using URI", pmm.SanitizeDSN(flagMongoURI))
 			}
 		},
 	}
@@ -281,18 +278,13 @@ Use additional options to specify MongoDB node type, cluster, replSet etc.
 When adding a MongoDB instance, you may provide --uri if the default one does not work for you.
 Use additional options to specify MongoDB node type, cluster, replSet etc.
 
-IMPORTANT: adding MongoDB instance to the monitoring with the existing linux:metrics one will rename the latter to match
-the name of MongoDB instance and also sets the same options such as node type, cluster, replSet if provided.
-
 [name] is an optional argument, by default it is set to the client name of this PMM client.
 		`,
 		Example: `  pmm-admin add mongodb:metrics
   pmm-admin add mongodb:metrics --nodetype mongod --cluster cluster-1.2 --replset rs1`,
 		Run: func(cmd *cobra.Command, args []string) {
-			// Check --nodetype flag.
-			if flagMongoNodeType != "" && flagMongoNodeType != "mongod" && flagMongoNodeType != "mongos" &&
-				flagMongoNodeType != "config" && flagMongoNodeType != "arbiter" {
-				fmt.Println("Flag --nodetype can take the following values: mongod, mongos, config, arbiter.")
+			if err := admin.DetectMongoDB(flagMongoURI, flagMongoNodeType); err != nil {
+				fmt.Println(err)
 				os.Exit(1)
 			}
 			if err := admin.AddMongoDBMetrics(flagMongoURI, flagMongoNodeType, flagMongoReplSet, flagMongoCluster); err != nil {
@@ -326,29 +318,29 @@ the name of MongoDB instance and also sets the same options such as node type, c
 		Run: func(cmd *cobra.Command, args []string) {
 			err := admin.RemoveLinuxMetrics()
 			if err == pmm.ErrNoService {
-				fmt.Printf("OK, no system %s under monitoring.\n", admin.ServiceName)
+				fmt.Printf("[linux:metrics] OK, no system %s under monitoring.\n", admin.ServiceName)
 			} else if err != nil {
-				fmt.Printf("Error removing linux metrics %s: %s\n", admin.ServiceName, err)
+				fmt.Printf("[linux:metrics] Error removing linux metrics %s: %s\n", admin.ServiceName, err)
 			} else {
-				fmt.Printf("OK, removed system %s from monitoring.\n", admin.ServiceName)
+				fmt.Printf("[linux:metrics] OK, removed system %s from monitoring.\n", admin.ServiceName)
 			}
 
 			err = admin.RemoveMySQLMetrics()
 			if err == pmm.ErrNoService {
-				fmt.Printf("OK, no MySQL metrics %s under monitoring.\n", admin.ServiceName)
+				fmt.Printf("[mysql:metrics] OK, no MySQL metrics %s under monitoring.\n", admin.ServiceName)
 			} else if err != nil {
-				fmt.Printf("Error removing MySQL metrics %s: %s\n", admin.ServiceName, err)
+				fmt.Printf("[mysql:metrics] Error removing MySQL metrics %s: %s\n", admin.ServiceName, err)
 			} else {
-				fmt.Printf("OK, removed MySQL metrics %s from monitoring.\n", admin.ServiceName)
+				fmt.Printf("[mysql:metrics] OK, removed MySQL metrics %s from monitoring.\n", admin.ServiceName)
 			}
 
 			err = admin.RemoveMySQLQueries()
 			if err == pmm.ErrNoService {
-				fmt.Printf("OK, no MySQL queries %s under monitoring.\n", admin.ServiceName)
+				fmt.Printf("[mysql:queries] OK, no MySQL queries %s under monitoring.\n", admin.ServiceName)
 			} else if err != nil {
-				fmt.Printf("Error removing MySQL queries %s: %s\n", admin.ServiceName, err)
+				fmt.Printf("[mysql:queries] Error removing MySQL queries %s: %s\n", admin.ServiceName, err)
 			} else {
-				fmt.Printf("OK, removed MySQL queries %s from monitoring.\n", admin.ServiceName)
+				fmt.Printf("[mysql:queries] OK, removed MySQL queries %s from monitoring.\n", admin.ServiceName)
 			}
 		},
 	}
@@ -407,20 +399,20 @@ the name of MongoDB instance and also sets the same options such as node type, c
 		Run: func(cmd *cobra.Command, args []string) {
 			err := admin.RemoveLinuxMetrics()
 			if err == pmm.ErrNoService {
-				fmt.Printf("OK, no system %s under monitoring.\n", admin.ServiceName)
+				fmt.Printf("[linux:metrics]   OK, no system %s under monitoring.\n", admin.ServiceName)
 			} else if err != nil {
-				fmt.Printf("Error removing linux metrics %s: %s\n", admin.ServiceName, err)
+				fmt.Printf("[linux:metrics]   Error removing linux metrics %s: %s\n", admin.ServiceName, err)
 			} else {
-				fmt.Printf("OK, removed system %s from monitoring.\n", admin.ServiceName)
+				fmt.Printf("[linux:metrics]   OK, removed system %s from monitoring.\n", admin.ServiceName)
 			}
 
 			err = admin.RemoveMongoDBMetrics()
 			if err == pmm.ErrNoService {
-				fmt.Printf("OK, no MongoDB metrics %s under monitoring.\n", admin.ServiceName)
+				fmt.Printf("[mongodb:metrics] OK, no MongoDB metrics %s under monitoring.\n", admin.ServiceName)
 			} else if err != nil {
-				fmt.Printf("Error removing MongoDB metrics %s: %s\n", admin.ServiceName, err)
+				fmt.Printf("[mongodb:metrics] Error removing MongoDB metrics %s: %s\n", admin.ServiceName, err)
 			} else {
-				fmt.Printf("OK, removed MongoDB metrics %s from monitoring.\n", admin.ServiceName)
+				fmt.Printf("[mongodb:metrics] OK, removed MongoDB metrics %s from monitoring.\n", admin.ServiceName)
 			}
 		},
 	}
