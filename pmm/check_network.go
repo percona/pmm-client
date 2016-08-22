@@ -139,9 +139,11 @@ func (a *Admin) CheckNetwork(noEmoji bool) error {
 
 	if errStatus {
 		fmt.Println(`
-For endpoints in problem state, please check if the corresponding service is running ("pmm-admin list").
-If all endpoints are down here and "pmm-admin list" shows all services are up,
-please check the firewall settings whether this system allows incoming connections by address:port in question.`)
+For endpoints in problem state, please check if the corresponding local service is running ("pmm-admin list").
+If yes and the endpoint references to a remote machine, ensure that machine is accessible from the current system.
+
+If all endpoints are down here and "pmm-admin list" shows they are up,
+check the firewall settings whether this system allows incoming connections from server by address:port in question.`)
 	}
 	fmt.Println()
 	return nil

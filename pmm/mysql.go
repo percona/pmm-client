@@ -210,7 +210,7 @@ func mysqlCheck(db *sql.DB, hosts []string) error {
 				host = "%%"
 			}
 			errors = append(errors, fmt.Sprintf("MySQL user pmm@%s already exists. %s", host,
-				"Try without --create-user flag or use the existing `pmm` user credentials."))
+				"Try without --create-user flag using the default credentials or specify the existing `pmm` user ones."))
 			break
 		}
 	}

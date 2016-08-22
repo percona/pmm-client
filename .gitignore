@@ -1,7 +1,6 @@
 *.tmp
 *.swp
 *.log
-binaries/
 distro/
 pmm-admin
 pmm.yml
