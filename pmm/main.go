@@ -37,11 +37,11 @@ type Config struct {
 	ServerAddress     string `yaml:"server_address"`
 	ClientAddress     string `yaml:"client_address"`
 	ClientName        string `yaml:"client_name"`
-	HttpUser          string `yaml:"http_user,omitempty"`
-	HttpPassword      string `yaml:"http_password,omitempty"`
+	MySQLPassword     string `yaml:"mysql_password,omitempty"`
+	ServerUser        string `yaml:"server_user,omitempty"`
+	ServerPassword    string `yaml:"server_password,omitempty"`
 	ServerSSL         bool   `yaml:"server_ssl,omitempty"`
 	ServerInsecureSSL bool   `yaml:"server_insecure_ssl,omitempty"`
-	MySQLPassword     string `yaml:"mysql_password,omitempty"`
 }
 
 // Service status description.
@@ -95,8 +95,8 @@ func (a *Admin) SetConfig(cf Config) error {
 		// Resetting server address clears up SSL and HTTP auth.
 		a.Config.ServerSSL = false
 		a.Config.ServerInsecureSSL = false
-		a.Config.HttpUser = ""
-		a.Config.HttpPassword = ""
+		a.Config.ServerUser = ""
+		a.Config.ServerPassword = ""
 	}
 	if cf.ClientAddress != "" {
 		a.Config.ClientAddress = cf.ClientAddress
@@ -104,9 +104,9 @@ func (a *Admin) SetConfig(cf Config) error {
 	if cf.ClientName != "" {
 		a.Config.ClientName = cf.ClientName
 	}
-	if cf.HttpPassword != "" {
-		a.Config.HttpUser = cf.HttpUser
-		a.Config.HttpPassword = cf.HttpPassword
+	if cf.ServerPassword != "" {
+		a.Config.ServerUser = cf.ServerUser
+		a.Config.ServerPassword = cf.ServerPassword
 	}
 	if cf.ServerSSL {
 		a.Config.ServerSSL = true
@@ -147,13 +147,13 @@ func (a *Admin) SetAPI() {
 	if a.Config.ServerInsecureSSL {
 		config.HttpClient.Transport = insecureTransport
 	}
-	if a.Config.HttpUser != "" {
-		config.HttpAuth = &consul.HttpBasicAuth{Username: a.Config.HttpUser, Password: a.Config.HttpPassword}
+	if a.Config.ServerUser != "" {
+		config.HttpAuth = &consul.HttpBasicAuth{Username: a.Config.ServerUser, Password: a.Config.ServerPassword}
 	}
 	a.consulapi, _ = consul.NewClient(&config)
 
 	// Full URL.
-	a.serverUrl = fmt.Sprintf("%s://%s:%s@%s", scheme, a.Config.HttpUser, a.Config.HttpPassword, a.Config.ServerAddress)
+	a.serverUrl = fmt.Sprintf("%s://%s:%s@%s", scheme, a.Config.ServerUser, a.Config.ServerPassword, a.Config.ServerAddress)
 
 	// QAN API.
 	a.qanapi = NewAPI(a.Config.ServerInsecureSSL)
@@ -325,7 +325,7 @@ func (a *Admin) PrintInfo() {
 	if a.Config.ServerInsecureSSL {
 		labels = append(labels, "insecure SSL")
 	}
-	if a.Config.HttpUser != "" {
+	if a.Config.ServerUser != "" {
 		labels = append(labels, "password-protected")
 	}
 	info := ""

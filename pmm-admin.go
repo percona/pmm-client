@@ -20,6 +20,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"regexp"
 
 	"github.com/percona/pmm-client/pmm"
 	"github.com/spf13/cobra"
@@ -94,6 +95,10 @@ var (
 			admin.ServicePort = flagServicePort
 			if len(args) > 0 {
 				admin.ServiceName = args[0]
+			}
+			if match, _ := regexp.MatchString(`^[-\w:\.]+$`, admin.ServiceName); !match {
+				fmt.Println("Service name should contain only alphanumeric characters and _ - . :")
+				os.Exit(1)
 			}
 		},
 	}
@@ -187,7 +192,7 @@ a new user 'pmm@' automatically using the given (auto-detected) MySQL credential
 		`,
 		Example: `  pmm-admin add mysql:metrics --password abc123
   pmm-admin add mysql:metrics --password abc123 --host 192.168.1.2 --create-user
-  pmm-admin add mysql:metrics my-rds --user rdsuser --password abc123 --host my-rds.1234567890.us-east-1.rds.amazonaws.com`,
+  pmm-admin add mysql:metrics --user rdsuser --password abc123 --host my-rds.1234567890.us-east-1.rds.amazonaws.com my-rds`,
 		Run: func(cmd *cobra.Command, args []string) {
 			info, err := admin.DetectMySQL(flagM)
 			if err != nil {
@@ -214,7 +219,7 @@ a new user 'pmm@' automatically using the given (auto-detected) MySQL credential
 		`,
 		Example: `  pmm-admin add mysql:queries --password abc123
   pmm-admin add mysql:queries --password abc123 --host 192.168.1.2 --create-user
-  pmm-admin add mysql:queries my-rds --user rdsuser --password abc123 --host my-rds.1234567890.us-east-1.rds.amazonaws.com`,
+  pmm-admin add mysql:queries --user rdsuser --password abc123 --host my-rds.1234567890.us-east-1.rds.amazonaws.com my-rds`,
 		Run: func(cmd *cobra.Command, args []string) {
 			// Check --query-source flag.
 			if flagM.QuerySource != "auto" && flagM.QuerySource != "slowlog" && flagM.QuerySource != "perfschema" {
@@ -477,14 +482,14 @@ IMPORTANT: resetting server address clears up SSL and HTTP authentication if no 
 		},
 		Run: func(cmd *cobra.Command, args []string) {
 			if flagC.ServerSSL && flagC.ServerInsecureSSL {
-				fmt.Println("Flags --enable-ssl and --enable-insecure-ssl are mutually exclusive.")
+				fmt.Println("Flags --server-ssl and --server-insecure-ssl are mutually exclusive.")
 				os.Exit(1)
 			}
 			if err := admin.SetConfig(flagC); err != nil {
 				fmt.Printf("Error configuring PMM client: %s\n", err)
 				os.Exit(1)
 			}
-			fmt.Println("OK, PMM server is", admin.Config.ServerAddress)
+			fmt.Println("PMM client config has been updated.")
 		},
 	}
 
@@ -638,10 +643,10 @@ func main() {
 	cmdConfig.Flags().StringVar(&flagC.ServerAddress, "server", "", "PMM server address, optionally with port number")
 	cmdConfig.Flags().StringVar(&flagC.ClientAddress, "client", "", "Client address")
 	cmdConfig.Flags().StringVar(&flagC.ClientName, "name", "", "Client name (node identifier on Consul)")
-	cmdConfig.Flags().StringVar(&flagC.HttpUser, "http-user", "pmm", "HTTP user for PMM Server")
-	cmdConfig.Flags().StringVar(&flagC.HttpPassword, "http-password", "", "HTTP password for PMM Server")
-	cmdConfig.Flags().BoolVar(&flagC.ServerSSL, "enable-ssl", false, "Enable SSL to communicate with PMM Server")
-	cmdConfig.Flags().BoolVar(&flagC.ServerInsecureSSL, "enable-insecure-ssl", false, "Enable insecure SSL (self-signed certificate) to communicate with PMM Server")
+	cmdConfig.Flags().StringVar(&flagC.ServerUser, "server-user", "pmm", "Define HTTP user configured on PMM Server")
+	cmdConfig.Flags().StringVar(&flagC.ServerPassword, "server-password", "", "Define HTTP password configured on PMM Server")
+	cmdConfig.Flags().BoolVar(&flagC.ServerSSL, "server-ssl", false, "Enable SSL to communicate with PMM Server")
+	cmdConfig.Flags().BoolVar(&flagC.ServerInsecureSSL, "server-insecure-ssl", false, "Enable insecure SSL (self-signed certificate) to communicate with PMM Server")
 
 	cmdAdd.PersistentFlags().UintVar(&flagServicePort, "service-port", 0, "service port")
 
