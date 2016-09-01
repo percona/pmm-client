@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -50,6 +51,13 @@ func (a *Admin) AddMySQLQueries(info map[string]string) error {
 	consulSvc, err = a.getConsulService("mysql:queries", "")
 	if err != nil {
 		return err
+	}
+
+	// Register agent if there is not config file.
+	if !FileExists(agentConfigFile) {
+		if err := a.registerAgent(); err != nil {
+			return err
+		}
 	}
 
 	// Don't install service if we have already another "mysql:queries".
@@ -89,7 +97,7 @@ func (a *Admin) AddMySQLQueries(info map[string]string) error {
 	}
 
 	// Add new MySQL instance to QAN.
-	agentID, err := localAgentID()
+	agentID, err := getAgentID()
 	if err != nil {
 		return err
 	}
@@ -208,7 +216,7 @@ func (a *Admin) RemoveMySQLQueries() error {
 	mysqlUUID := string(data.Value)
 
 	// Stop QAN for this MySQL instance on the local agent.
-	agentID, err := localAgentID()
+	agentID, err := getAgentID()
 	if err != nil {
 		return err
 	}
@@ -279,7 +287,7 @@ func (a *Admin) getQanOSInstance(agentID string) (proto.Instance, error) {
 		return in, err
 	}
 	if resp.StatusCode == http.StatusNotFound {
-		return in, fmt.Errorf("cannot find os instance on QAN API. Ensure the installation run properly.")
+		return in, fmt.Errorf("cannot find os instance on QAN API.")
 	}
 	if resp.StatusCode != http.StatusOK {
 		return in, a.qanapi.Error("GET", url, resp.StatusCode, http.StatusOK, bytes)
@@ -331,11 +339,8 @@ RetryLoop:
 	return nil
 }
 
-// localAgentID read QAN agent ID from its config file.
-func localAgentID() (string, error) {
-	if !FileExists(agentConfigFile) {
-		return "", fmt.Errorf("%s does not exist. Ensure the installation run properly.", agentConfigFile)
-	}
+// getAgentID read QAN agent ID from its config file.
+func getAgentID() (string, error) {
 	jsonData, err := ioutil.ReadFile(agentConfigFile)
 	if err != nil {
 		return "", err
@@ -347,4 +352,13 @@ func localAgentID() (string, error) {
 	}
 
 	return config.UUID, nil
+}
+
+// registerAgent Register agent on QAN API using agent installer.
+func (a *Admin) registerAgent() error {
+	p := fmt.Sprintf("%s/bin/percona-qan-agent-installer", agentBaseDir)
+	if _, err := exec.Command(p, "-basedir", agentBaseDir, "-mysql=false", a.Config.ServerAddress+"/qan-api").Output(); err != nil {
+		return fmt.Errorf("problem with agent registration on QAN API: %s", err)
+	}
+	return nil
 }

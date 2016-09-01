@@ -634,16 +634,17 @@ func SanitizeDSN(dsn string) string {
 
 // CheckBinaries check if all PMM Client binaries are at their paths
 func CheckBinaries() string {
-	paths := []string{"node_exporter", "mysqld_exporter", "mongodb_exporter"}
-	for _, p := range paths {
-		f := fmt.Sprintf("%s/%s", PMMBaseDir, p)
-		if !FileExists(f) {
-			return f
-		}
+	paths := []string{
+		fmt.Sprintf("%s/node_exporter", PMMBaseDir),
+		fmt.Sprintf("%s/mysqld_exporter", PMMBaseDir),
+		fmt.Sprintf("%s/mongodb_exporter", PMMBaseDir),
+		fmt.Sprintf("%s/bin/percona-qan-agent", agentBaseDir),
+		fmt.Sprintf("%s/bin/percona-qan-agent-installer", agentBaseDir),
 	}
-	f := fmt.Sprintf("%s/bin/percona-qan-agent", agentBaseDir)
-	if !FileExists(f) {
-		return f
+	for _, p := range paths {
+		if !FileExists(p) {
+			return p
+		}
 	}
 	return ""
 }

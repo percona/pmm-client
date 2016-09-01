@@ -2,98 +2,21 @@
 
 set -eu
 
-err() {
-    echo
-    echo "ERROR: $*"
-    exit 1
-}
-
-copy_binaries() {
-    cp -f bin/pmm-admin $PMM_DIR
-    cp -f bin/{node,mysqld,mongodb}_exporter $PMM_DIR
-    cp -f bin/percona-qan-agent $QAN_AGENT_DIR/bin/
-    ln -sf $PMM_DIR/pmm-admin /usr/sbin/pmm-admin
-}
-
-configure_pmm() {
-    set +e
-    /usr/sbin/pmm-admin config --server $SERVER_ADDR --client $CLIENT_ADDR --name $CLIENT_NAME > /dev/null
-    if [ $? -ne 0 ]; then
-        err "looks like you changed the client address or hostname from previous run.
-If this is ok, remove $PMM_DIR/pmm.yml and try again."
-    fi
-
-    /usr/sbin/pmm-admin ping > /dev/null
-    if [ $? -ne 0 ]; then
-        err "Unable to connect to PMM server by address: $SERVER_ADDR
-
-* Check if the configured address is correct.
-* If server container is running on non-default port, ensure it was specified along with the address.
-* You may also check the firewall settings."
-    fi
-    set -e
-}
-
-register_qan_agent() {
-    # Run agent installer only if config does not exist.
-    if [ ! -e "$QAN_AGENT_DIR/config/agent.conf" ]; then
-        set +e
-        ./bin/percona-qan-agent-installer -basedir $QAN_AGENT_DIR -mysql=false $SERVER_ADDR/qan-api > $INSTALL_LOG 2>&1
-        if [ $? -ne 0 ]; then
-            cat $INSTALL_LOG
-            err "qan-agent install failed. Its install log is printed above."
-        fi
-        set -e
-    fi
-}
-
-# ###########################################################################
-# Script starts here
-# ###########################################################################
-
-if [ $# -ne 2 ]; then
-    echo "Usage: install <PMM server address[:port]> <client address>"
-    exit 1
-fi
-
-SERVER_ADDR="$1"
-CLIENT_ADDR="$2"
-CLIENT_NAME="${CLIENT_NAME:-$(hostname)}"
-
-INSTALL_LOG="/tmp/pmm-client-install.log"
 PMM_DIR="/usr/local/percona/pmm-client"
-QAN_AGENT_DIR="/usr/local/percona/qan-agent"
+QAN_DIR="/usr/local/percona/qan-agent"
 
-# Check if script is run as root as we need write access to /etc, /usr/local
-if [ ${EUID:-$(id -u)} -ne 0 ]; then
-    err "the script requires superuser privileges."
+if [ $(id -u) -ne 0 ]; then
+    echo "The script requires superuser privileges."
+    exit 1
 fi
 
-mkdir -p $PMM_DIR $QAN_AGENT_DIR/bin
+mkdir -p $PMM_DIR $QAN_DIR/bin
 
-#check_pkgs
+cp -f bin/pmm-admin $PMM_DIR
+cp -f bin/node_exporter $PMM_DIR
+cp -f bin/mysqld_exporter $PMM_DIR
+cp -f bin/mongodb_exporter $PMM_DIR
+cp -f bin/percona-qan-agent $QAN_DIR/bin/
+cp -f bin/percona-qan-agent-installer $QAN_DIR/bin/
 
-echo "[1/3] Copying binaries..."
-copy_binaries
-
-echo "[2/3] Configuring PMM Client..."
-configure_pmm
-
-echo "[3/3] Registering Query Analytics Agent..."
-register_qan_agent
-
-echo
-echo "Done installing PMM client. Next steps:"
-echo
-echo "  Enable monitoring MySQL on this server:"
-echo "      pmm-admin add mysql"
-echo
-echo "  Enable monitoring MongoDB on this server:"
-echo "      pmm-admin add mongodb"
-echo
-echo "  Get info on what is being monitored:"
-echo "      pmm-admin list"
-echo
-echo "To see more commands and options, run: pmm-admin --help"
-echo "Metrics should appear shortly by the link http://$SERVER_ADDR"
-echo
+ln -sf $PMM_DIR/pmm-admin /usr/sbin/pmm-admin
