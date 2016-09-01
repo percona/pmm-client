@@ -43,23 +43,23 @@ var (
 			}
 
 			if path := pmm.CheckBinaries(); path != "" {
-				fmt.Println("Installation problem, one of the binaries does not exist:", path)
+				fmt.Println("Installation problem, one of the binaries is missed:", path)
 				os.Exit(1)
 			}
 
 			// Read config file.
 			if !pmm.FileExists(flagConfigFile) {
-				fmt.Println(flagConfigFile, "does not exist. Please make sure you have run ./install script.")
+				fmt.Println("PMM client is not configured, missed config file. Please make sure you have run 'pmm-admin config'.")
 				os.Exit(1)
 			}
 
 			if err := admin.LoadConfig(flagConfigFile); err != nil {
-				fmt.Printf("Error reading %s: %s\n", flagConfigFile, err)
+				fmt.Printf("Error reading config file %s: %s\n", flagConfigFile, err)
 				os.Exit(1)
 			}
 
-			if admin.Config.ServerAddress == "" || admin.Config.ClientAddress == "" || admin.Config.ClientName == "" {
-				fmt.Println(flagConfigFile, "exists but some options are missed. Run 'pmm-admin config --help'.")
+			if admin.Config.ServerAddress == "" || admin.Config.ClientName == "" || admin.Config.ClientAddress == "" {
+				fmt.Println("PMM client is not configured properly. Please make sure you have run 'pmm-admin config'.")
 				os.Exit(1)
 			}
 
@@ -68,14 +68,9 @@ var (
 				return
 			}
 
-			admin.SetAPI()
-			// Check if server is alive.
-			if !admin.ServerAlive() {
-				fmt.Printf("Unable to connect to PMM server by address: %s\n\n", admin.Config.ServerAddress)
-				fmt.Println(`* Check if the configured address is correct.
-* If server container is running on non-default port, ensure it was specified along with the address.
-* If server is enabled for SSL or self-signed SSL or password protected, ensure the corresponding flags were set.
-* You may also check the firewall settings.`)
+			// Set APIs and check if server is alive.
+			if err := admin.SetAPI(); err != nil {
+				fmt.Printf("%s\n", err)
 				os.Exit(1)
 			}
 		},
@@ -456,7 +451,7 @@ Use additional options to specify MongoDB node type, cluster, replSet etc.
 
 	cmdInfo = &cobra.Command{
 		Use:   "info",
-		Short: "Display PMM Client information.",
+		Short: "Display PMM Client information (works offline).",
 		Long:  "This command displays PMM client configuration details.",
 		Run: func(cmd *cobra.Command, args []string) {
 			admin.PrintInfo()
@@ -471,25 +466,25 @@ Use additional options to specify MongoDB node type, cluster, replSet etc.
 You can enable SSL or setup HTTP basic authentication.
 When HTTP password and no user is given, the default username will be "pmm".
 
-IMPORTANT: resetting server address clears up SSL and HTTP authentication if no corresponding flags are provided.`,
+Note, resetting server address clears up SSL and HTTP authentication if no corresponding flags are provided.`,
+		Example: `  pmm-admin config --server 192.168.56.100
+  pmm-admin config --server 192.168.56.100:8000
+  pmm-admin config --server 192.168.56.100 --client-address 192.168.56.2 --client-name db01`,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			// Cancel root's PersistentPreRun as we do not require config file to exist here.
 			// If the config does not exist, we will init an empty and write on Run.
 			if err := admin.LoadConfig(flagConfigFile); err != nil {
-				fmt.Printf("Error reading %s: %s\n", flagConfigFile, err)
+				fmt.Printf("Cannot read config file %s: %s\n", flagConfigFile, err)
 				os.Exit(1)
 			}
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			if flagC.ServerSSL && flagC.ServerInsecureSSL {
-				fmt.Println("Flags --server-ssl and --server-insecure-ssl are mutually exclusive.")
-				os.Exit(1)
-			}
 			if err := admin.SetConfig(flagC); err != nil {
-				fmt.Printf("Error configuring PMM client: %s\n", err)
+				fmt.Printf("%s\n", err)
 				os.Exit(1)
 			}
-			fmt.Println("PMM client config has been updated.")
+			fmt.Println("OK, PMM server is alive.\n")
+			admin.ServerInfo()
 		},
 	}
 
@@ -506,8 +501,8 @@ Also there is a connection performance test results with PMM server displayed.
 Here you will see the status of individual Prometheus endpoints and whether it can scrape metrics from this system.
 Note, even this client can reach the server successfully it does not mean Prometheus is able to scrape from exporters.
 
-In case, some of the endpoints are in problem state, please check if the corresponding service is running ("pmm-admin list").
-If all endpoints are down here and "pmm-admin list" shows all services are up,
+In case, some of the endpoints are in problem state, please check if the corresponding service is running ('pmm-admin list').
+If all endpoints are down here and 'pmm-admin list' shows all services are up,
 please check the firewall settings whether this system allows incoming connections by address:port in question.`,
 		Run: func(cmd *cobra.Command, args []string) {
 			if err := admin.CheckNetwork(flagNoEmoji); err != nil {
@@ -640,9 +635,9 @@ func main() {
 	rootCmd.PersistentFlags().StringVarP(&flagConfigFile, "config-file", "c", pmm.ConfigFile, "PMM config file")
 	rootCmd.Flags().BoolVarP(&flagVersion, "version", "v", false, "show version")
 
-	cmdConfig.Flags().StringVar(&flagC.ServerAddress, "server", "", "PMM server address, optionally with port number")
-	cmdConfig.Flags().StringVar(&flagC.ClientAddress, "client", "", "Client address")
-	cmdConfig.Flags().StringVar(&flagC.ClientName, "name", "", "Client name (node identifier on Consul)")
+	cmdConfig.Flags().StringVar(&flagC.ServerAddress, "server", "", "PMM server address, optionally following with the :port (default port 80 or 443 if using SSL)")
+	cmdConfig.Flags().StringVar(&flagC.ClientAddress, "client-address", "", "Client address (if unset it will be automatically detected)")
+	cmdConfig.Flags().StringVar(&flagC.ClientName, "client-name", "", "Client name (if unset it will be set to the current hostname)")
 	cmdConfig.Flags().StringVar(&flagC.ServerUser, "server-user", "pmm", "Define HTTP user configured on PMM Server")
 	cmdConfig.Flags().StringVar(&flagC.ServerPassword, "server-password", "", "Define HTTP password configured on PMM Server")
 	cmdConfig.Flags().BoolVar(&flagC.ServerSSL, "server-ssl", false, "Enable SSL to communicate with PMM Server")

@@ -43,6 +43,10 @@ func (a *Admin) AddLinuxMetrics(force bool) error {
 		return ErrOneLinux
 	}
 
+	if err := a.checkGlobalDuplicateService("linux:metrics", a.ServiceName); err != nil {
+		return err
+	}
+
 	// Choose port.
 	var port uint
 	if a.ServicePort > 0 {

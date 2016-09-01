@@ -32,9 +32,6 @@ import (
 
 // CheckNetwork check connectivity between client and server.
 func (a *Admin) CheckNetwork(noEmoji bool) error {
-	// Check Consul health.
-	consulStatus := a.ServerAlive()
-
 	// Check QAN API health.
 	qanStatus := false
 	url := a.qanapi.URL(a.serverUrl, qanAPIBasePath, "ping")
@@ -58,7 +55,8 @@ func (a *Admin) CheckNetwork(noEmoji bool) error {
 	fmt.Printf("%-15s %-13s\n", strings.Repeat("-", 15), strings.Repeat("-", 13))
 	fmt.Printf("%-15s %-13s\n", "SERVER SERVICE", "CONNECTIVITY")
 	fmt.Printf("%-15s %-13s\n", strings.Repeat("-", 15), strings.Repeat("-", 13))
-	fmt.Printf("%-15s %-13s\n", "Consul API", emojiStatus(noEmoji, consulStatus))
+	// Consul is always alive if we are at this point.
+	fmt.Printf("%-15s %-13s\n", "Consul API", emojiStatus(noEmoji, true))
 	fmt.Printf("%-15s %-13s\n", "QAN API", emojiStatus(noEmoji, qanStatus))
 	fmt.Printf("%-15s %-13s\n", "Prometheus API", emojiStatus(noEmoji, promStatus))
 	fmt.Println()

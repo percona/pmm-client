@@ -42,6 +42,10 @@ func (a *Admin) AddMySQLQueries(info map[string]string) error {
 		return ErrDuplicate
 	}
 
+	if err := a.checkGlobalDuplicateService("mysql:queries", a.ServiceName); err != nil {
+		return err
+	}
+
 	// Now check if there are any mysql:queries services.
 	consulSvc, err = a.getConsulService("mysql:queries", "")
 	if err != nil {

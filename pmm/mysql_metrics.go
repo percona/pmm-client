@@ -36,6 +36,10 @@ func (a *Admin) AddMySQLMetrics(info map[string]string, mf MySQLFlags) error {
 		return ErrDuplicate
 	}
 
+	if err := a.checkGlobalDuplicateService("mysql:metrics", a.ServiceName); err != nil {
+		return err
+	}
+
 	// Choose port.
 	var port uint
 	if a.ServicePort > 0 {

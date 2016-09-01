@@ -30,7 +30,7 @@ const (
 	qanAPIBasePath = "qan-api"
 	emojiUnhappy   = "😡"
 	emojiHappy     = "🙂"
-	noMonitoring   = "No monitoring registered for this node under identifier"
+	noMonitoring   = "No monitoring registered for this node identified as"
 	apiTimeout     = 30 * time.Second
 )
 
@@ -38,7 +38,7 @@ var (
 	ConfigFile      = fmt.Sprintf("%s/pmm.yml", PMMBaseDir)
 	agentConfigFile = fmt.Sprintf("%s/config/agent.conf", agentBaseDir)
 
-	ErrDuplicate = fmt.Errorf("you have already the instance with this name under monitoring.")
+	ErrDuplicate = fmt.Errorf("there is already one instance with this name and type under monitoring.")
 	ErrNoService = fmt.Errorf("no service found.")
 	ErrOneLinux  = fmt.Errorf("there could be only one instance of linux metrics being monitored for this system.")
 )
@@ -62,10 +62,10 @@ var mysqldExporterArgs = []string{
 	"-collect.perf_schema.tableiowaits=true",
 	"-collect.perf_schema.tablelocks=true",
 	"-collect.slave_status=true",
-	//"-collect.engine_tokudb_status=true"
+	//"-collect.engine_tokudb_status=true",
 	//"-collect.info_schema.clientstats=true",
-	//"-collect.info_schema.innodb_tablespaces=true"
-	//"-collect.perf_schema.eventsstatements=true"
+	//"-collect.info_schema.innodb_tablespaces=true",
+	//"-collect.perf_schema.eventsstatements=true",
 }
 
 // mysqld_exporter args to disable optionally.

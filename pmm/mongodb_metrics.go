@@ -109,6 +109,10 @@ func (a *Admin) RemoveMongoDBMetrics() error {
 		return ErrNoService
 	}
 
+	if err := a.checkGlobalDuplicateService("mongodb:metrics", a.ServiceName); err != nil {
+		return err
+	}
+
 	// Remove service from Consul.
 	dereg := consul.CatalogDeregistration{
 		Node:      a.Config.ClientName,

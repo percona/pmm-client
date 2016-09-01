@@ -83,11 +83,11 @@ func (a *Admin) LoadConfig(filename string) error {
 	return nil
 }
 
-// SetConfig configure PMM client with server and client addresses, write them to the config.
+// SetConfig configure PMM client, check connectivity and write the config.
 func (a *Admin) SetConfig(cf Config) error {
-	if (cf.ClientAddress != "" && a.Config.ClientAddress != "" && cf.ClientAddress != a.Config.ClientAddress) ||
-		(cf.ClientName != "" && a.Config.ClientName != "" && cf.ClientName != a.Config.ClientName) {
-		return fmt.Errorf("changing of client address or name will disassociate this client from PMM server.")
+	// Server options.
+	if cf.ServerSSL && cf.ServerInsecureSSL {
+		return fmt.Errorf("Flags --server-ssl and --server-insecure-ssl are mutually exclusive.")
 	}
 
 	if cf.ServerAddress != "" {
@@ -98,12 +98,10 @@ func (a *Admin) SetConfig(cf Config) error {
 		a.Config.ServerUser = ""
 		a.Config.ServerPassword = ""
 	}
-	if cf.ClientAddress != "" {
-		a.Config.ClientAddress = cf.ClientAddress
+	if a.Config.ServerAddress == "" {
+		return fmt.Errorf("Server address is not set. Use --server flag to set it.")
 	}
-	if cf.ClientName != "" {
-		a.Config.ClientName = cf.ClientName
-	}
+
 	if cf.ServerPassword != "" {
 		a.Config.ServerUser = cf.ServerUser
 		a.Config.ServerPassword = cf.ServerPassword
@@ -117,17 +115,77 @@ func (a *Admin) SetConfig(cf Config) error {
 		a.Config.ServerInsecureSSL = true
 	}
 
-	return a.writeConfig()
+	// Set APIs and check if server is alive.
+	if err := a.SetAPI(); err != nil {
+		return err
+	}
+
+	// Client options.
+	// Attempt to change client name.
+	if cf.ClientName != "" && a.Config.ClientName != "" && cf.ClientName != a.Config.ClientName {
+		// Checking source name.
+		node, _, err := a.consulapi.Catalog().Node(a.Config.ClientName, nil)
+		if err != nil {
+			return fmt.Errorf("Unable to communicate with Consul: %s", err)
+		}
+		if node != nil && len(node.Services) > 0 {
+			return fmt.Errorf("Changing of client name is allowed only if there are no services under monitoring.")
+		}
+
+		// Checking target name.
+		node, _, err = a.consulapi.Catalog().Node(cf.ClientName, nil)
+		if err != nil {
+			return fmt.Errorf("Unable to communicate with Consul: %s", err)
+		}
+		if node != nil && len(node.Services) > 0 {
+			return fmt.Errorf(`Another client with the same name '%s' detected, by the address %s.
+It has the active services so you cannot change client name to this one.`,
+				cf.ClientName, node.Node.Address)
+		}
+		// Allow to change below.
+	}
+
+	if cf.ClientName != "" {
+		a.Config.ClientName = cf.ClientName
+	}
+	if a.Config.ClientName == "" {
+		hostname, _ := os.Hostname()
+		a.Config.ClientName = hostname
+	}
+
+	// Attempt to change client address.
+	if cf.ClientAddress != "" && a.Config.ClientAddress != "" && cf.ClientAddress != a.Config.ClientAddress {
+		node, _, err := a.consulapi.Catalog().Node(a.Config.ClientName, nil)
+		if err != nil {
+			return fmt.Errorf("Unable to communicate with Consul: %s", err)
+		}
+		if node != nil && len(node.Services) > 0 {
+			return fmt.Errorf("Changing of client address is allowed only if there are no services under monitoring.")
+		}
+		// Allow to change below.
+	}
+
+	if cf.ClientAddress != "" {
+		a.Config.ClientAddress = cf.ClientAddress
+	}
+	if a.Config.ClientAddress == "" {
+		// If user does not define client address, we try to detect it from nginx response header.
+		a.Config.ClientAddress = a.getMyRemoteIP()
+		if a.Config.ClientAddress == "" {
+			return fmt.Errorf("Client address is not set and cannot be detected. Use --client-address flag to set it.")
+		}
+	}
+
+	// Write the config.
+	if err := a.writeConfig(); err != nil {
+		return fmt.Errorf("Unable to write config file %s: %s", a.filename, err)
+	}
+
+	return nil
 }
 
-// writeConfig write config to the file.
-func (a *Admin) writeConfig() error {
-	bytes, _ := yaml.Marshal(a.Config)
-	return ioutil.WriteFile(a.filename, bytes, 0644)
-}
-
-// SetAPI setup Consul and QAN APIs.
-func (a *Admin) SetAPI() {
+// SetAPI setup Consul, QAN, Prometheus APIs and verify connection.
+func (a *Admin) SetAPI() error {
 	scheme := "http"
 	insecureTransport := &http.Transport{}
 	if a.Config.ServerInsecureSSL {
@@ -165,6 +223,57 @@ func (a *Admin) SetAPI() {
 	}
 	client, _ := prometheus.New(cfg)
 	a.promapi = prometheus.NewQueryAPI(client)
+
+	// Check if server is alive.
+	// Try to detect 404 (in case of SSL) and 403 (in case of HTTP auth) first to point this to user.
+	url := a.qanapi.URL(a.serverUrl)
+	resp, _, err := a.qanapi.Get(url)
+	if err != nil {
+		return fmt.Errorf(`Unable to connect to PMM server by address: %s
+
+* Check if the configured address is correct.
+* If server is running on non-default port, ensure it was specified along with the address.
+* You may also check the firewall settings.`, a.Config.ServerAddress)
+	}
+	if err == nil && resp.StatusCode == http.StatusBadRequest {
+		return fmt.Errorf(`Unable to connect to PMM server by address: %s
+
+Looks like the server is enabled for SSL or self-signed SSL.
+Use 'pmm-admin config' to enable the corresponding option.`, a.Config.ServerAddress)
+	}
+	if err == nil && resp.StatusCode == http.StatusForbidden {
+		return fmt.Errorf(`Unable to connect to PMM server by address: %s
+
+Looks like the server is password protected.
+Use 'pmm-admin config' to define server user and password.`, a.Config.ServerAddress)
+	}
+
+	// Finally, check Consul status.
+	if leader, err := a.consulapi.Status().Leader(); err != nil || leader != "127.0.0.1:8300" {
+		return fmt.Errorf(`Unable to connect to PMM server by address: %s
+
+* Check if the configured address is correct.
+* If server is running on non-default port, ensure it was specified along with the address.
+* You may also check the firewall settings.`, a.Config.ServerAddress)
+	}
+
+	return nil
+}
+
+// getMyRemoteIP get client remote IP from nginx custom header X-Remote-IP.
+func (a *Admin) getMyRemoteIP() string {
+	url := a.qanapi.URL(a.serverUrl, "v1/status/leader")
+	resp, _, err := a.qanapi.Get(url)
+	if err != nil {
+		return ""
+	}
+	return resp.Header.Get("X-Remote-IP")
+}
+
+// writeConfig write config to the file.
+func (a *Admin) writeConfig() error {
+	bytes, _ := yaml.Marshal(a.Config)
+	return ioutil.WriteFile(a.filename, bytes, 0644)
 }
 
 // List get all services from Consul.
@@ -185,6 +294,10 @@ func (a *Admin) List() error {
 	var svcTable []instanceStatus
 	for _, svc := range node.Services {
 		svcType := svc.Service
+		// When server hostname == client name, we have to exclude consul.
+		if svcType == "consul" {
+			continue
+		}
 		if svcType == "mysql:queries" {
 			queryService = svc
 			continue
@@ -318,6 +431,12 @@ func (a *Admin) List() error {
 // GetInfo print PMM client info.
 func (a *Admin) PrintInfo() {
 	fmt.Printf("pmm-admin %s\n\n", VERSION)
+	a.ServerInfo()
+	fmt.Printf("%-15s | %s\n\n", "Service manager", service.Platform())
+}
+
+// ServerInfo print server info.
+func (a *Admin) ServerInfo() {
 	var labels []string
 	if a.Config.ServerSSL {
 		labels = append(labels, "SSL")
@@ -335,16 +454,6 @@ func (a *Admin) PrintInfo() {
 	fmt.Printf("%-15s | %s %s\n", "PMM Server", a.Config.ServerAddress, info)
 	fmt.Printf("%-15s | %s\n", "Client Name", a.Config.ClientName)
 	fmt.Printf("%-15s | %s\n", "Client Address", a.Config.ClientAddress)
-	fmt.Printf("%-15s | %s\n\n", "Service manager", service.Platform())
-}
-
-// ServerAlive check if PMM server is alive.
-func (a *Admin) ServerAlive() bool {
-	leader, err := a.consulapi.Status().Leader()
-	if err == nil && leader == "127.0.0.1:8300" {
-		return true
-	}
-	return false
 }
 
 // StartStopMonitoring start/stop system service by its metric type and name.
@@ -415,6 +524,37 @@ func (a *Admin) getConsulService(service, name string) (*consul.AgentService, er
 	}
 
 	return nil, nil
+}
+
+// checkGlobalDuplicateService check if new service is globally unique and prevent duplicate clients.
+func (a *Admin) checkGlobalDuplicateService(service, name string) error {
+	// Prevent duplicate clients (2 or more nodes using the same name).
+	// This should not usually happen unless the config file is edited manually.
+	node, _, err := a.consulapi.Catalog().Node(a.Config.ClientName, nil)
+	if err != nil {
+		return err
+	}
+	if node != nil && node.Node.Address != a.Config.ClientAddress && len(node.Services) > 0 {
+		return fmt.Errorf(`another client with the same name '%s' but different address detected.
+
+This client address is %s, the other one - %s.
+Re-configure this client with the different name using 'pmm-admin config' command.`,
+			a.Config.ClientName, a.Config.ClientAddress, node.Node.Address)
+	}
+
+	// Check if service with the name (tag) is globally unique.
+	services, _, err := a.consulapi.Catalog().Service(service, fmt.Sprintf("alias_%s", name), nil)
+	if err != nil {
+		return err
+	}
+	if len(services) > 0 {
+		return fmt.Errorf(`another client '%s' by address '%s' is monitoring %s instance under the name '%s'.
+
+Choose different name for this service.`,
+			services[0].Node, services[0].Address, service, name)
+	}
+
+	return nil
 }
 
 // choosePort automatically choose the port for service.
