@@ -2,6 +2,7 @@ package pmm
 
 import (
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/percona/go-mysql/dsn"
@@ -155,12 +156,16 @@ func TestGetMysqlInfo(t *testing.T) {
 	rows := sqlmock.NewRows(columns).AddRow("db01", "3306", "MySQL", "1.2.3")
 	mock.ExpectQuery("SELECT @@hostname, @@port, @@version_comment, @@version").WillReturnRows(rows)
 
+	rows = sqlmock.NewRows([]string{"count"}).AddRow("500")
+	mock.ExpectQuery(sanitizeQuery("SELECT COUNT(*) FROM information_schema.tables")).WillReturnRows(rows)
+
 	res := getMysqlInfo(db)
 	expect := map[string]string{
-		"hostname": "db01",
-		"port":     "3306",
-		"distro":   "MySQL",
-		"version":  "1.2.3",
+		"hostname":    "db01",
+		"port":        "3306",
+		"distro":      "MySQL",
+		"version":     "1.2.3",
+		"table_count": "500",
 	}
 	convey.Convey("Get MySQL info", t, func() {
 		convey.So(res, convey.ShouldResemble, expect)
@@ -189,4 +194,12 @@ func TestGeneratePassword(t *testing.T) {
 			convey.So(c, convey.ShouldBeTrue)
 		}
 	})
+}
+
+func sanitizeQuery(q string) string {
+	return strings.NewReplacer(
+		"(", "\\(",
+		")", "\\)",
+		"*", "\\*",
+	).Replace(q)
 }

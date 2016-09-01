@@ -106,6 +106,8 @@ When adding a MySQL instance, this tool tries to auto-detect the DSN and credent
 If you want to create a new user to be used for metrics collecting, provide --create-user option. pmm-admin will create
 a new user 'pmm@' automatically using the given (auto-detected) MySQL credentials for granting purpose.
 
+Table statistics is automatically disabled when there are more than 10000 tables on MySQL.
+
 [name] is an optional argument, by default it is set to the client name of this PMM client.
 		`,
 		Example: `  pmm-admin add mysql --password abc123
@@ -182,6 +184,8 @@ However, you can add another one with the different name just for testing purpos
 When adding a MySQL instance, this tool tries to auto-detect the DSN and credentials.
 If you want to create a new user to be used for metrics collecting, provide --create-user option. pmm-admin will create
 a new user 'pmm@' automatically using the given (auto-detected) MySQL credentials for granting purpose.
+
+Table statistics is automatically disabled when there are more than 10000 tables on MySQL.
 
 [name] is an optional argument, by default it is set to the client name of this PMM client.
 		`,
@@ -657,7 +661,7 @@ func main() {
 	cmdAddMySQL.Flags().StringVar(&flagM.CreateUserPassword, "create-user-password", "", "optional password for a new MySQL user")
 	cmdAddMySQL.Flags().UintVar(&flagM.MaxUserConn, "create-user-maxconn", 5, "max user connections for a new user")
 	cmdAddMySQL.Flags().BoolVar(&flagM.Force, "force", false, "force to create/update MySQL user")
-	cmdAddMySQL.Flags().BoolVar(&flagM.DisableTableStats, "disable-tablestats", false, "disable table statistics (for MySQL with a huge number of tables)")
+	cmdAddMySQL.Flags().BoolVar(&flagM.DisableTableStats, "disable-tablestats", false, "disable table statistics (disabled automatically with 10000+ tables)")
 	cmdAddMySQL.Flags().BoolVar(&flagM.DisableUserStats, "disable-userstats", false, "disable user statistics")
 	cmdAddMySQL.Flags().BoolVar(&flagM.DisableBinlogStats, "disable-binlogstats", false, "disable binlog statistics")
 	cmdAddMySQL.Flags().BoolVar(&flagM.DisableProcesslist, "disable-processlist", false, "disable process state metrics")

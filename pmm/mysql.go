@@ -252,19 +252,16 @@ func testConnection(userDSN dsn.DSN) error {
 }
 
 func getMysqlInfo(db *sql.DB) map[string]string {
-	var (
-		hostname string
-		port     string
-		distro   string
-		version  string
-	)
+	var hostname, port, distro, version, tableCount string
 	db.QueryRow("SELECT @@hostname, @@port, @@version_comment, @@version").Scan(&hostname, &port, &distro, &version)
+	db.QueryRow("SELECT COUNT(*) FROM information_schema.tables").Scan(&tableCount)
 
 	return map[string]string{
-		"hostname": hostname,
-		"port":     port,
-		"distro":   distro,
-		"version":  version,
+		"hostname":    hostname,
+		"port":        port,
+		"distro":      distro,
+		"version":     version,
+		"table_count": tableCount,
 	}
 }
 

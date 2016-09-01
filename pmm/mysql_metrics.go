@@ -19,6 +19,7 @@ package pmm
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	consul "github.com/hashicorp/consul/api"
@@ -56,7 +57,8 @@ func (a *Admin) AddMySQLMetrics(info map[string]string, mf MySQLFlags) error {
 
 	// Opts to disable.
 	var optsToDisable []string
-	if mf.DisableTableStats {
+	count, _ := strconv.ParseUint(info["table_count"], 10, 32)
+	if mf.DisableTableStats || count > 10000 {
 		optsToDisable = append(optsToDisable, "tablestats")
 	}
 	if mf.DisableUserStats {
