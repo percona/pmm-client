@@ -38,7 +38,7 @@ var (
 	ConfigFile      = fmt.Sprintf("%s/pmm.yml", PMMBaseDir)
 	agentConfigFile = fmt.Sprintf("%s/config/agent.conf", agentBaseDir)
 
-	ErrDuplicate = fmt.Errorf("there is already one instance with this name and type under monitoring.")
+	ErrDuplicate = fmt.Errorf("there is already one instance with this name under monitoring.")
 	ErrNoService = fmt.Errorf("no service found.")
 	ErrOneLinux  = fmt.Errorf("there could be only one instance of linux metrics being monitored for this system.")
 )

@@ -37,6 +37,10 @@ func (a *Admin) AddMongoDBMetrics(uri, nodetype, replset, cluster string) error 
 		return ErrDuplicate
 	}
 
+	if err := a.checkGlobalDuplicateService("mongodb:metrics", a.ServiceName); err != nil {
+		return err
+	}
+
 	// Choose port.
 	var port uint
 	if a.ServicePort > 0 {
@@ -107,10 +111,6 @@ func (a *Admin) RemoveMongoDBMetrics() error {
 	}
 	if consulSvc == nil {
 		return ErrNoService
-	}
-
-	if err := a.checkGlobalDuplicateService("mongodb:metrics", a.ServiceName); err != nil {
-		return err
 	}
 
 	// Remove service from Consul.
