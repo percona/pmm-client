@@ -159,7 +159,7 @@ func TestGetMysqlInfo(t *testing.T) {
 	rows = sqlmock.NewRows([]string{"count"}).AddRow("500")
 	mock.ExpectQuery(sanitizeQuery("SELECT COUNT(*) FROM information_schema.tables")).WillReturnRows(rows)
 
-	res := getMysqlInfo(db)
+	res := getMysqlInfo(db, false)
 	expect := map[string]string{
 		"hostname":    "db01",
 		"port":        "3306",

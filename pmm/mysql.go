@@ -114,7 +114,7 @@ func (a *Admin) DetectMySQL(mf MySQLFlags) (map[string]string, error) {
 	// if our queries are predictably good.
 
 	// Get MySQL variables.
-	info := getMysqlInfo(db)
+	info := getMysqlInfo(db, mf.DisableTableStats)
 
 	if mf.QuerySource == "auto" {
 		// MySQL is local if the server hostname == MySQL hostname.
@@ -251,10 +251,13 @@ func testConnection(userDSN dsn.DSN) error {
 	return nil
 }
 
-func getMysqlInfo(db *sql.DB) map[string]string {
+func getMysqlInfo(db *sql.DB, disableTableStats bool) map[string]string {
 	var hostname, port, distro, version, tableCount string
 	db.QueryRow("SELECT @@hostname, @@port, @@version_comment, @@version").Scan(&hostname, &port, &distro, &version)
-	db.QueryRow("SELECT COUNT(*) FROM information_schema.tables").Scan(&tableCount)
+	// Do not count number of tables if we explicitly disable table stats.
+	if !disableTableStats {
+		db.QueryRow("SELECT COUNT(*) FROM information_schema.tables").Scan(&tableCount)
+	}
 
 	return map[string]string{
 		"hostname":    hostname,
