@@ -194,13 +194,14 @@ func mysqlCheck(db *sql.DB, hosts []string) error {
 
 	// Check for read_only.
 	if db.QueryRow("SELECT @@read_only").Scan(&varVal); varVal == "1" {
-		errors = append(errors, "You are trying to create a new user on read-only MySQL host.")
+		errors = append(errors, "* You are trying to create a new user on read-only MySQL host.")
 	}
 
 	// Check for slave.
-	slaveStatusRows, _ := db.Query("SHOW SLAVE STATUS")
-	if slaveStatusRows.Next() {
-		errors = append(errors, "You are trying to create a new user on MySQL replication slave.")
+	if slaveStatusRows, err := db.Query("SHOW SLAVE STATUS"); err == nil {
+		if slaveStatusRows.Next() {
+			errors = append(errors, "* You are trying to create a new user on MySQL replication slave.")
+		}
 	}
 
 	// Check if user exists.
@@ -209,7 +210,7 @@ func mysqlCheck(db *sql.DB, hosts []string) error {
 			if host == "%" {
 				host = "%%"
 			}
-			errors = append(errors, fmt.Sprintf("MySQL user pmm@%s already exists. %s", host,
+			errors = append(errors, fmt.Sprintf("* MySQL user pmm@%s already exists. %s", host,
 				"Try without --create-user flag using the default credentials or specify the existing `pmm` user ones."))
 			break
 		}
