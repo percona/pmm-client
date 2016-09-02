@@ -1,6 +1,6 @@
 Percona Monitoring and Management (PMM) Client
 
-v1.0.4 unreleased 2016-08-19
+v1.0.4 unreleased 2016-09-02
 
 * Renamed services:
   * os > linux:metrics
@@ -22,6 +22,10 @@ v1.0.4 unreleased 2016-08-19
 * Added check for MongoDB connectivity when adding mongodb:metrics instance.
 * Do not modify linux:metrics instance when adding mongodb:metrics one.
 * Allowed to add more than one linux:metrics instance for testing purpose.
+* Added consistency checks to avoid duplicate services across clients.
+* Detect client address automatically.
+* Disable table stats automatically with 10000+ tables.
+* Improved installation process: install script from the tarball just copies binaries.
 
 v1.0.3 released 2016-08-05
 
