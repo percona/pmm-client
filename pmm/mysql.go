@@ -194,19 +194,23 @@ func mysqlCheck(db *sql.DB, hosts []string) error {
 
 	// Check for read_only.
 	if db.QueryRow("SELECT @@read_only").Scan(&varVal); varVal == "1" {
-		errors = append(errors, "* You are trying to create a new user on read-only MySQL host.")
+		errors = append(errors, "* You are trying to write on read-only MySQL host.")
 	}
 
 	// Check for slave.
 	if slaveStatusRows, err := db.Query("SHOW SLAVE STATUS"); err == nil {
 		if slaveStatusRows.Next() {
-			errors = append(errors, "* You are trying to create a new user on MySQL replication slave.")
+			errors = append(errors, "* You are trying to write on MySQL replication slave.")
 		}
 	}
 
 	// Check if user exists.
 	for _, host := range hosts {
-		if _, err := db.Query(fmt.Sprintf("SHOW GRANTS FOR 'pmm'@'%s'", host)); err == nil {
+		if rows, err := db.Query(fmt.Sprintf("SHOW GRANTS FOR 'pmm'@'%s'", host)); err == nil {
+			// MariaDB requires to check .Next() because err is always nil even user doesn't exist %)
+			if !rows.Next() {
+				continue
+			}
 			if host == "%" {
 				host = "%%"
 			}
@@ -217,7 +221,8 @@ func mysqlCheck(db *sql.DB, hosts []string) error {
 	}
 
 	if len(errors) > 0 {
-		errors = append(errors, "", "If you think the above is okay, you can proceed anyway with --force flag.")
+		errors = append([]string{"Problem creating a new MySQL user:", ""}, errors...)
+		errors = append(errors, "", "If you think the above is okay to proceed, you can use --force flag.")
 		return fmt.Errorf(strings.Join(errors, "\n"))
 	}
 
