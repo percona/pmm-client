@@ -305,13 +305,30 @@ Use additional options to specify MongoDB node type, cluster, replSet etc.
 		Use:     "remove",
 		Aliases: []string{"rm"},
 		Short:   "Remove service from monitoring.",
-		Long:    "This command is used to remove a monitoring service.",
+		Long:    "This command is used to remove one monitoring service or all.",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			cmd.Root().PersistentPreRun(cmd.Root(), args)
 			admin.ServiceName = admin.Config.ClientName
 			if len(args) > 0 {
 				admin.ServiceName = args[0]
 			}
+		},
+		Run: func(cmd *cobra.Command, args []string) {
+			if flagAll {
+				err, count := admin.RemoveAllMonitoring(flagForce)
+				if err != nil {
+					fmt.Printf("Error removing one of the services: %s\n", err)
+					os.Exit(1)
+				}
+				if count == 0 {
+					fmt.Println("OK, no services found.")
+				} else {
+					fmt.Printf("OK, %d services were removed.\n", count)
+				}
+				os.Exit(0)
+			}
+			cmd.Usage()
+			os.Exit(1)
 		},
 	}
 	cmdRemoveMySQL = &cobra.Command{
@@ -537,15 +554,15 @@ please check the firewall settings whether this system allows incoming connectio
   pmm-admin start --all`,
 		Run: func(cmd *cobra.Command, args []string) {
 			if flagAll {
-				err, noServices := admin.StartStopAllMonitoring("start")
+				err, count := admin.StartStopAllMonitoring("start")
 				if err != nil {
 					fmt.Printf("Error starting one of the services: %s\n", err)
 					os.Exit(1)
 				}
-				if noServices {
+				if count == 0 {
 					fmt.Println("OK, no services found.")
 				} else {
-					fmt.Println("OK, all services are started.")
+					fmt.Printf("OK, %d services are started.\n", count)
 				}
 				os.Exit(0)
 			}
@@ -583,15 +600,15 @@ please check the firewall settings whether this system allows incoming connectio
   pmm-admin stop --all`,
 		Run: func(cmd *cobra.Command, args []string) {
 			if flagAll {
-				err, noServices := admin.StartStopAllMonitoring("stop")
+				err, count := admin.StartStopAllMonitoring("stop")
 				if err != nil {
 					fmt.Printf("Error stopping one of the services: %s\n", err)
 					os.Exit(1)
 				}
-				if noServices {
+				if count == 0 {
 					fmt.Println("OK, no services found.")
 				} else {
-					fmt.Println("OK, all services are stopped.")
+					fmt.Printf("OK, %d services are stopped.\n", count)
 				}
 				os.Exit(0)
 			}
@@ -628,7 +645,7 @@ please check the firewall settings whether this system allows incoming connectio
 )
 
 func main() {
-	// Setup commands and flags.
+	// Commands.
 	cobra.EnableCommandSorting = false
 	rootCmd.AddCommand(cmdAdd, cmdRemove, cmdList, cmdConfig, cmdInfo, cmdCheckNet, cmdPing, cmdStart, cmdStop)
 	cmdAdd.AddCommand(cmdAddMySQL, cmdAddLinuxMetrics, cmdAddMySQLMetrics, cmdAddMySQLQueries,
@@ -636,6 +653,7 @@ func main() {
 	cmdRemove.AddCommand(cmdRemoveMySQL, cmdRemoveLinuxMetrics, cmdRemoveMySQLMetrics, cmdRemoveMySQLQueries,
 		cmdRemoveMongoDB, cmdRemoveMongoDBMetrics)
 
+	// Flags.
 	rootCmd.PersistentFlags().StringVarP(&flagConfigFile, "config-file", "c", pmm.ConfigFile, "PMM config file")
 	rootCmd.Flags().BoolVarP(&flagVersion, "version", "v", false, "show version")
 
@@ -704,10 +722,13 @@ func main() {
 	cmdAddMongoDBMetrics.Flags().StringVar(&flagMongoCluster, "cluster", "", "cluster name")
 	cmdAddMongoDBMetrics.Flags().StringVar(&flagMongoReplSet, "replset", "", "replSet name")
 
+	cmdRemove.Flags().BoolVar(&flagAll, "all", false, "remove all monitoring services")
+	cmdRemove.Flags().BoolVar(&flagForce, "force", false, "ignore any errors")
+
 	cmdCheckNet.Flags().BoolVar(&flagNoEmoji, "no-emoji", false, "avoid emoji in the output")
 
-	cmdStart.Flags().BoolVar(&flagAll, "all", false, "all monitoring services")
-	cmdStop.Flags().BoolVar(&flagAll, "all", false, "all monitoring services")
+	cmdStart.Flags().BoolVar(&flagAll, "all", false, "start all monitoring services")
+	cmdStop.Flags().BoolVar(&flagAll, "all", false, "stop all monitoring services")
 
 	if os.Getuid() != 0 {
 		fmt.Println("pmm-admin requires superuser privileges to manage system services.")

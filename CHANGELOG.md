@@ -26,6 +26,8 @@ v1.0.4 unreleased 2016-09-02
 * Detect client address automatically.
 * Disable table stats automatically with 10000+ tables.
 * Improved installation process: install script from the tarball just copies binaries.
+* Added MySQL version check to mysqld_exporter to eliminate errors on 5.5.
+* Added --all flag to "remove" command.
 
 v1.0.3 released 2016-08-05
 

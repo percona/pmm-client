@@ -481,26 +481,53 @@ func (a *Admin) StartStopMonitoring(action, svcType, name string) error {
 }
 
 // StartStopAllMonitoring start/stop all metric services.
-func (a *Admin) StartStopAllMonitoring(action string) (error, bool) {
+func (a *Admin) StartStopAllMonitoring(action string) (error, int) {
 	node, _, err := a.consulapi.Catalog().Node(a.Config.ClientName, nil)
 	if err != nil || node == nil || len(node.Services) == 0 {
-		return nil, true
+		return nil, 0
 	}
 
 	for _, svc := range node.Services {
 		metric := svc.Service
 		if action == "start" {
 			if err := startService(fmt.Sprintf("pmm-%s-%d", strings.Replace(metric, ":", "-", 1), svc.Port)); err != nil {
-				return err, false
+				return err, 0
 			}
 			continue
 		}
 		if err := stopService(fmt.Sprintf("pmm-%s-%d", strings.Replace(metric, ":", "-", 1), svc.Port)); err != nil {
-			return err, false
+			return err, 0
 		}
 	}
 
-	return nil, false
+	return nil, len(node.Services)
+}
+
+// RemoveAllMonitoring remove all the monitoring services.
+func (a *Admin) RemoveAllMonitoring(force bool) (error, int) {
+	node, _, err := a.consulapi.Catalog().Node(a.Config.ClientName, nil)
+	if err != nil || node == nil || len(node.Services) == 0 {
+		return nil, 0
+	}
+
+	for _, svc := range node.Services {
+		// Stop and uninstall service.
+		name := fmt.Sprintf("pmm-%s-%d", strings.Replace(svc.Service, ":", "-", 1), svc.Port)
+		if err := uninstallService(name); err != nil && !force {
+			return err, 0
+		}
+
+		// Remove service from Consul.
+		dereg := consul.CatalogDeregistration{
+			Node:      a.Config.ClientName,
+			ServiceID: svc.ID,
+		}
+		if _, err := a.consulapi.Catalog().Deregister(&dereg, nil); err != nil && !force {
+			return err, 0
+		}
+	}
+
+	return nil, len(node.Services)
 }
 
 // getConsulService get service from Consul by service type and optionally name (alias).
