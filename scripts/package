@@ -1,0 +1,74 @@
+#!/bin/bash
+# Requirements: yum install rpm-build dpkg dpkg-devel fakeroot
+
+set -eu
+
+WORK_DIR=/tmp/pkgbuild-`date +%s`
+WORKSPACE=$PWD
+SOURCE=$PWD/distro/bin
+TARGET=$PWD/distro
+
+PROJECT=pmm-client
+VERSION="$(awk '/var VERSION/ {print $4}' pmm/constants.go | sed 's/"//g')"
+RELEASE=${1:-1}
+ARCH=x86_64
+
+if [ "${DEV:-yes}" = "yes" ]; then
+    REV="$(git log -n 1 --no-walk --pretty="%h")"
+    RELEASE="dev$(TZ="UTC" date "+%Y%m%d").$REV"
+fi
+
+build_rpm() {
+    NAME=$PROJECT-$VERSION
+
+    mkdir -p $WORK_DIR/{BUILD,BUILDROOT,RPMS,SOURCES,SRPMS} $TARGET
+    cp -r $SOURCE $WORK_DIR/SOURCES/$NAME
+
+    cd $WORK_DIR/SOURCES
+    tar czf $NAME.tar.gz $NAME/
+    cd ..
+
+    rpmbuild -ba $WORKSPACE/build/rpm.spec \
+             --define "_topdir $WORK_DIR" \
+             --define "version $VERSION" \
+             --define "release $RELEASE"
+    PKG=$NAME-$RELEASE.$ARCH.rpm
+    mv RPMS/$ARCH/$PKG $TARGET
+
+    rpm -qpil $TARGET/$PKG
+    rpm -qp --requires $TARGET/$PKG
+    echo
+    echo "RPM done: $TARGET/$PKG"
+    echo
+    rm -rf $WORK_DIR/{BUILD,BUILDROOT,RPMS,SOURCES,SRPMS}
+}
+
+build_deb() {
+    NAME=${PROJECT}_$VERSION
+
+    mkdir -p $WORK_DIR/$NAME/DEBIAN $TARGET
+    cd $WORK_DIR
+    cp $WORKSPACE/build/deb/* $WORK_DIR/$NAME/DEBIAN/
+    sed -i "s/%{version}/$VERSION-$RELEASE/" $WORK_DIR/$NAME/DEBIAN/control
+    sh -e $WORKSPACE/build/deb/files $SOURCE $WORK_DIR/$NAME
+
+    case $ARCH in
+       'noarch') ARCH='all';;
+       'x86_64') ARCH='amd64';;
+    esac
+
+    fakeroot dpkg --build $NAME
+    PKG=${NAME}-${RELEASE}_${ARCH}.deb
+    mv $NAME.deb $TARGET/$PKG
+
+    echo
+    dpkg -I $TARGET/$PKG
+    dpkg -c $TARGET/$PKG
+    echo
+    echo "DEB done: $TARGET/$PKG"
+    echo
+    rm -rf $WORK_DIR
+}
+
+build_rpm
+build_deb

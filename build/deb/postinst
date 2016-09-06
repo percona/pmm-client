@@ -1,0 +1,6 @@
+#!/bin/bash
+pmm-admin ping > /dev/null
+if [ $? = 0 ]; then
+    pmm-admin stop --all
+    pmm-admin start --all
+fi
