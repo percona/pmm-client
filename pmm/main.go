@@ -504,30 +504,42 @@ func (a *Admin) StartStopAllMonitoring(action string) (error, int) {
 }
 
 // RemoveAllMonitoring remove all the monitoring services.
-func (a *Admin) RemoveAllMonitoring(force bool) (error, int) {
+func (a *Admin) RemoveAllMonitoring(force bool) (error, uint16) {
 	node, _, err := a.consulapi.Catalog().Node(a.Config.ClientName, nil)
 	if err != nil || node == nil || len(node.Services) == 0 {
 		return nil, 0
 	}
 
+	var count uint16
 	for _, svc := range node.Services {
-		// Stop and uninstall service.
-		name := fmt.Sprintf("pmm-%s-%d", strings.Replace(svc.Service, ":", "-", 1), svc.Port)
-		if err := uninstallService(name); err != nil && !force {
-			return err, 0
-		}
-
-		// Remove service from Consul.
-		dereg := consul.CatalogDeregistration{
-			Node:      a.Config.ClientName,
-			ServiceID: svc.ID,
-		}
-		if _, err := a.consulapi.Catalog().Deregister(&dereg, nil); err != nil && !force {
-			return err, 0
+		for _, tag := range svc.Tags {
+			if !strings.HasPrefix(tag, "alias_") {
+				continue
+			}
+			a.ServiceName = tag[6:]
+			switch svc.Service {
+			case "linux:metrics":
+				if err := a.RemoveLinuxMetrics(); err != nil && !force {
+					return err, 0
+				}
+			case "mysql:metrics":
+				if err := a.RemoveMySQLMetrics(); err != nil && !force {
+					return err, 0
+				}
+			case "mysql:queries":
+				if err := a.RemoveMySQLQueries(); err != nil && !force {
+					return err, 0
+				}
+			case "mongodb:metrics":
+				if err := a.RemoveMongoDBMetrics(); err != nil && !force {
+					return err, 0
+				}
+			}
+			count++
 		}
 	}
 
-	return nil, len(node.Services)
+	return nil, count
 }
 
 // getConsulService get service from Consul by service type and optionally name (alias).
