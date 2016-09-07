@@ -205,13 +205,15 @@ func (a *Admin) SetAPI() error {
 	if a.Config.ServerInsecureSSL {
 		config.HttpClient.Transport = insecureTransport
 	}
+	var authStr string
 	if a.Config.ServerUser != "" {
 		config.HttpAuth = &consul.HttpBasicAuth{Username: a.Config.ServerUser, Password: a.Config.ServerPassword}
+		authStr = fmt.Sprintf("%s:%s@", a.Config.ServerUser, a.Config.ServerPassword)
 	}
 	a.consulapi, _ = consul.NewClient(&config)
 
 	// Full URL.
-	a.serverUrl = fmt.Sprintf("%s://%s:%s@%s", scheme, a.Config.ServerUser, a.Config.ServerPassword, a.Config.ServerAddress)
+	a.serverUrl = fmt.Sprintf("%s://%s%s", scheme, authStr, a.Config.ServerAddress)
 
 	// QAN API.
 	a.qanapi = NewAPI(a.Config.ServerInsecureSSL)
@@ -225,23 +227,31 @@ func (a *Admin) SetAPI() error {
 	a.promapi = prometheus.NewQueryAPI(client)
 
 	// Check if server is alive.
-	// Try to detect 404 (in case of SSL) and 403 (in case of HTTP auth) first to point this to user.
 	url := a.qanapi.URL(a.serverUrl)
 	resp, _, err := a.qanapi.Get(url)
 	if err != nil {
+		if strings.Contains(err.Error(), "x509: cannot validate certificate") {
+			return fmt.Errorf(`Unable to connect to PMM server by address: %s
+
+Looks like PMM server running with self-signed SSL certificate.
+Use 'pmm-admin config' with --server-insecure-ssl flag.`, a.Config.ServerAddress)
+		}
 		return fmt.Errorf(`Unable to connect to PMM server by address: %s
 
 * Check if the configured address is correct.
 * If server is running on non-default port, ensure it was specified along with the address.
+* If server is enabled for SSL or self-signed SSL, enable the corresponding option.
 * You may also check the firewall settings.`, a.Config.ServerAddress)
 	}
+
+	// Try to detect 400 (SSL) and 401 (HTTP auth).
 	if err == nil && resp.StatusCode == http.StatusBadRequest {
 		return fmt.Errorf(`Unable to connect to PMM server by address: %s
 
 Looks like the server is enabled for SSL or self-signed SSL.
-Use 'pmm-admin config' to enable the corresponding option.`, a.Config.ServerAddress)
+Use 'pmm-admin config' to enable the corresponding SSL option.`, a.Config.ServerAddress)
 	}
-	if err == nil && resp.StatusCode == http.StatusForbidden {
+	if err == nil && resp.StatusCode == http.StatusUnauthorized {
 		return fmt.Errorf(`Unable to connect to PMM server by address: %s
 
 Looks like the server is password protected.
@@ -252,9 +262,8 @@ Use 'pmm-admin config' to define server user and password.`, a.Config.ServerAddr
 	if leader, err := a.consulapi.Status().Leader(); err != nil || leader != "127.0.0.1:8300" {
 		return fmt.Errorf(`Unable to connect to PMM server by address: %s
 
-* Check if the configured address is correct.
-* If server is running on non-default port, ensure it was specified along with the address.
-* You may also check the firewall settings.`, a.Config.ServerAddress)
+Even though the server is reachable it does not look to be PMM server.
+Check if the configured address is correct.`, a.Config.ServerAddress)
 	}
 
 	return nil
