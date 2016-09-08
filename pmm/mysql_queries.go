@@ -131,8 +131,10 @@ func (a *Admin) AddMySQLQueries(info map[string]string) error {
 	}
 
 	// The URI of the new instance is reported in the Location header, fetch it to get UUID assigned.
+	// Do not use the returned URL as QAN API returns an invalid one.
 	var bytes []byte
-	url = resp.Header.Get("Location")
+	t := strings.Split(resp.Header.Get("Location"), "/")
+	url = a.qanapi.URL(url, t[len(t)-1])
 	resp, bytes, err = a.qanapi.Get(url)
 	if err != nil {
 		return err
@@ -356,8 +358,20 @@ func getAgentID() (string, error) {
 
 // registerAgent Register agent on QAN API using agent installer.
 func (a *Admin) registerAgent() error {
-	p := fmt.Sprintf("%s/bin/percona-qan-agent-installer", agentBaseDir)
-	if _, err := exec.Command(p, "-basedir", agentBaseDir, "-mysql=false", a.Config.ServerAddress+"/qan-api").Output(); err != nil {
+	path := fmt.Sprintf("%s/bin/percona-qan-agent-installer", agentBaseDir)
+	args := []string{"-basedir", agentBaseDir, "-mysql=false"}
+	if a.Config.ServerSSL {
+		args = append(args, "-use-ssl")
+	}
+	if a.Config.ServerInsecureSSL {
+		args = append(args, "-use-insecure-ssl")
+	}
+	if a.Config.ServerPassword != "" {
+		args = append(args, fmt.Sprintf("-server-user=%s", a.Config.ServerUser),
+			fmt.Sprintf("-server-pass=%s", a.Config.ServerPassword))
+	}
+	args = append(args, fmt.Sprintf("%s/%s", a.serverUrl, qanAPIBasePath))
+	if _, err := exec.Command(path, args...).Output(); err != nil {
 		return fmt.Errorf("problem with agent registration on QAN API: %s", err)
 	}
 	return nil

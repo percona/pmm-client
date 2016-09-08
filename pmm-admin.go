@@ -490,7 +490,7 @@ When HTTP password and no user is given, the default username will be "pmm".
 Note, resetting server address clears up SSL and HTTP authentication if no corresponding flags are provided.`,
 		Example: `  pmm-admin config --server 192.168.56.100
   pmm-admin config --server 192.168.56.100:8000
-  pmm-admin config --server 192.168.56.100 --client-address 192.168.56.2 --client-name db01`,
+  pmm-admin config --server 192.168.56.100 --server-password abc123`,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			// Cancel root's PersistentPreRun as we do not require config file to exist here.
 			// If the config does not exist, we will init an empty and write on Run.
@@ -539,18 +539,20 @@ please check the firewall settings whether this system allows incoming connectio
 		Long:  "This command verifies the connectivity with PMM server.",
 		Run: func(cmd *cobra.Command, args []string) {
 			// It's all good if PersistentPreRun didn't fail.
-			fmt.Println("OK")
+			fmt.Println("OK, PMM server is alive.\n")
+			admin.ServerInfo()
 		},
 	}
 
 	cmdStart = &cobra.Command{
-		Use:   "start TYPE NAME",
+		Use:   "start TYPE [name]",
 		Short: "Start service by type and name.",
-		Long:  "This command starts the corresponding system service or all.",
+		Long: `This command starts the corresponding system service or all.
+
+[name] is an optional argument, by default it is set to the client name of this PMM client.
+		`,
 		Example: `  pmm-admin start linux:metrics db01.vm
-  pmm-admin start mysql:metrics db01.vm
   pmm-admin start mysql:queries db01.vm
-  pmm-admin start mongodb:metrics db01.vm
   pmm-admin start --all`,
 		Run: func(cmd *cobra.Command, args []string) {
 			if flagAll {
@@ -568,35 +570,33 @@ please check the firewall settings whether this system allows incoming connectio
 			}
 
 			// Check args.
-			if len(args) < 2 {
-				fmt.Println("No metric type or name specified.\n")
+			if len(args) == 0 {
+				fmt.Println("No service type specified.\n")
 				cmd.Usage()
 				os.Exit(1)
 			}
 			svcType := args[0]
-			name := args[1]
-			if svcType != "linux:metrics" && svcType != "mysql:metrics" && svcType != "mysql:queries" && svcType != "mongodb:metrics" {
-				fmt.Println("METRIC argument can take the following values: linux:metrics, mysql:metrics, mysql:queries, mongodb:metrics.\n")
-				cmd.Usage()
-				os.Exit(1)
+			admin.ServiceName = admin.Config.ClientName
+			if len(args) > 1 {
+				admin.ServiceName = args[1]
 			}
 
-			if err := admin.StartStopMonitoring("start", svcType, name); err != nil {
-				fmt.Printf("Error starting %s service for %s: %s\n", svcType, name, err)
+			if err := admin.StartStopMonitoring("start", svcType); err != nil {
+				fmt.Printf("Error starting %s service for %s: %s\n", svcType, admin.ServiceName, err)
 				os.Exit(1)
 			}
-			fmt.Printf("OK, started %s service for %s.\n", svcType, name)
+			fmt.Printf("OK, started %s service for %s.\n", svcType, admin.ServiceName)
 		},
 	}
-
 	cmdStop = &cobra.Command{
-		Use:   "stop TYPE NAME",
+		Use:   "stop TYPE [name]",
 		Short: "Stop service by type and name.",
-		Long:  "This command stops the corresponding system service or all.",
+		Long: `This command stops the corresponding system service or all.
+
+[name] is an optional argument, by default it is set to the client name of this PMM client.
+		`,
 		Example: `  pmm-admin stop linux:metrics db01.vm
-  pmm-admin stop mysql:metrics db01.vm
   pmm-admin stop mysql:queries db01.vm
-  pmm-admin stop mongodb:metrics db01.vm
   pmm-admin stop --all`,
 		Run: func(cmd *cobra.Command, args []string) {
 			if flagAll {
@@ -614,24 +614,66 @@ please check the firewall settings whether this system allows incoming connectio
 			}
 
 			// Check args.
-			if len(args) < 2 {
-				fmt.Println("No metric type or name specified.\n")
+			if len(args) == 0 {
+				fmt.Println("No service type specified.\n")
 				cmd.Usage()
 				os.Exit(1)
 			}
 			svcType := args[0]
-			name := args[1]
-			if svcType != "linux:metrics" && svcType != "mysql:metrics" && svcType != "mysql:queries" && svcType != "mongodb:metrics" {
-				fmt.Println("METRIC argument can take the following values: linux:metrics, mysql:metrics, mysql:queries, mongodb:metrics.\n")
+			admin.ServiceName = admin.Config.ClientName
+			if len(args) > 1 {
+				admin.ServiceName = args[1]
+			}
+
+			if err := admin.StartStopMonitoring("stop", svcType); err != nil {
+				fmt.Printf("Error stopping %s service for %s: %s\n", svcType, admin.ServiceName, err)
+				os.Exit(1)
+			}
+			fmt.Printf("OK, stopped %s service for %s.\n", svcType, admin.ServiceName)
+		},
+	}
+	cmdRestart = &cobra.Command{
+		Use:   "restart TYPE [name]",
+		Short: "Restart service by type and name.",
+		Long: `This command restarts the corresponding system service or all.
+
+[name] is an optional argument, by default it is set to the client name of this PMM client.
+		`,
+		Example: `  pmm-admin restart linux:metrics db01.vm
+  pmm-admin restart mysql:queries db01.vm
+  pmm-admin restart --all`,
+		Run: func(cmd *cobra.Command, args []string) {
+			if flagAll {
+				err, count := admin.StartStopAllMonitoring("restart")
+				if err != nil {
+					fmt.Printf("Error restarting one of the services: %s\n", err)
+					os.Exit(1)
+				}
+				if count == 0 {
+					fmt.Println("OK, no services found.")
+				} else {
+					fmt.Printf("OK, %d services are restarted.\n", count)
+				}
+				os.Exit(0)
+			}
+
+			// Check args.
+			if len(args) == 0 {
+				fmt.Println("No service type specified.\n")
 				cmd.Usage()
 				os.Exit(1)
 			}
+			svcType := args[0]
+			admin.ServiceName = admin.Config.ClientName
+			if len(args) > 1 {
+				admin.ServiceName = args[1]
+			}
 
-			if err := admin.StartStopMonitoring("stop", svcType, name); err != nil {
-				fmt.Printf("Error stopping %s service for %s: %s\n", svcType, name, err)
+			if err := admin.StartStopMonitoring("restart", svcType); err != nil {
+				fmt.Printf("Error restarting %s service for %s: %s\n", svcType, admin.ServiceName, err)
 				os.Exit(1)
 			}
-			fmt.Printf("OK, stopped %s service for %s.\n", svcType, name)
+			fmt.Printf("OK, restarted %s service for %s.\n", svcType, admin.ServiceName)
 		},
 	}
 
@@ -647,7 +689,8 @@ please check the firewall settings whether this system allows incoming connectio
 func main() {
 	// Commands.
 	cobra.EnableCommandSorting = false
-	rootCmd.AddCommand(cmdAdd, cmdRemove, cmdList, cmdConfig, cmdInfo, cmdCheckNet, cmdPing, cmdStart, cmdStop)
+	rootCmd.AddCommand(cmdAdd, cmdRemove, cmdList, cmdConfig, cmdInfo, cmdCheckNet, cmdPing,
+		cmdStart, cmdStop, cmdRestart)
 	cmdAdd.AddCommand(cmdAddMySQL, cmdAddLinuxMetrics, cmdAddMySQLMetrics, cmdAddMySQLQueries,
 		cmdAddMongoDB, cmdAddMongoDBMetrics)
 	cmdRemove.AddCommand(cmdRemoveMySQL, cmdRemoveLinuxMetrics, cmdRemoveMySQLMetrics, cmdRemoveMySQLQueries,
@@ -729,6 +772,7 @@ func main() {
 
 	cmdStart.Flags().BoolVar(&flagAll, "all", false, "start all monitoring services")
 	cmdStop.Flags().BoolVar(&flagAll, "all", false, "stop all monitoring services")
+	cmdRestart.Flags().BoolVar(&flagAll, "all", false, "restart all monitoring services")
 
 	if os.Getuid() != 0 {
 		fmt.Println("pmm-admin requires superuser privileges to manage system services.")

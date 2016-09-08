@@ -19,6 +19,7 @@ package pmm
 
 import (
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -28,6 +29,7 @@ import (
 
 	consul "github.com/hashicorp/consul/api"
 	"github.com/percona/kardianos-service"
+	"github.com/percona/pmm/proto/config"
 	"github.com/prometheus/client_golang/api/prometheus"
 	"gopkg.in/yaml.v2"
 )
@@ -176,6 +178,17 @@ It has the active services so you cannot change client name to this one.`,
 		}
 	}
 
+	// If agent config exists, update the options like address, SSL, password etc.
+	if FileExists(agentConfigFile) {
+		if err := a.syncAgentConfig(); err != nil {
+			return fmt.Errorf("Unable to update agent config %s: %s", agentConfigFile, err)
+		}
+		// Restart QAN agent.
+		if err := a.StartStopMonitoring("restart", "mysql:queries"); err != nil && err != ErrNoService {
+			return fmt.Errorf("Unable to restart queries service: %s", err)
+		}
+	}
+
 	// Write the config.
 	if err := a.writeConfig(); err != nil {
 		return fmt.Errorf("Unable to write config file %s: %s", a.filename, err)
@@ -282,7 +295,27 @@ func (a *Admin) getMyRemoteIP() string {
 // writeConfig write config to the file.
 func (a *Admin) writeConfig() error {
 	bytes, _ := yaml.Marshal(a.Config)
-	return ioutil.WriteFile(a.filename, bytes, 0644)
+	return ioutil.WriteFile(a.filename, bytes, 0600)
+}
+
+// syncAgentConfig sync agent config.
+func (a *Admin) syncAgentConfig() error {
+	jsonData, err := ioutil.ReadFile(agentConfigFile)
+	if err != nil {
+		return err
+	}
+	agentConf := &config.Agent{}
+	if err := json.Unmarshal(jsonData, &agentConf); err != nil {
+		return err
+	}
+	agentConf.ApiHostname = a.Config.ServerAddress
+	agentConf.ServerSSL = a.Config.ServerSSL
+	agentConf.ServerInsecureSSL = a.Config.ServerInsecureSSL
+	agentConf.ServerUser = a.Config.ServerUser
+	agentConf.ServerPassword = a.Config.ServerPassword
+
+	bytes, _ := json.Marshal(agentConf)
+	return ioutil.WriteFile(agentConfigFile, bytes, 0600)
 }
 
 // List get all services from Consul.
@@ -466,9 +499,15 @@ func (a *Admin) ServerInfo() {
 }
 
 // StartStopMonitoring start/stop system service by its metric type and name.
-func (a *Admin) StartStopMonitoring(action, svcType, name string) error {
+func (a *Admin) StartStopMonitoring(action, svcType string) error {
+	if svcType != "linux:metrics" && svcType != "mysql:metrics" && svcType != "mysql:queries" && svcType != "mongodb:metrics" {
+		return fmt.Errorf(`bad service type.
+
+Service type takes the following values: linux:metrics, mysql:metrics, mysql:queries, mongodb:metrics.`)
+	}
+
 	// Check if we have this service on Consul.
-	consulSvc, err := a.getConsulService(svcType, name)
+	consulSvc, err := a.getConsulService(svcType, a.ServiceName)
 	if err != nil {
 		return err
 	}
@@ -476,14 +515,23 @@ func (a *Admin) StartStopMonitoring(action, svcType, name string) error {
 		return ErrNoService
 	}
 
-	if action == "start" {
-		if err := startService(fmt.Sprintf("pmm-%s-%d", strings.Replace(svcType, ":", "-", 1), consulSvc.Port)); err != nil {
+	svcName := fmt.Sprintf("pmm-%s-%d", strings.Replace(svcType, ":", "-", 1), consulSvc.Port)
+	switch action {
+	case "start":
+		if err := startService(svcName); err != nil {
 			return err
 		}
-		return nil
-	}
-	if err := stopService(fmt.Sprintf("pmm-%s-%d", strings.Replace(svcType, ":", "-", 1), consulSvc.Port)); err != nil {
-		return err
+	case "stop":
+		if err := stopService(svcName); err != nil {
+			return err
+		}
+	case "restart":
+		if err := stopService(svcName); err != nil {
+			return err
+		}
+		if err := startService(svcName); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -497,15 +545,23 @@ func (a *Admin) StartStopAllMonitoring(action string) (error, int) {
 	}
 
 	for _, svc := range node.Services {
-		metric := svc.Service
-		if action == "start" {
-			if err := startService(fmt.Sprintf("pmm-%s-%d", strings.Replace(metric, ":", "-", 1), svc.Port)); err != nil {
+		svcName := fmt.Sprintf("pmm-%s-%d", strings.Replace(svc.Service, ":", "-", 1), svc.Port)
+		switch action {
+		case "start":
+			if err := startService(svcName); err != nil {
 				return err, 0
 			}
-			continue
-		}
-		if err := stopService(fmt.Sprintf("pmm-%s-%d", strings.Replace(metric, ":", "-", 1), svc.Port)); err != nil {
-			return err, 0
+		case "stop":
+			if err := stopService(svcName); err != nil {
+				return err, 0
+			}
+		case "restart":
+			if err := stopService(svcName); err != nil {
+				return err, 0
+			}
+			if err := startService(svcName); err != nil {
+				return err, 0
+			}
 		}
 	}
 

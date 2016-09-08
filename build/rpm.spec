@@ -43,8 +43,7 @@ rm -rf $RPM_BUILD_ROOT
 # upgrade
 pmm-admin ping > /dev/null
 if [ $? = 0 ] && [ "$1" = "2" ]; then
-    pmm-admin stop --all
-    pmm-admin start --all
+    pmm-admin restart --all
 fi
 
 %preun

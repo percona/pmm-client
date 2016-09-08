@@ -1,6 +1,6 @@
 Percona Monitoring and Management (PMM) Client
 
-v1.0.4 unreleased 2016-09-02
+v1.0.4 unreleased 2016-09-08
 
 * Renamed services:
   * os > linux:metrics
@@ -10,14 +10,14 @@ v1.0.4 unreleased 2016-09-02
 * Added group commands:
   * "add/remove mysql" - adds linux:metrics, mysql:metrics, mysql:queries services in 1 go
   * "add/remove mongodb" - adds linux:metrics, mongodb:metrics
-* Added SSL and HTTP password support with PMM Server. Currently, only pmm-admin communication with server is protected on client-side.
-* Added check whether the required binaries of exporters are installed.
+* Added options to support SSL and HTTP password protection on PMM server.
+* Added check whether all the required binaries are installed.
 * Changed behaviour of --create-user MySQL flag:
   * now pmm-admin employs a single `pmm` MySQL user, verifies if already exists and stores the generated password in the config
   * added checks whether MySQL is read-only or a replication slave
-  * stored credentials are automatically picked up by pmm-admin when are valid
-* mysqld_exporter is replaced with custom 3-in-1 mysqld_exporter.
-* pmm-admin creates 1 mysql metrics system service instead of 3 per MySQL instance.
+  * stored credentials are automatically picked up by pmm-admin when valid
+* mysqld_exporter is replaced with custom one https://github.com/percona/mysqld_exporter
+* Now pmm-admin creates 1 mysql metrics system service instead of 3 per MySQL instance.
 * Do not require a name on service remove, using the client name by default.
 * Added check for MongoDB connectivity when adding mongodb:metrics instance.
 * Do not modify linux:metrics instance when adding mongodb:metrics one.
@@ -25,9 +25,10 @@ v1.0.4 unreleased 2016-09-02
 * Added consistency checks to avoid duplicate services across clients.
 * Detect client address automatically.
 * Disable table stats automatically with 10000+ tables.
-* Improved installation process: install script from the tarball just copies binaries.
+* Improved installation process and created packages.
 * Added MySQL version check to mysqld_exporter to eliminate errors on 5.5.
 * Added --all flag to "remove" command.
+* Added "restart" command.
 
 v1.0.3 released 2016-08-05
 
