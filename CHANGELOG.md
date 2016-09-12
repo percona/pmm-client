@@ -1,6 +1,6 @@
 Percona Monitoring and Management (PMM) Client
 
-v1.0.4 unreleased 2016-09-08
+v1.0.4 released 2016-09-13
 
 * Renamed services:
   * os > linux:metrics
