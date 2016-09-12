@@ -2,12 +2,180 @@ package pmm
 
 import (
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/percona/go-mysql/dsn"
 	"github.com/smartystreets/goconvey/convey"
 	"gopkg.in/DATA-DOG/go-sqlmock.v1"
 )
+
+func TestMySQLCheck1(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("error opening a stub database connection: %s", err)
+	}
+	defer db.Close()
+
+	rows := sqlmock.NewRows([]string{"col1"}).AddRow("0")
+	mock.ExpectQuery("SELECT @@read_only").WillReturnRows(rows)
+
+	rows = sqlmock.NewRows([]string{"col1"})
+	mock.ExpectQuery("SHOW SLAVE STATUS").WillReturnRows(rows)
+
+	mock.ExpectQuery("SHOW GRANTS FOR 'pmm'@'localhost'").WillReturnError(err)
+
+	convey.Convey("MySQL checks OK", t, func() {
+		convey.So(mysqlCheck(db, []string{"localhost"}), convey.ShouldBeNil)
+	})
+
+	// Ensure all SQL queries were executed
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("there were unfulfilled expections: %s", err)
+	}
+}
+
+func TestMySQLCheck2(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("error opening a stub database connection: %s", err)
+	}
+	defer db.Close()
+
+	rows := sqlmock.NewRows([]string{"col1"}).AddRow("1")
+	mock.ExpectQuery("SELECT @@read_only").WillReturnRows(rows)
+
+	rows = sqlmock.NewRows([]string{"col1"})
+	mock.ExpectQuery("SHOW SLAVE STATUS").WillReturnRows(rows)
+
+	mock.ExpectQuery("SHOW GRANTS FOR 'pmm'@'localhost'").WillReturnError(err)
+
+	convey.Convey("MySQL checks FAIL", t, func() {
+		convey.So(mysqlCheck(db, []string{"localhost"}), convey.ShouldNotBeNil)
+	})
+
+	// Ensure all SQL queries were executed
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("there were unfulfilled expections: %s", err)
+	}
+}
+
+func TestMySQLCheck3(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("error opening a stub database connection: %s", err)
+	}
+	defer db.Close()
+
+	rows := sqlmock.NewRows([]string{"col1"}).AddRow("0")
+	mock.ExpectQuery("SELECT @@read_only").WillReturnRows(rows)
+
+	rows = sqlmock.NewRows([]string{"col1"}).AddRow("1")
+	mock.ExpectQuery("SHOW SLAVE STATUS").WillReturnRows(rows)
+
+	mock.ExpectQuery("SHOW GRANTS FOR 'pmm'@'localhost'").WillReturnError(err)
+
+	convey.Convey("MySQL checks FAIL", t, func() {
+		convey.So(mysqlCheck(db, []string{"localhost"}), convey.ShouldNotBeNil)
+	})
+
+	// Ensure all SQL queries were executed
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("there were unfulfilled expections: %s", err)
+	}
+}
+
+func TestMySQLCheck4(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("error opening a stub database connection: %s", err)
+	}
+	defer db.Close()
+
+	rows := sqlmock.NewRows([]string{"col1"}).AddRow("0")
+	mock.ExpectQuery("SELECT @@read_only").WillReturnRows(rows)
+
+	rows = sqlmock.NewRows([]string{"col1"})
+	mock.ExpectQuery("SHOW SLAVE STATUS").WillReturnRows(rows)
+
+	rows = sqlmock.NewRows([]string{"col1"})
+	mock.ExpectQuery("SHOW GRANTS FOR 'pmm'@'localhost'").WillReturnRows(rows)
+
+	convey.Convey("MySQL checks FAIL", t, func() {
+		convey.So(mysqlCheck(db, []string{"localhost"}), convey.ShouldNotBeNil)
+	})
+
+	// Ensure all SQL queries were executed
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("there were unfulfilled expections: %s", err)
+	}
+}
+
+func TestMakeGrants(t *testing.T) {
+	type sample struct {
+		dsn    dsn.DSN
+		hosts  []string
+		conn   uint
+		grants []string
+	}
+	samples := []sample{
+		{dsn: dsn.DSN{Username: "root", Password: "abc123"},
+			hosts: []string{"localhost", "127.0.0.1"},
+			conn:  5,
+			grants: []string{
+				"GRANT SELECT, PROCESS, REPLICATION CLIENT, SUPER ON *.* TO 'root'@'localhost' IDENTIFIED BY 'abc123' WITH MAX_USER_CONNECTIONS 5",
+				"GRANT UPDATE, DELETE, DROP ON `performance_schema`.* TO 'root'@'localhost'",
+				"GRANT SELECT, PROCESS, REPLICATION CLIENT, SUPER ON *.* TO 'root'@'127.0.0.1' IDENTIFIED BY 'abc123' WITH MAX_USER_CONNECTIONS 5",
+				"GRANT UPDATE, DELETE, DROP ON `performance_schema`.* TO 'root'@'127.0.0.1'",
+			},
+		},
+		{dsn: dsn.DSN{Username: "admin", Password: "23;,_-asd"},
+			hosts: []string{"%"},
+			conn:  20,
+			grants: []string{
+				"GRANT SELECT, PROCESS, REPLICATION CLIENT, SUPER ON *.* TO 'admin'@'%' IDENTIFIED BY '23;,_-asd' WITH MAX_USER_CONNECTIONS 20",
+				"GRANT UPDATE, DELETE, DROP ON `performance_schema`.* TO 'admin'@'%'",
+			},
+		},
+	}
+	convey.Convey("Making grants", t, func() {
+		for _, s := range samples {
+			convey.So(makeGrants(s.dsn, s.hosts, s.conn), convey.ShouldResemble, s.grants)
+		}
+	})
+}
+
+func TestGetMysqlInfo(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("error opening a stub database connection: %s", err)
+	}
+	defer db.Close()
+
+	columns := []string{"@@hostname", "@@port", "@@version_comment", "@@version"}
+	rows := sqlmock.NewRows(columns).AddRow("db01", "3306", "MySQL", "1.2.3")
+	mock.ExpectQuery("SELECT @@hostname, @@port, @@version_comment, @@version").WillReturnRows(rows)
+
+	rows = sqlmock.NewRows([]string{"count"}).AddRow("500")
+	mock.ExpectQuery(sanitizeQuery("SELECT COUNT(*) FROM information_schema.tables")).WillReturnRows(rows)
+
+	res := getMysqlInfo(db, false)
+	expect := map[string]string{
+		"hostname":    "db01",
+		"port":        "3306",
+		"distro":      "MySQL",
+		"version":     "1.2.3",
+		"table_count": "500",
+	}
+	convey.Convey("Get MySQL info", t, func() {
+		convey.So(res, convey.ShouldResemble, expect)
+	})
+
+	// Ensure all SQL queries were executed
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("there were unfulfilled expections: %s", err)
+	}
+}
 
 func TestGeneratePassword(t *testing.T) {
 	r, _ := regexp.Compile("^([[:alnum:]]|[_,;-]){20}$")
@@ -28,103 +196,10 @@ func TestGeneratePassword(t *testing.T) {
 	})
 }
 
-func TestMakeGrant(t *testing.T) {
-	type sample struct {
-		dsn     dsn.DSN
-		grants  []string
-		service string
-		source  string
-		conn    uint
-	}
-	samples := []sample{
-		{dsn: dsn.DSN{Username: "root", Password: "abc123", Hostname: "localhost", Socket: ""},
-			service: "mysql",
-			source:  "",
-			conn:    5,
-			grants: []string{"SET SESSION old_passwords=0",
-				"GRANT PROCESS, REPLICATION CLIENT ON *.* TO 'root'@'localhost' IDENTIFIED BY 'abc123' WITH MAX_USER_CONNECTIONS 5",
-				"GRANT SELECT ON `performance_schema`.* TO 'root'@'localhost'"},
-		},
-		{dsn: dsn.DSN{Username: "admin", Password: "23;,_-asd", Hostname: "127.0.0.1", Socket: ""},
-			service: "mysql",
-			source:  "",
-			conn:    10,
-			grants: []string{"SET SESSION old_passwords=0",
-				"GRANT PROCESS, REPLICATION CLIENT ON *.* TO 'admin'@'127.0.0.1' IDENTIFIED BY '23;,_-asd' WITH MAX_USER_CONNECTIONS 10",
-				"GRANT SELECT ON `performance_schema`.* TO 'admin'@'127.0.0.1'"},
-		},
-		{dsn: dsn.DSN{Username: "root", Password: "abc123", Hostname: "1.2.3.4", Socket: "/var/lib/mysql/mysql.sock"},
-			service: "mysql",
-			source:  "",
-			conn:    5,
-			grants: []string{"SET SESSION old_passwords=0",
-				"GRANT PROCESS, REPLICATION CLIENT ON *.* TO 'root'@'localhost' IDENTIFIED BY 'abc123' WITH MAX_USER_CONNECTIONS 5",
-				"GRANT SELECT ON `performance_schema`.* TO 'root'@'localhost'"},
-		},
-		{dsn: dsn.DSN{Username: "root", Password: "abc123", Hostname: "1.2.3.4", Socket: ""},
-			service: "mysql",
-			source:  "",
-			conn:    5,
-			grants: []string{"SET SESSION old_passwords=0",
-				"GRANT PROCESS, REPLICATION CLIENT ON *.* TO 'root'@'%' IDENTIFIED BY 'abc123' WITH MAX_USER_CONNECTIONS 5",
-				"GRANT SELECT ON `performance_schema`.* TO 'root'@'%'"},
-		},
-		{dsn: dsn.DSN{Username: "root", Password: "abc123", Hostname: "1.2.3.4", Socket: ""},
-			service: "queries",
-			source:  "auto",
-			conn:    5,
-			grants: []string{"SET SESSION old_passwords=0",
-				"GRANT SELECT, PROCESS ON *.* TO 'root'@'%' IDENTIFIED BY 'abc123' WITH MAX_USER_CONNECTIONS 5",
-				"GRANT SELECT, UPDATE, DELETE, DROP ON `performance_schema`.* TO 'root'@'%'"},
-		},
-		{dsn: dsn.DSN{Username: "pmm-queries", Password: "12345", Hostname: "1.2.3.4", Socket: ""},
-			service: "queries",
-			source:  "slowlog",
-			conn:    5,
-			grants: []string{"SET SESSION old_passwords=0",
-				"GRANT SELECT, PROCESS, SUPER ON *.* TO 'pmm-queries'@'%' IDENTIFIED BY '12345' WITH MAX_USER_CONNECTIONS 5",
-				"GRANT SELECT, UPDATE, DELETE, DROP ON `performance_schema`.* TO 'pmm-queries'@'%'"},
-		},
-		{dsn: dsn.DSN{Username: "pmm-queries", Password: "12345", Hostname: "localhost", Socket: ""},
-			service: "queries",
-			source:  "perfschema",
-			conn:    5,
-			grants: []string{"SET SESSION old_passwords=0",
-				"GRANT SELECT, PROCESS ON *.* TO 'pmm-queries'@'localhost' IDENTIFIED BY '12345' WITH MAX_USER_CONNECTIONS 5",
-				"GRANT SELECT, UPDATE, DELETE, DROP ON `performance_schema`.* TO 'pmm-queries'@'localhost'"},
-		},
-	}
-	convey.Convey("Making grants", t, func() {
-		for _, s := range samples {
-			convey.So(makeGrant(s.dsn, s.service, s.source, s.conn), convey.ShouldResemble, s.grants)
-		}
-	})
-}
-
-func TestGetMysqlInfo(t *testing.T) {
-	db, mock, err := sqlmock.New()
-	if err != nil {
-		t.Fatalf("error opening a stub database connection: %s", err)
-	}
-	defer db.Close()
-
-	columns := []string{"@@hostname", "@@port", "@@version_comment", "@@version"}
-	rows := sqlmock.NewRows(columns).AddRow("db01", "3306", "MySQL", "1.2.3")
-	mock.ExpectQuery("SELECT @@hostname, @@port, @@version_comment, @@version").WillReturnRows(rows)
-
-	res, _ := getMysqlInfo(db)
-	expect := map[string]string{
-		"hostname": "db01",
-		"port":     "3306",
-		"distro":   "MySQL",
-		"version":  "1.2.3",
-	}
-	convey.Convey("Get MySQL info", t, func() {
-		convey.So(res, convey.ShouldResemble, expect)
-	})
-
-	// Ensure all SQL queries were executed
-	if err := mock.ExpectationsWereMet(); err != nil {
-		t.Errorf("there were unfulfilled expections: %s", err)
-	}
+func sanitizeQuery(q string) string {
+	return strings.NewReplacer(
+		"(", "\\(",
+		")", "\\)",
+		"*", "\\*",
+	).Replace(q)
 }

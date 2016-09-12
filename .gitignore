@@ -1,8 +1,8 @@
 *.tmp
 *.swp
 *.log
-cache/
 distro/
 pmm-admin
 pmm.yml
-vendor/
+vendor
+!vendor/vendor.json

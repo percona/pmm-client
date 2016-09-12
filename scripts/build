@@ -2,136 +2,74 @@
 
 set -eu
 
-BIN="pmm-client"
+NODE_EXPORTER_VER=0.12.0
 
-err() {
-   echo "ERROR: $*" >&2
-   exit 1
-}
+SOURCE_DIR="$PWD"
+VER="$(awk '/var VERSION/ {print $4}' $SOURCE_DIR/pmm/constants.go | sed 's/"//g')"
 
-download_pkgs() {
-   local IFS=","
-   while read pkg url; do
-      pkg_file="${url##*/}"
-      if [ -f $ROOT_DIR/cache/$pkg_file ]; then
-         echo "Copying $pkg from cache"
-         cp -f $ROOT_DIR/cache/$pkg_file .
-      else
-         echo "Downloading $pkg..."
-         curl -s -LO $url
-         [ -f $pkg_file ] || err "$url did not save as $pkg_file"
-      fi
-   done < $ROOT_DIR/pkglist
-}
-
-# ###########################################################################
-# Script starts here
-# ###########################################################################
-
-# Find and cd to repo root dir.
-[ "$(basename "$PWD")" = "scripts" ] && cd ..
-if [ -d ".git" ]; then
-   ROOT_DIR="$PWD"
-else
-   err "Run this script from the repo root dir or the build/ dir."
-fi
-
-cd $ROOT_DIR
-
-PLATFORM=`uname -m`
-if [ "$PLATFORM" = "x86_64" ]; then
-   ARCH="x86_64"  # no change
-elif [ "$PLATFORM" = "i686" -o "$PLATFORM" = "i386" ]; then
-   ARCH="i386"
-else
-   err "Unknown platform (uname -m): $PLATFORM (expected x86_64, i686, or i386)"
-fi
-
-# Determine if this is a dev or release build. A release build requires using
-# the master branch that's tagged with the same version in conf/app.conf. Else,
-# we presume dev build.
-DEV="yes"
-DIRTY_BUILD="${DIRTY_BUILD:-"no"}"
-VER="$(awk '/var VERSION/ {print $4}' $ROOT_DIR/pmm/constants.go | sed 's/"//g')"
-REV="$(git log -n 1 --no-walk --pretty="%h")"
-BRANCH="$(git rev-parse --abbrev-ref HEAD)"
-if [ "$BRANCH" = "master" ]; then
-   # git log -n 1 --no-walk --tags --pretty="%h %d" --decorate=full
-   # 1475390  (HEAD, tag: refs/tags/v1.0.0, refs/remotes/origin/master, refs/heads/master, refs/heads/foo)
-   latestTag="$(git log -n 1 --no-walk --tags --pretty="%h %d" --decorate=full)"
-   tagRev="$(echo "$latestTag" | awk '{print $1}')"
-   tagVer="$(echo "$latestTag" | perl -n -e '/refs\/tags\/v([\d\.]+)/ && print $1')"
-   if [ "$tagVer" -a "$tagRev" = "$REV" ]; then
-      if [ "$tagVer" != "$VER" ]; then
-         err "Version mismatch: conf/app.conf has v$VER, but git tag has v$tagVer"
-      else
-         dirty="$(git status --porcelain)"
-         if [ "$dirty" ]; then
-            if [ "$DIRTY_BUILD" = "no" ]; then
-               err "Cannot do release build because this is the master branch with version" \
-                  "tag v$tagVer but there are uncommitted changes or untracked files" \
-                  "(see 'git status'). If the latest commit is not v$tagVer, remove the tag (git tag -d v$tagVer);" \
-                  "else, add and commit all changes, then re-tag the latest commit" \
-                  "(git tag -a v$tagVer -m \"v$tagVer\"). Or, specify DIRTY_BUILD=yes to force" \
-                  "the release build (not recommended)."
-            else
-               echo "Dirty release build of master branch v$VER"
-            fi
-         else
-            echo "Release build of master branch v$VER"
-         fi
-         DEV="no"
-      fi
-   else
-      echo "Dev build of master branch @ $REV (latest commit has no version tag)"
-   fi
-else
-   echo "Dev build of $BRANCH branch @ $REV"
-fi
-
-# To distinguish dev and release builds, we append "-date.revision" to dev builds,
-# e.g. release 1.0.0 = "1.0.0", but dev 1.0.0 = "1.0.0-20150825.a73cd9e".
-# Also, unless DEPS is set explicitly, dev builds don't use vendoring but release builds do.
-if [ "$DEV" = "yes" ]; then
-   ymd="$(TZ="UTC" date "+%Y%m%d")"
-   VER="$VER-dev$ymd.$REV"
-   DEPS="${DEPS:-"no"}"
-else
-   DEPS="${DEPS:-"yes"}"
+# To distinguish dev and release builds, we append "-devDATE.REVISION" to dev builds.
+if [ "${DEV:-yes}" = "yes" ]; then
+    REV="$(git log -n 1 --no-walk --pretty="%h")"
+    VER="$VER-dev$(TZ="UTC" date "+%Y%m%d").$REV"
 fi
 
 # Make a dir for the package in distro/.
-PKG_NAME="$BIN-$VER-$ARCH"
+PKG_NAME="pmm-client-$VER-x86_64"
 PKG_DIR="distro/$PKG_NAME"
-[ ! -d distro ] && mkdir distro
-if [ ! -d $PKG_DIR ]; then
-   mkdir $PKG_DIR
-else
-   rm -rf $PKG_DIR/*
-fi
 
-# Set up the pkg dir.
-cd $PKG_DIR
-mkdir scripts
-mkdir bin
-download_pkgs
+rm -rf $PKG_DIR distro/bin
+mkdir -p $PKG_DIR/bin distro/bin
+
+echo "Preparing $PKG_NAME"
+echo
 
 # Default build for linux, not Darwin.
 export GOOS=linux
 
-# Build pmm-admin.
 echo "Building pmm-admin..."
-cd $ROOT_DIR
-go build -ldflags "-X github.com/percona/pmm-client/pmm.VERSION=$VER" -o $PKG_DIR/bin/pmm-admin
-chmod +x $PKG_DIR/bin/pmm-admin
+go build -ldflags "-X github.com/percona/pmm-client/pmm.VERSION=$VER" -o distro/bin/pmm-admin
 
-# Copy what we need into the pkg dir.
-cd $ROOT_DIR
-cp pkglist CHANGELOG.md README.md LICENSE scripts/install scripts/uninstall $PKG_DIR
+echo "Building percona-qan-agent..."
+go build -ldflags "-X github.com/percona/qan-agent/agent/release.VERSION=$VER" \
+    -o distro/bin/percona-qan-agent github.com/percona/qan-agent/bin/percona-qan-agent
+
+echo "Building percona-qan-agent-installer..."
+go build -ldflags "-X github.com/percona/qan-agent/agent/release.VERSION=$VER" \
+    -o distro/bin/percona-qan-agent-installer github.com/percona/qan-agent/bin/percona-qan-agent-installer
+
+echo "Building mysqld_exporter..."
+cd $GOPATH/src/github.com/percona/mysqld_exporter
+commit=$(git rev-parse HEAD)
+branch=$(git rev-parse --abbrev-ref HEAD)
+importpath=github.com/percona/mysqld_exporter/vendor/github.com/prometheus/common
+cd $SOURCE_DIR
+go build -ldflags "-X $importpath/version.Version=$VER -X $importpath/version.Branch=$branch -X $importpath/version.Revision=$commit" \
+    -o distro/bin/mysqld_exporter github.com/percona/mysqld_exporter
+
+echo "Building mongodb_exporter..."
+cd $GOPATH/src/github.com/Percona-Lab/prometheus_mongodb_exporter
+commit=$(git rev-parse HEAD)
+cd $SOURCE_DIR
+go build -ldflags "-X main.version=$VER -X main.versionGitCommit=$commit" \
+    -o distro/bin/mongodb_exporter github.com/Percona-Lab/prometheus_mongodb_exporter
+
+echo "Fetching node_exporter $NODE_EXPORTER_VER ..."
+cd distro
+file=node_exporter-${NODE_EXPORTER_VER}.linux-amd64.tar.gz
+if [ ! -e $file ]; then
+    curl -s -LO https://github.com/prometheus/node_exporter/releases/download/${NODE_EXPORTER_VER}/$file
+fi
+tar zxf $file --strip-components=1
+cp node_exporter bin
+
+# Copy the rest into the pkg dir.
+cd $SOURCE_DIR
+cp CHANGELOG.md README.md LICENSE scripts/install scripts/uninstall $PKG_DIR
+cp distro/bin/* $PKG_DIR/bin
 
 cd distro
 tar czf $PKG_NAME.tar.gz $PKG_NAME
 
 echo
-echo "Done building $PKG_DIR.tar.gz"
+echo "Done with $PKG_DIR.tar.gz"
 echo

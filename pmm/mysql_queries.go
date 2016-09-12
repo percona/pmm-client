@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -31,24 +32,35 @@ import (
 	"github.com/percona/pmm/proto/config"
 )
 
-// AddQueries add mysql instance to QAN.
-func (a *Admin) AddQueries(info map[string]string) error {
+// AddMySQLQueries add mysql instance to QAN.
+func (a *Admin) AddMySQLQueries(info map[string]string) error {
 	// Check if we have already this service on Consul.
-	consulSvc, err := a.getConsulService("queries", a.ServiceName)
+	consulSvc, err := a.getConsulService("mysql:queries", a.ServiceName)
 	if err != nil {
 		return err
 	}
 	if consulSvc != nil {
-		return errDuplicate
+		return ErrDuplicate
 	}
 
-	// Now check if there are any queries services.
-	consulSvc, err = a.getConsulService("queries", "")
+	if err := a.checkGlobalDuplicateService("mysql:queries", a.ServiceName); err != nil {
+		return err
+	}
+
+	// Now check if there are any mysql:queries services.
+	consulSvc, err = a.getConsulService("mysql:queries", "")
 	if err != nil {
 		return err
 	}
 
-	// Don't install service if we have already another "queries".
+	// Register agent if there is not config file.
+	if !FileExists(agentConfigFile) {
+		if err := a.registerAgent(); err != nil {
+			return err
+		}
+	}
+
+	// Don't install service if we have already another "mysql:queries".
 	// 1 agent handles multiple MySQL instances for QAN.
 	var port uint
 	if consulSvc == nil {
@@ -66,7 +78,7 @@ func (a *Admin) AddQueries(info map[string]string) error {
 		// Install and start service via platform service manager.
 		// We have to run agent before adding it to QAN.
 		svcConfig := &service.Config{
-			Name:        fmt.Sprintf("pmm-queries-exporter-%d", port),
+			Name:        fmt.Sprintf("pmm-mysql-queries-%d", port),
 			DisplayName: "PMM Query Analytics agent",
 			Description: "PMM Query Analytics agent",
 			Executable:  fmt.Sprintf("%s/bin/percona-qan-agent", agentBaseDir),
@@ -79,13 +91,13 @@ func (a *Admin) AddQueries(info map[string]string) error {
 	} else {
 		port = uint(consulSvc.Port)
 		// Ensure qan-agent is started if service exists, otherwise it won't be enabled for QAN.
-		if err := startService(fmt.Sprintf("pmm-queries-exporter-%d", port)); err != nil {
+		if err := startService(fmt.Sprintf("pmm-mysql-queries-%d", port)); err != nil {
 			return err
 		}
 	}
 
 	// Add new MySQL instance to QAN.
-	agentID, err := localAgentID()
+	agentID, err := getAgentID()
 	if err != nil {
 		return err
 	}
@@ -100,12 +112,12 @@ func (a *Admin) AddQueries(info map[string]string) error {
 		Subsystem:  "mysql",
 		ParentUUID: qanOSInstance.ParentUUID,
 		Name:       a.ServiceName, // unique ID
-		DSN:        info["dsn"],
+		DSN:        info["safe_dsn"],
 		Distro:     info["distro"],
 		Version:    info["version"],
 	}
 	inBytes, _ := json.Marshal(in)
-	url := a.qanapi.URL(a.Config.ServerAddress, qanAPIBasePath, "instances")
+	url := a.qanapi.URL(a.serverUrl, qanAPIBasePath, "instances")
 	resp, content, err := a.qanapi.Post(url, inBytes)
 	if err != nil {
 		return err
@@ -119,8 +131,10 @@ func (a *Admin) AddQueries(info map[string]string) error {
 	}
 
 	// The URI of the new instance is reported in the Location header, fetch it to get UUID assigned.
+	// Do not use the returned URL as QAN API returns an invalid one.
 	var bytes []byte
-	url = resp.Header.Get("Location")
+	t := strings.Split(resp.Header.Get("Location"), "/")
+	url = a.qanapi.URL(url, t[len(t)-1])
 	resp, bytes, err = a.qanapi.Get(url)
 	if err != nil {
 		return err
@@ -136,6 +150,7 @@ func (a *Admin) AddQueries(info map[string]string) error {
 	qanConfig := map[string]string{
 		"UUID":        in.UUID,
 		"CollectFrom": info["query_source"],
+		"DSN":         info["dsn"],
 	}
 	if err := a.manageQAN(agentID, "StartTool", "", qanConfig); err != nil {
 		return err
@@ -148,10 +163,10 @@ func (a *Admin) AddQueries(info map[string]string) error {
 	}
 
 	// Add or update service to Consul.
-	serviceID := fmt.Sprintf("queries-%d", port)
+	serviceID := fmt.Sprintf("mysql:queries-%d", port)
 	srv := consul.AgentService{
 		ID:      serviceID,
-		Service: "queries",
+		Service: "mysql:queries",
 		Tags:    tags,
 		Port:    int(port),
 	}
@@ -178,24 +193,24 @@ func (a *Admin) AddQueries(info map[string]string) error {
 	return nil
 }
 
-// RemoveQueries remove mysql instance from QAN.
-func (a *Admin) RemoveQueries(name string) error {
+// RemoveMySQLQueries remove mysql instance from QAN.
+func (a *Admin) RemoveMySQLQueries() error {
 	// Check if we have this service on Consul.
-	consulSvc, err := a.getConsulService("queries", name)
+	consulSvc, err := a.getConsulService("mysql:queries", a.ServiceName)
 	if err != nil {
 		return err
 	}
 	if consulSvc == nil {
-		return errNoService
+		return ErrNoService
 	}
 
 	// Ensure qan-agent is started, otherwise it will be an error to stop QAN.
-	if err := startService(fmt.Sprintf("pmm-queries-exporter-%d", consulSvc.Port)); err != nil {
+	if err := startService(fmt.Sprintf("pmm-mysql-queries-%d", consulSvc.Port)); err != nil {
 		return err
 	}
 
 	// Get UUID of MySQL instance the agent is monitoring from KV.
-	key := fmt.Sprintf("%s/queries-%d/%s/qan_mysql_uuid", a.Config.ClientName, consulSvc.Port, name)
+	key := fmt.Sprintf("%s/%s/%s/qan_mysql_uuid", a.Config.ClientName, consulSvc.ID, a.ServiceName)
 	data, _, err := a.consulapi.KV().Get(key, nil)
 	if err != nil {
 		return err
@@ -203,7 +218,7 @@ func (a *Admin) RemoveQueries(name string) error {
 	mysqlUUID := string(data.Value)
 
 	// Stop QAN for this MySQL instance on the local agent.
-	agentID, err := localAgentID()
+	agentID, err := getAgentID()
 	if err != nil {
 		return err
 	}
@@ -212,7 +227,7 @@ func (a *Admin) RemoveQueries(name string) error {
 	}
 
 	// Remove MySQL instance from QAN.
-	url := a.qanapi.URL(a.Config.ServerAddress, qanAPIBasePath, "instances", mysqlUUID)
+	url := a.qanapi.URL(a.serverUrl, qanAPIBasePath, "instances", mysqlUUID)
 	resp, content, err := a.qanapi.Delete(url)
 	if err != nil {
 		return err
@@ -223,14 +238,14 @@ func (a *Admin) RemoveQueries(name string) error {
 		return a.qanapi.Error("DELETE", url, resp.StatusCode, http.StatusNoContent, content)
 	}
 
-	prefix := fmt.Sprintf("%s/%s/%s/", a.Config.ClientName, consulSvc.ID, name)
+	prefix := fmt.Sprintf("%s/%s/%s/", a.Config.ClientName, consulSvc.ID, a.ServiceName)
 	a.consulapi.KV().DeleteTree(prefix, nil)
 
 	// Remove queries service from Consul only if we have only 1 tag alias_ (the instance in question).
 	var tags []string
 	for _, tag := range consulSvc.Tags {
 		if strings.HasPrefix(tag, "alias_") {
-			if tag != fmt.Sprintf("alias_%s", name) {
+			if tag != fmt.Sprintf("alias_%s", a.ServiceName) {
 				tags = append(tags, tag)
 			}
 		}
@@ -246,7 +261,7 @@ func (a *Admin) RemoveQueries(name string) error {
 		}
 
 		// Stop and uninstall service.
-		if err := uninstallService(fmt.Sprintf("pmm-queries-exporter-%d", consulSvc.Port)); err != nil {
+		if err := uninstallService(fmt.Sprintf("pmm-mysql-queries-%d", consulSvc.Port)); err != nil {
 			return err
 		}
 	} else {
@@ -268,13 +283,13 @@ func (a *Admin) RemoveQueries(name string) error {
 // getQanOSInstance get os instance from QAN API that the local agent is associated with.
 func (a *Admin) getQanOSInstance(agentID string) (proto.Instance, error) {
 	var in proto.Instance
-	url := a.qanapi.URL(a.Config.ServerAddress, qanAPIBasePath, "instances", agentID)
+	url := a.qanapi.URL(a.serverUrl, qanAPIBasePath, "instances", agentID)
 	resp, bytes, err := a.qanapi.Get(url)
 	if err != nil {
 		return in, err
 	}
 	if resp.StatusCode == http.StatusNotFound {
-		return in, fmt.Errorf("cannot find os instance on QAN API. Ensure the installation run properly.")
+		return in, fmt.Errorf("cannot find os instance on QAN API.")
 	}
 	if resp.StatusCode != http.StatusOK {
 		return in, a.qanapi.Error("GET", url, resp.StatusCode, http.StatusOK, bytes)
@@ -303,7 +318,7 @@ func (a *Admin) manageQAN(agentID, cmdName, UUID string, config map[string]strin
 	cmdBytes, _ := json.Marshal(cmd)
 
 	// Send the command to the API which relays it to the agent, then relays the agent's reply back to here.
-	url := a.qanapi.URL(a.Config.ServerAddress, qanAPIBasePath, "agents", agentID, "cmd")
+	url := a.qanapi.URL(a.serverUrl, qanAPIBasePath, "agents", agentID, "cmd")
 
 	// It takes a few seconds for agent to connect to QAN API once it is started via service manager.
 	// QAN API fails to start/stop unconnected agent for QAN, so we retry the request when getting 404 response.
@@ -326,11 +341,8 @@ RetryLoop:
 	return nil
 }
 
-// localAgentID read QAN agent ID from its config file.
-func localAgentID() (string, error) {
-	if !FileExists(agentConfigFile) {
-		return "", fmt.Errorf("%s does not exist. Ensure the installation run properly.", agentConfigFile)
-	}
+// getAgentID read QAN agent ID from its config file.
+func getAgentID() (string, error) {
 	jsonData, err := ioutil.ReadFile(agentConfigFile)
 	if err != nil {
 		return "", err
@@ -342,4 +354,25 @@ func localAgentID() (string, error) {
 	}
 
 	return config.UUID, nil
+}
+
+// registerAgent Register agent on QAN API using agent installer.
+func (a *Admin) registerAgent() error {
+	path := fmt.Sprintf("%s/bin/percona-qan-agent-installer", agentBaseDir)
+	args := []string{"-basedir", agentBaseDir, "-mysql=false"}
+	if a.Config.ServerSSL {
+		args = append(args, "-use-ssl")
+	}
+	if a.Config.ServerInsecureSSL {
+		args = append(args, "-use-insecure-ssl")
+	}
+	if a.Config.ServerPassword != "" {
+		args = append(args, fmt.Sprintf("-server-user=%s", a.Config.ServerUser),
+			fmt.Sprintf("-server-pass=%s", a.Config.ServerPassword))
+	}
+	args = append(args, fmt.Sprintf("%s/%s", a.serverUrl, qanAPIBasePath))
+	if _, err := exec.Command(path, args...).Output(); err != nil {
+		return fmt.Errorf("problem with agent registration on QAN API: %s", err)
+	}
+	return nil
 }

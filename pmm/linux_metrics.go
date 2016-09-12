@@ -24,15 +24,27 @@ import (
 	"github.com/percona/kardianos-service"
 )
 
-// AddOS add OS service to monitoring.
-func (a *Admin) AddOS() error {
+// AddLinuxMetrics add linux service to monitoring.
+func (a *Admin) AddLinuxMetrics(force bool) error {
 	// Check if we have already this service on Consul.
-	consulSvc, err := a.getConsulService("os", "")
+	// When using force, we allow adding another service with different name.
+	name := ""
+	if force {
+		name = a.ServiceName
+	}
+	consulSvc, err := a.getConsulService("linux:metrics", name)
 	if err != nil {
 		return err
 	}
 	if consulSvc != nil {
-		return fmt.Errorf("there could be only one instance of OS being monitored for this system.")
+		if force {
+			return ErrDuplicate
+		}
+		return ErrOneLinux
+	}
+
+	if err := a.checkGlobalDuplicateService("linux:metrics", a.ServiceName); err != nil {
+		return err
 	}
 
 	// Choose port.
@@ -50,8 +62,8 @@ func (a *Admin) AddOS() error {
 
 	// Add service to Consul.
 	srv := consul.AgentService{
-		ID:      "os",
-		Service: "os",
+		ID:      fmt.Sprintf("linux:metrics-%d", port),
+		Service: "linux:metrics",
 		Tags:    []string{fmt.Sprintf("alias_%s", a.ServiceName)},
 		Port:    int(port),
 	}
@@ -66,7 +78,7 @@ func (a *Admin) AddOS() error {
 
 	// Install and start service via platform service manager.
 	svcConfig := &service.Config{
-		Name:        fmt.Sprintf("pmm-os-exporter-%d", port),
+		Name:        fmt.Sprintf("pmm-linux-metrics-%d", port),
 		DisplayName: "PMM Prometheus node_exporter",
 		Description: "PMM Prometheus node_exporter",
 		Executable:  fmt.Sprintf("%s/node_exporter", PMMBaseDir),
@@ -80,15 +92,15 @@ func (a *Admin) AddOS() error {
 	return nil
 }
 
-// RemoveOS remove os service from monitoring.
-func (a *Admin) RemoveOS(name string) error {
+// RemoveLinuxMetrics remove linux service from monitoring.
+func (a *Admin) RemoveLinuxMetrics() error {
 	// Check if we have this service on Consul.
-	consulSvc, err := a.getConsulService("os", name)
+	consulSvc, err := a.getConsulService("linux:metrics", a.ServiceName)
 	if err != nil {
 		return err
 	}
 	if consulSvc == nil {
-		return errNoService
+		return ErrNoService
 	}
 
 	// Remove service from Consul.
@@ -101,7 +113,7 @@ func (a *Admin) RemoveOS(name string) error {
 	}
 
 	// Stop and uninstall service.
-	if err := uninstallService(fmt.Sprintf("pmm-os-exporter-%d", consulSvc.Port)); err != nil {
+	if err := uninstallService(fmt.Sprintf("pmm-linux-metrics-%d", consulSvc.Port)); err != nil {
 		return err
 	}
 

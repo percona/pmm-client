@@ -2,130 +2,22 @@
 
 set -eu
 
-err() {
-    echo
-    echo "ERROR: $*"
-    exit 1
-}
-
-set_pkg_file() {
-    local url="$1"
-    pkg_file="${url##*/}"
-    pkg_dir="${pkg_file%.tar.gz}"
-}
-
-check_pkgs() {
-    local IFS=","
-    while read pkg url; do
-        set_pkg_file "$url"
-        [ ! -f "$pkg_file" ] && err "missing $pkg_file from $url"
-    done < pkglist
-    return 0
-}
-
-install_pmm_admin() {
-    cp -f bin/pmm-admin "$PMM_DIR"
-    ln -sf "$PMM_DIR/pmm-admin" /usr/sbin/pmm-admin
-
-    set +e
-    /usr/sbin/pmm-admin config --server-addr $SERVER_ADDR --client-addr $CLIENT_ADDR --client-name $CLIENT_NAME > /dev/null
-    if [ $? -ne 0 ]; then
-        err "looks like you changed the client address or hostname from previous run.
-If this is ok, remove $PMM_DIR/pmm.yml and try again."
-    fi
-
-    /usr/sbin/pmm-admin ping > /dev/null
-    if [ $? -ne 0 ]; then
-        err "Unable to connect to PMM server by address: $SERVER_ADDR
-
-Check if the configured address is correct.
-If server container is running on non-default port, ensure it was specified along with the address.
-You may also check the firewall settings."
-    fi
-    set -e
-}
-
-install_qan_agent() {
-    set_pkg_file "$(grep "^percona-qan-agent" pkglist | cut -d, -f2)"
-    tar xfz "$pkg_file"
-    cd "$pkg_dir"
-
-    # Run agent installer only if config does not exist.
-    if [ ! -e "$QAN_AGENT_DIR/config/agent.conf" ]; then
-        set +e
-        ./bin/percona-qan-agent-installer -basedir $QAN_AGENT_DIR -mysql=false $SERVER_ADDR/qan-api > $INSTALL_LOG 2>&1
-        if [ $? -ne 0 ]; then
-            cat $INSTALL_LOG
-            err "qan-agent install failed. Its install log is printed above."
-        fi
-        set -e
-    fi
-
-    cp -f bin/percona-qan-agent $QAN_AGENT_DIR/bin/
-    cd ..
-}
-
-install_prom_exporters() {
-    for exporter in "node_exporter" "mysqld_exporter" "mongodb_exporter"; do
-        set_pkg_file "$(grep "^$exporter" pkglist | cut -d, -f2)"
-        tar xfz "$pkg_file"
-        cp "$pkg_dir"/"$exporter" "$PMM_DIR"
-    done
-}
-
-# ###########################################################################
-# Script starts here
-# ###########################################################################
-
-if [ $# -ne 2 ]; then
-    echo "Usage: install <PMM server address[:port]> <client address>"
-    exit 1
-fi
-
-SERVER_ADDR="$1"
-CLIENT_ADDR="$2"
-CLIENT_NAME="${CLIENT_NAME:-$(hostname)}"
-
-INSTALL_LOG="/tmp/pmm-client-install.log"
 PMM_DIR="/usr/local/percona/pmm-client"
-QAN_AGENT_DIR="/usr/local/percona/qan-agent"
+QAN_DIR="/usr/local/percona/qan-agent"
 
-# Check if script is run as root as we need write access to /etc, /usr/local
-if [ ${EUID:-$(id -u)} -ne 0 ]; then
-    err "the script requires superuser privileges."
+if [ $(id -u) -ne 0 ]; then
+    echo "The script requires superuser privileges."
+    exit 1
 fi
 
-mkdir -p "$PMM_DIR"
+mkdir -p $PMM_DIR $QAN_DIR/bin
 
-check_pkgs
+# delete old symlink
+rm -f /usr/sbin/pmm-admin
 
-echo "[1/3] Installing pmm-admin..."
-install_pmm_admin
-
-echo "[2/3] Installing Query Analytics Agent..."
-install_qan_agent
-
-echo "[3/3] Installing Prometheus exporters..."
-install_prom_exporters
-
-echo
-echo "Done installing PMM client. Next steps:"
-echo
-echo "  Get info on what is being monitored:"
-echo "      pmm-admin list"
-echo
-echo "  Enable monitoring of this OS (CPU, storage, etc.):"
-echo "      pmm-admin add os"
-echo
-echo "  Enable monitoring MySQL on this server:"
-echo "      pmm-admin add mysql [flags]"
-echo
-echo "  Enable MySQL query analytics on this server:"
-echo "      pmm-admin add queries [flags]"
-echo
-echo "  Enable monitoring MongoDB on this server:"
-echo "      pmm-admin add mongodb [flags]"
-echo
-echo "To see more commands and options, run: pmm-admin --help"
-echo "Metrics should appear shortly by the link http://$SERVER_ADDR"
-echo
+cp -f bin/pmm-admin /usr/sbin/
+cp -f bin/node_exporter $PMM_DIR/
+cp -f bin/mysqld_exporter $PMM_DIR/
+cp -f bin/mongodb_exporter $PMM_DIR/
+cp -f bin/percona-qan-agent $QAN_DIR/bin/
+cp -f bin/percona-qan-agent-installer $QAN_DIR/bin/

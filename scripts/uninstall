@@ -1,13 +1,10 @@
 #!/usr/bin/env bash
 
-# Stop services from older releases
-[ -e /etc/init.d/percona-prom-pm ] && /etc/init.d/percona-prom-pm stop
-[ -e /etc/init.d/percona-qan-agent ] && /etc/init.d/percona-qan-agent stop
-
-# Remove files from older releases
-rm -f /usr/bin/pmm-admin /usr/local/bin/pmm-admin /etc/init.d/percona-prom-pm /etc/init.d/percona-qan-agent
+pmm-admin ping > /dev/null
+[ $? = 0 ] && pmm-admin remove --all --force
 
 rm -f /usr/sbin/pmm-admin
-rm -rf /usr/local/percona/pmm-client /usr/local/percona/qan-agent
+rm -rf /usr/local/percona/pmm-client
+rm -rf /usr/local/percona/qan-agent
 
-
+echo "Uninstall complete."

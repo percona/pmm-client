@@ -1,0 +1,7 @@
+#!/bin/bash
+# uninstall
+if [ "$1" = "remove" ]; then
+    rm -rf /usr/local/percona/pmm-client
+    rm -rf /usr/local/percona/qan-agent
+    echo "Uninstall complete."
+fi

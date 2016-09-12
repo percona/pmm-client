@@ -17,9 +17,12 @@
 
 package pmm
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
-var VERSION = "1.0.3"
+var VERSION = "1.0.4"
 
 const (
 	PMMBaseDir     = "/usr/local/percona/pmm-client"
@@ -27,61 +30,43 @@ const (
 	qanAPIBasePath = "qan-api"
 	emojiUnhappy   = "😡"
 	emojiHappy     = "🙂"
-	noMonitoring   = "No monitoring registered for this node under identifier"
+	noMonitoring   = "No monitoring registered for this node identified as"
+	apiTimeout     = 30 * time.Second
 )
 
 var (
 	ConfigFile      = fmt.Sprintf("%s/pmm.yml", PMMBaseDir)
 	agentConfigFile = fmt.Sprintf("%s/config/agent.conf", agentBaseDir)
 
-	errDuplicate = fmt.Errorf("you have already the instance with this name under monitoring.")
-	errNoService = fmt.Errorf("no service found.")
+	ErrDuplicate = fmt.Errorf("there is already one instance with this name under monitoring.")
+	ErrNoService = fmt.Errorf("no service found.")
+	ErrOneLinux  = fmt.Errorf("there could be only one instance of linux metrics being monitored for this system.")
 )
 
 const nodeExporterArgs = "-collectors.enabled=diskstats,filesystem,loadavg,meminfo,netdev,netstat,stat,time,uname,vmstat"
 
-var mysqldExporterArgs = map[string][]string{
-	"mysql-hr": {
-		"-collect.global_status=true",
-		"-collect.global_variables=false",
-		"-collect.info_schema.tables=false",
-		"-collect.slave_status=false",
-
-		"-collect.info_schema.innodb_metrics=true",
-	},
-	"mysql-mr": {
-		"-collect.global_status=false",
-		"-collect.global_variables=false",
-		"-collect.info_schema.tables=false",
-		"-collect.slave_status=true",
-
-		"-collect.info_schema.processlist=true",
-		"-collect.info_schema.query_response_time=true",
-		"-collect.perf_schema.eventswaits=true",
-		"-collect.perf_schema.file_events=true",
-		"-collect.perf_schema.tablelocks=true",
-	},
-	"mysql-lr": {
-		"-collect.global_status=false",
-		"-collect.global_variables=true",
-		"-collect.info_schema.tables=true",
-		"-collect.slave_status=false",
-
-		"-collect.auto_increment.columns=true",
-		"-collect.binlog_size=true",
-		"-collect.info_schema.tablestats=true",
-		"-collect.info_schema.userstats=true",
-		"-collect.perf_schema.indexiowaits=true",
-		"-collect.perf_schema.tableiowaits=true",
-	},
+var mysqldExporterArgs = []string{
+	"-collect.auto_increment.columns=true",
+	"-collect.binlog_size=true",
+	"-collect.global_status=true",
+	"-collect.global_variables=true",
+	"-collect.info_schema.innodb_metrics=true",
+	"-collect.info_schema.processlist=true",
+	"-collect.info_schema.query_response_time=true",
+	"-collect.info_schema.tables=true",
+	"-collect.info_schema.tablestats=true",
+	"-collect.info_schema.userstats=true",
+	"-collect.perf_schema.eventswaits=true",
+	"-collect.perf_schema.file_events=true",
+	"-collect.perf_schema.indexiowaits=true",
+	"-collect.perf_schema.tableiowaits=true",
+	"-collect.perf_schema.tablelocks=true",
+	"-collect.slave_status=true",
+	//"-collect.engine_tokudb_status=true",
+	//"-collect.info_schema.clientstats=true",
+	//"-collect.info_schema.innodb_tablespaces=true",
+	//"-collect.perf_schema.eventsstatements=true",
 }
-
-/* Args that are not enabled anywhere:
-"-collect.engine_tokudb_status"
-"-collect.info_schema.clientstats",
-"-collect.info_schema.innodb_tablespaces"
-"-collect.perf_schema.eventsstatements"
-*/
 
 // mysqld_exporter args to disable optionally.
 var mysqldExporterDisableArgs = map[string][]string{

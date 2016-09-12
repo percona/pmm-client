@@ -20,6 +20,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"regexp"
 
 	"github.com/percona/pmm-client/pmm"
 	"github.com/spf13/cobra"
@@ -30,12 +31,10 @@ var (
 
 	rootCmd = &cobra.Command{
 		Use: "pmm-admin",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Usage()
-			os.Exit(1)
-		},
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			// NOTE: this function pre-runs with every command or sub-command except "config".
+			// NOTE: this function pre-runs with every command or sub-command with
+			// the only exception "pmm-admin config" which bypasses it.
+
 			// This flag will not run anywhere else than on rootCmd as this flag is not persistent one
 			// and we want it only here without any config checks.
 			if flagVersion {
@@ -43,39 +42,48 @@ var (
 				os.Exit(0)
 			}
 
+			if path := pmm.CheckBinaries(); path != "" {
+				fmt.Println("Installation problem, one of the binaries is missed:", path)
+				os.Exit(1)
+			}
+
 			// Read config file.
 			if !pmm.FileExists(flagConfigFile) {
-				fmt.Println(flagConfigFile, "does not exist. Please make sure you have run ./install script.")
+				fmt.Println("PMM client is not configured, missed config file. Please make sure you have run 'pmm-admin config'.")
 				os.Exit(1)
 			}
 
 			if err := admin.LoadConfig(flagConfigFile); err != nil {
-				fmt.Printf("Error reading %s: %s\n", flagConfigFile, err)
+				fmt.Printf("Error reading config file %s: %s\n", flagConfigFile, err)
 				os.Exit(1)
 			}
 
-			if admin.Config.ServerAddress == "" || admin.Config.ClientAddress == "" || admin.Config.ClientName == "" {
-				fmt.Println(flagConfigFile, "exists but some options are missed. Run 'pmm-admin config --help'.")
+			if admin.Config.ServerAddress == "" || admin.Config.ClientName == "" || admin.Config.ClientAddress == "" {
+				fmt.Println("PMM client is not configured properly. Please make sure you have run 'pmm-admin config'.")
 				os.Exit(1)
 			}
-			admin.SetAPI()
 
-			// Check if server is alive.
-			// Does not apply to "pmm-admin" and "pmm-admin info" commands.
-			if !admin.ServerAlive() && cmd.Name() != "pmm-admin" && cmd.Name() != "info" {
-				fmt.Printf("Unable to connect to PMM server by address: %s\n\n", admin.Config.ServerAddress)
-				fmt.Println(`Check if the configured address is correct.
-If server container is running on non-default port, ensure it was specified along with the address.
-You may also check the firewall settings.`)
+			// "pmm-admin info" should display info w/o connectivity.
+			if cmd.Name() == "info" {
+				return
+			}
+
+			// Set APIs and check if server is alive.
+			if err := admin.SetAPI(); err != nil {
+				fmt.Printf("%s\n", err)
 				os.Exit(1)
 			}
+		},
+		Run: func(cmd *cobra.Command, args []string) {
+			cmd.Usage()
+			os.Exit(1)
 		},
 	}
 
 	cmdAdd = &cobra.Command{
 		Use:   "add",
-		Short: "Add instance to monitoring.",
-		Long:  "This command is used to add an instance to the monitoring.",
+		Short: "Add service to monitoring.",
+		Long:  "This command is used to add a monitoring service.",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			cmd.Root().PersistentPreRun(cmd.Root(), args)
 			admin.ServiceName = admin.Config.ClientName
@@ -83,79 +91,147 @@ You may also check the firewall settings.`)
 			if len(args) > 0 {
 				admin.ServiceName = args[0]
 			}
-		},
-	}
-	cmdAddOS = &cobra.Command{
-		Use:   "os [name]",
-		Short: "Add this OS to metrics monitoring.",
-		Long: `This command adds this system to metrics monitoring.
-
-There could be only one instance of OS being monitored for this system.
-
-[name] is an optional argument, by default it is set to the client name of this PMM client.
-		`,
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := admin.AddOS(); err != nil {
-				fmt.Println("Error adding OS:", err)
+			if match, _ := regexp.MatchString(`^[-\w:\.]+$`, admin.ServiceName); !match {
+				fmt.Println("Service name should contain only alphanumeric characters and _ - . :")
 				os.Exit(1)
 			}
-			fmt.Println("OK, now monitoring this OS.")
 		},
 	}
 	cmdAddMySQL = &cobra.Command{
 		Use:   "mysql [name]",
-		Short: "Add MySQL instance to metrics monitoring.",
-		Long: `This command adds the given MySQL instance to metrics monitoring.
+		Short: "Add complete monitoring for MySQL instance (linux and mysql metrics, queries).",
+		Long: `This command adds the given MySQL instance to system, metrics and queries monitoring.
 
-When adding a MySQL instance, you may specify additional options, the rest will be auto-detected.
+When adding a MySQL instance, this tool tries to auto-detect the DSN and credentials.
 If you want to create a new user to be used for metrics collecting, provide --create-user option. pmm-admin will create
-a new user 'pmm-mysql@' automatically using the given (auto-detected) MySQL credentials for granting purpose.
+a new user 'pmm@' automatically using the given (auto-detected) MySQL credentials for granting purpose.
+
+Table statistics is automatically disabled when there are more than 10000 tables on MySQL.
 
 [name] is an optional argument, by default it is set to the client name of this PMM client.
 		`,
 		Example: `  pmm-admin add mysql --password abc123
-  pmm-admin add mysql --password abc123 --host 192.168.1.2 --create-user
-  pmm-admin add mysql --user rdsuser --password abc123 --host my-rds.1234567890.us-east-1.rds.amazonaws.com my-rds`,
-		Run: func(cmd *cobra.Command, args []string) {
-			info, err := pmm.DetectMySQL("mysql", flagM)
-			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
-			}
-			if err := admin.AddMySQL(info, flagM); err != nil {
-				fmt.Println("Error adding MySQL:", err)
-				os.Exit(1)
-			}
-			fmt.Println("OK, now monitoring MySQL using DSN", info["safe_dsn"])
-		},
-	}
-	cmdAddQueries = &cobra.Command{
-		Use:   "queries [name]",
-		Short: "Add MySQL instance to Query Analytics.",
-		Long: `This command adds the given MySQL instance to Query Analytics.
-
-When adding a MySQL instance, you may specify additional options, the rest will be auto-detected.
-If you want to create a new user to be used for query collecting, provide --create-user option. pmm-admin will create
-a new user 'pmm-queries@' automatically using the given (auto-detected) MySQL credentials for granting purpose.
-
-[name] is an optional argument, by default it is set to the client name of this PMM client.
-		`,
-		Example: `  pmm-admin add queries --password abc123
-  pmm-admin add queries --password abc123 --host 192.168.1.2 --create-user
-  pmm-admin add queries --user rdsuser --password abc123 --host my-rds.1234567890.us-east-1.rds.amazonaws.com my-rds`,
+  pmm-admin add mysql --password abc123 --create-user`,
 		Run: func(cmd *cobra.Command, args []string) {
 			// Check --query-source flag.
 			if flagM.QuerySource != "auto" && flagM.QuerySource != "slowlog" && flagM.QuerySource != "perfschema" {
 				fmt.Println("Flag --query-source can take the following values: auto, slowlog, perfschema.")
 				os.Exit(1)
 			}
-			info, err := pmm.DetectMySQL("queries", flagM)
+
+			err := admin.AddLinuxMetrics(flagForce)
+			if err == pmm.ErrOneLinux {
+				fmt.Println("[linux:metrics] OK, already monitoring this system.")
+			} else if err != nil {
+				fmt.Println("[linux:metrics] Error adding linux metrics:", err)
+				os.Exit(1)
+			} else {
+				fmt.Println("[linux:metrics] OK, now monitoring this system.")
+			}
+
+			info, err := admin.DetectMySQL(flagM)
+			if err != nil {
+				fmt.Printf("[mysql:metrics] %s\n", err)
+				os.Exit(1)
+			}
+
+			err = admin.AddMySQLMetrics(info, flagM)
+			if err == pmm.ErrDuplicate {
+				fmt.Println("[mysql:metrics] OK, already monitoring MySQL metrics.")
+			} else if err != nil {
+				fmt.Println("[mysql:metrics] Error adding MySQL metrics:", err)
+				os.Exit(1)
+			} else {
+				fmt.Println("[mysql:metrics] OK, now monitoring MySQL metrics using DSN", info["safe_dsn"])
+			}
+
+			err = admin.AddMySQLQueries(info)
+			if err == pmm.ErrDuplicate {
+				fmt.Println("[mysql:queries] OK, already monitoring MySQL queries.")
+			} else if err != nil {
+				fmt.Println("[mysql:queries] Error adding MySQL queries:", err)
+				os.Exit(1)
+			} else {
+				fmt.Println("[mysql:queries] OK, now monitoring MySQL queries from", info["query_source"], "using DSN",
+					info["safe_dsn"])
+			}
+		},
+	}
+	cmdAddLinuxMetrics = &cobra.Command{
+		Use:   "linux:metrics [name]",
+		Short: "Add this system to metrics monitoring.",
+		Long: `This command adds this system to linux metrics monitoring.
+
+You cannot monitor linux metrics from remote machines because the metric exporter requires an access to the local filesystem.
+It is supposed there could be only one instance of linux metrics being monitored for this system.
+However, you can add another one with the different name just for testing purpose using --force flag.
+
+[name] is an optional argument, by default it is set to the client name of this PMM client.
+		`,
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := admin.AddLinuxMetrics(flagForce); err != nil {
+				fmt.Println("Error adding linux metrics:", err)
+				os.Exit(1)
+			}
+			fmt.Println("OK, now monitoring this system.")
+		},
+	}
+	cmdAddMySQLMetrics = &cobra.Command{
+		Use:   "mysql:metrics [name]",
+		Short: "Add MySQL instance to metrics monitoring.",
+		Long: `This command adds the given MySQL instance to metrics monitoring.
+
+When adding a MySQL instance, this tool tries to auto-detect the DSN and credentials.
+If you want to create a new user to be used for metrics collecting, provide --create-user option. pmm-admin will create
+a new user 'pmm@' automatically using the given (auto-detected) MySQL credentials for granting purpose.
+
+Table statistics is automatically disabled when there are more than 10000 tables on MySQL.
+
+[name] is an optional argument, by default it is set to the client name of this PMM client.
+		`,
+		Example: `  pmm-admin add mysql:metrics --password abc123
+  pmm-admin add mysql:metrics --password abc123 --host 192.168.1.2 --create-user
+  pmm-admin add mysql:metrics --user rdsuser --password abc123 --host my-rds.1234567890.us-east-1.rds.amazonaws.com my-rds`,
+		Run: func(cmd *cobra.Command, args []string) {
+			info, err := admin.DetectMySQL(flagM)
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
 			}
-			if err := admin.AddQueries(info); err != nil {
-				fmt.Println("Error adding queries:", err)
+			if err := admin.AddMySQLMetrics(info, flagM); err != nil {
+				fmt.Println("Error adding MySQL metrics:", err)
+				os.Exit(1)
+			}
+			fmt.Println("OK, now monitoring MySQL metrics using DSN", info["safe_dsn"])
+		},
+	}
+	cmdAddMySQLQueries = &cobra.Command{
+		Use:   "mysql:queries [name]",
+		Short: "Add MySQL instance to Query Analytics.",
+		Long: `This command adds the given MySQL instance to Query Analytics.
+
+When adding a MySQL instance, this tool tries to auto-detect the DSN and credentials.
+If you want to create a new user to be used for query collecting, provide --create-user option. pmm-admin will create
+a new user 'pmm@' automatically using the given (auto-detected) MySQL credentials for granting purpose.
+
+[name] is an optional argument, by default it is set to the client name of this PMM client.
+		`,
+		Example: `  pmm-admin add mysql:queries --password abc123
+  pmm-admin add mysql:queries --password abc123 --host 192.168.1.2 --create-user
+  pmm-admin add mysql:queries --user rdsuser --password abc123 --host my-rds.1234567890.us-east-1.rds.amazonaws.com my-rds`,
+		Run: func(cmd *cobra.Command, args []string) {
+			// Check --query-source flag.
+			if flagM.QuerySource != "auto" && flagM.QuerySource != "slowlog" && flagM.QuerySource != "perfschema" {
+				fmt.Println("Flag --query-source can take the following values: auto, slowlog, perfschema.")
+				os.Exit(1)
+			}
+			info, err := admin.DetectMySQL(flagM)
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+			if err := admin.AddMySQLQueries(info); err != nil {
+				fmt.Println("Error adding MySQL queries:", err)
 				os.Exit(1)
 			}
 			fmt.Println("OK, now monitoring MySQL queries from", info["query_source"], "using DSN",
@@ -164,106 +240,226 @@ a new user 'pmm-queries@' automatically using the given (auto-detected) MySQL cr
 	}
 	cmdAddMongoDB = &cobra.Command{
 		Use:   "mongodb [name]",
-		Short: "Add MongoDB instance to metrics monitoring.",
-		Long: `This command adds the given MongoDB instance to metrics monitoring.
+		Short: "Add complete monitoring for MongoDB instance (linux and mongodb metrics).",
+		Long: `This command adds the given MongoDB instance to system and metrics monitoring.
 
 When adding a MongoDB instance, you may provide --uri if the default one does not work for you.
 Use additional options to specify MongoDB node type, cluster, replSet etc.
-
-IMPORTANT: adding MongoDB instance to the monitoring with the existing OS one will rename the latter to match
-the name of MongoDB instance and also sets the same options such as node type, cluster, replSet if provided.
 
 [name] is an optional argument, by default it is set to the client name of this PMM client.
 		`,
 		Example: `  pmm-admin add mongodb
   pmm-admin add mongodb --nodetype mongod --cluster cluster-1.2 --replset rs1`,
 		Run: func(cmd *cobra.Command, args []string) {
-			// Check --nodetype flag.
-			if flagMongoNodeType != "" && flagMongoNodeType != "mongod" && flagMongoNodeType != "mongos" &&
-				flagMongoNodeType != "config" && flagMongoNodeType != "arbiter" {
-				fmt.Println("Flag --nodetype can take the following values: mongod, mongos, config, arbiter.")
+			err := admin.AddLinuxMetrics(flagForce)
+			if err == pmm.ErrOneLinux {
+				fmt.Println("[linux:metrics]   OK, already monitoring this system.")
+			} else if err != nil {
+				fmt.Println("[linux:metrics]   Error adding linux metrics:", err)
+				os.Exit(1)
+			} else {
+				fmt.Println("[linux:metrics]   OK, now monitoring this system.")
+			}
+
+			if err := admin.DetectMongoDB(flagMongoURI, flagMongoNodeType); err != nil {
+				fmt.Printf("[mongodb:metrics] %s\n", err)
 				os.Exit(1)
 			}
-			if err := admin.AddMongoDB(flagMongoURI, flagMongoNodeType, flagMongoReplSet, flagMongoCluster); err != nil {
-				fmt.Println("Error adding MongoDB:", err)
+			err = admin.AddMongoDBMetrics(flagMongoURI, flagMongoNodeType, flagMongoReplSet, flagMongoCluster)
+			if err == pmm.ErrDuplicate {
+				fmt.Println("[mongodb:metrics] OK, already monitoring MongoDB metrics.")
+			} else if err != nil {
+				fmt.Println("[mongodb:metrics] Error adding MongoDB metrics:", err)
+				os.Exit(1)
+			} else {
+				fmt.Println("[mongodb:metrics] OK, now monitoring MongoDB metrics using URI", pmm.SanitizeDSN(flagMongoURI))
+			}
+		},
+	}
+	cmdAddMongoDBMetrics = &cobra.Command{
+		Use:   "mongodb:metrics [name]",
+		Short: "Add MongoDB instance to metrics monitoring.",
+		Long: `This command adds the given MongoDB instance to metrics monitoring.
+
+When adding a MongoDB instance, you may provide --uri if the default one does not work for you.
+Use additional options to specify MongoDB node type, cluster, replSet etc.
+
+[name] is an optional argument, by default it is set to the client name of this PMM client.
+		`,
+		Example: `  pmm-admin add mongodb:metrics
+  pmm-admin add mongodb:metrics --nodetype mongod --cluster cluster-1.2 --replset rs1`,
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := admin.DetectMongoDB(flagMongoURI, flagMongoNodeType); err != nil {
+				fmt.Println(err)
 				os.Exit(1)
 			}
-			fmt.Println("OK, now monitoring MongoDB using URI", pmm.SanitizeDSN(flagMongoURI))
+			if err := admin.AddMongoDBMetrics(flagMongoURI, flagMongoNodeType, flagMongoReplSet, flagMongoCluster); err != nil {
+				fmt.Println("Error adding MongoDB metrics:", err)
+				os.Exit(1)
+			}
+			fmt.Println("OK, now monitoring MongoDB metrics using URI", pmm.SanitizeDSN(flagMongoURI))
 		},
 	}
 
 	cmdRemove = &cobra.Command{
 		Use:     "remove",
 		Aliases: []string{"rm"},
-		Short:   "Remove instance from monitoring.",
-		Long:    "This command is used to remove an instance from the monitoring.",
+		Short:   "Remove service from monitoring.",
+		Long:    "This command is used to remove one monitoring service or all.",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			cmd.Root().PersistentPreRun(cmd.Root(), args)
-			if len(args) == 0 {
-				fmt.Println("No name specified.\n")
-				cmd.Usage()
-				os.Exit(1)
+			admin.ServiceName = admin.Config.ClientName
+			if len(args) > 0 {
+				admin.ServiceName = args[0]
 			}
 		},
-	}
-	cmdRemoveOS = &cobra.Command{
-		Use:   "os NAME",
-		Short: "Remove this OS from metrics monitoring.",
-		Long:  "This command removes OS instance specified by NAME from metrics monitoring.",
 		Run: func(cmd *cobra.Command, args []string) {
-			name := args[0]
-			if err := admin.RemoveOS(name); err != nil {
-				fmt.Printf("Error removing OS %s: %s\n", name, err)
-				os.Exit(1)
+			if flagAll {
+				err, count := admin.RemoveAllMonitoring(flagForce)
+				if err != nil {
+					fmt.Printf("Error removing one of the services: %s\n", err)
+					os.Exit(1)
+				}
+				if count == 0 {
+					fmt.Println("OK, no services found.")
+				} else {
+					fmt.Printf("OK, %d services were removed.\n", count)
+				}
+				os.Exit(0)
 			}
-			fmt.Printf("OK, removed OS %s from monitoring.\n", name)
+			cmd.Usage()
+			os.Exit(1)
 		},
 	}
 	cmdRemoveMySQL = &cobra.Command{
-		Use:   "mysql NAME",
-		Short: "Remove MySQL instance from metrics monitoring.",
-		Long:  "This command removes MySQL instance specified by NAME from metrics monitoring.",
+		Use:   "mysql [name]",
+		Short: "Remove all monitoring for MySQL instance (linux and mysql metrics, queries).",
+		Long: `This command removes all monitoring for MySQL instance (linux and mysql metrics, queries).
+
+[name] is an optional argument, by default it is set to the client name of this PMM client.
+		`,
 		Run: func(cmd *cobra.Command, args []string) {
-			name := args[0]
-			if err := admin.RemoveMySQL(name); err != nil {
-				fmt.Printf("Error removing MySQL %s: %s\n", name, err)
-				os.Exit(1)
+			err := admin.RemoveLinuxMetrics()
+			if err == pmm.ErrNoService {
+				fmt.Printf("[linux:metrics] OK, no system %s under monitoring.\n", admin.ServiceName)
+			} else if err != nil {
+				fmt.Printf("[linux:metrics] Error removing linux metrics %s: %s\n", admin.ServiceName, err)
+			} else {
+				fmt.Printf("[linux:metrics] OK, removed system %s from monitoring.\n", admin.ServiceName)
 			}
-			fmt.Printf("OK, removed MySQL %s from monitoring.\n", name)
+
+			err = admin.RemoveMySQLMetrics()
+			if err == pmm.ErrNoService {
+				fmt.Printf("[mysql:metrics] OK, no MySQL metrics %s under monitoring.\n", admin.ServiceName)
+			} else if err != nil {
+				fmt.Printf("[mysql:metrics] Error removing MySQL metrics %s: %s\n", admin.ServiceName, err)
+			} else {
+				fmt.Printf("[mysql:metrics] OK, removed MySQL metrics %s from monitoring.\n", admin.ServiceName)
+			}
+
+			err = admin.RemoveMySQLQueries()
+			if err == pmm.ErrNoService {
+				fmt.Printf("[mysql:queries] OK, no MySQL queries %s under monitoring.\n", admin.ServiceName)
+			} else if err != nil {
+				fmt.Printf("[mysql:queries] Error removing MySQL queries %s: %s\n", admin.ServiceName, err)
+			} else {
+				fmt.Printf("[mysql:queries] OK, removed MySQL queries %s from monitoring.\n", admin.ServiceName)
+			}
 		},
 	}
-	cmdRemoveQueries = &cobra.Command{
-		Use:   "queries NAME",
-		Short: "Remove MySQL instance from Query Analytics.",
-		Long:  "This command removes MySQL instance specified by NAME from Query Analytics.",
+	cmdRemoveLinuxMetrics = &cobra.Command{
+		Use:   "linux:metrics [name]",
+		Short: "Remove this system from metrics monitoring.",
+		Long: `This command removes this system from linux metrics monitoring.
+
+[name] is an optional argument, by default it is set to the client name of this PMM client.
+		`,
 		Run: func(cmd *cobra.Command, args []string) {
-			name := args[0]
-			if err := admin.RemoveQueries(name); err != nil {
-				fmt.Printf("Error removing queries %s: %s\n", name, err)
+			if err := admin.RemoveLinuxMetrics(); err != nil {
+				fmt.Printf("Error removing linux metrics %s: %s\n", admin.ServiceName, err)
 				os.Exit(1)
 			}
-			fmt.Printf("OK, removed MySQL queries %s from monitoring.\n", name)
+			fmt.Printf("OK, removed system %s from monitoring.\n", admin.ServiceName)
+		},
+	}
+	cmdRemoveMySQLMetrics = &cobra.Command{
+		Use:   "mysql:metrics [name]",
+		Short: "Remove MySQL instance from metrics monitoring.",
+		Long: `This command removes MySQL instance from metrics monitoring.
+
+[name] is an optional argument, by default it is set to the client name of this PMM client.
+		`,
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := admin.RemoveMySQLMetrics(); err != nil {
+				fmt.Printf("Error removing MySQL metrics %s: %s\n", admin.ServiceName, err)
+				os.Exit(1)
+			}
+			fmt.Printf("OK, removed MySQL metrics %s from monitoring.\n", admin.ServiceName)
+		},
+	}
+	cmdRemoveMySQLQueries = &cobra.Command{
+		Use:   "mysql:queries [name]",
+		Short: "Remove MySQL instance from Query Analytics.",
+		Long: `This command removes MySQL instance from Query Analytics.
+
+[name] is an optional argument, by default it is set to the client name of this PMM client.
+		`,
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := admin.RemoveMySQLQueries(); err != nil {
+				fmt.Printf("Error removing MySQL queries %s: %s\n", admin.ServiceName, err)
+				os.Exit(1)
+			}
+			fmt.Printf("OK, removed MySQL queries %s from monitoring.\n", admin.ServiceName)
 		},
 	}
 	cmdRemoveMongoDB = &cobra.Command{
-		Use:   "mongodb NAME",
-		Short: "Remove MongoDB instance from metrics monitoring.",
-		Long:  "This command removes MongoDB instance specified by NAME from metrics monitoring.",
+		Use:   "mongodb [name]",
+		Short: "Remove all monitoring for MongoDB instance (linux and mongodb metrics).",
+		Long: `This command removes all monitoring for MongoDB instance (linux and mongodb metrics).
+
+[name] is an optional argument, by default it is set to the client name of this PMM client.
+		`,
 		Run: func(cmd *cobra.Command, args []string) {
-			name := args[0]
-			if err := admin.RemoveMongoDB(name); err != nil {
-				fmt.Printf("Error removing MongoDB %s: %s\n", name, err)
+			err := admin.RemoveLinuxMetrics()
+			if err == pmm.ErrNoService {
+				fmt.Printf("[linux:metrics]   OK, no system %s under monitoring.\n", admin.ServiceName)
+			} else if err != nil {
+				fmt.Printf("[linux:metrics]   Error removing linux metrics %s: %s\n", admin.ServiceName, err)
+			} else {
+				fmt.Printf("[linux:metrics]   OK, removed system %s from monitoring.\n", admin.ServiceName)
+			}
+
+			err = admin.RemoveMongoDBMetrics()
+			if err == pmm.ErrNoService {
+				fmt.Printf("[mongodb:metrics] OK, no MongoDB metrics %s under monitoring.\n", admin.ServiceName)
+			} else if err != nil {
+				fmt.Printf("[mongodb:metrics] Error removing MongoDB metrics %s: %s\n", admin.ServiceName, err)
+			} else {
+				fmt.Printf("[mongodb:metrics] OK, removed MongoDB metrics %s from monitoring.\n", admin.ServiceName)
+			}
+		},
+	}
+	cmdRemoveMongoDBMetrics = &cobra.Command{
+		Use:   "mongodb:metrics [name]",
+		Short: "Remove MongoDB instance from metrics monitoring.",
+		Long: `This command removes MongoDB instance from metrics monitoring.
+
+[name] is an optional argument, by default it is set to the client name of this PMM client.
+		`,
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := admin.RemoveMongoDBMetrics(); err != nil {
+				fmt.Printf("Error removing MongoDB metrics %s: %s\n", admin.ServiceName, err)
 				os.Exit(1)
 			}
-			fmt.Printf("OK, removed MongoDB %s from monitoring.\n", name)
+			fmt.Printf("OK, removed MongoDB metrics %s from monitoring.\n", admin.ServiceName)
 		},
 	}
 
 	cmdList = &cobra.Command{
 		Use:     "list",
 		Aliases: []string{"ls"},
-		Short:   "List monitored instances for this system.",
-		Long:    "This command displays the list monitored instances and their details.",
+		Short:   "List monitoring services for this system.",
+		Long:    "This command displays the list of monitoring services and their details.",
 		Run: func(cmd *cobra.Command, args []string) {
 			admin.PrintInfo()
 			err := admin.List()
@@ -276,10 +472,9 @@ the name of MongoDB instance and also sets the same options such as node type, c
 
 	cmdInfo = &cobra.Command{
 		Use:   "info",
-		Short: "Display PMM Client information.",
+		Short: "Display PMM Client information (works offline).",
 		Long:  "This command displays PMM client configuration details.",
 		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Root().PersistentPreRun(cmd.Root(), args)
 			admin.PrintInfo()
 		},
 	}
@@ -287,21 +482,30 @@ the name of MongoDB instance and also sets the same options such as node type, c
 	cmdConfig = &cobra.Command{
 		Use:   "config",
 		Short: "Configure PMM Client.",
-		Long:  "This command configures pmm-admin to communicate with PMM server.",
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := admin.SetConfig(flagServerAddr, flagClientAddr, flagClientName); err != nil {
-				fmt.Printf("Error configuring PMM client: %s\n", err)
-				os.Exit(1)
-			}
-			fmt.Println("OK, PMM server is", admin.Config.ServerAddress)
-		},
+		Long: `This command configures pmm-admin to communicate with PMM server.
+
+You can enable SSL or setup HTTP basic authentication.
+When HTTP password and no user is given, the default username will be "pmm".
+
+Note, resetting server address clears up SSL and HTTP authentication if no corresponding flags are provided.`,
+		Example: `  pmm-admin config --server 192.168.56.100
+  pmm-admin config --server 192.168.56.100:8000
+  pmm-admin config --server 192.168.56.100 --server-password abc123`,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			// Cancel root's PersistentPreRun as we do not require config file to exist here.
 			// If the config does not exist, we will init an empty and write on Run.
 			if err := admin.LoadConfig(flagConfigFile); err != nil {
-				fmt.Printf("Error reading %s: %s\n", flagConfigFile, err)
+				fmt.Printf("Cannot read config file %s: %s\n", flagConfigFile, err)
 				os.Exit(1)
 			}
+		},
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := admin.SetConfig(flagC); err != nil {
+				fmt.Printf("%s\n", err)
+				os.Exit(1)
+			}
+			fmt.Println("OK, PMM server is alive.\n")
+			admin.ServerInfo()
 		},
 	}
 
@@ -310,19 +514,18 @@ the name of MongoDB instance and also sets the same options such as node type, c
 		Short: "Check network connectivity between client and server.",
 		Long: `This command runs the tests against PMM server to verify a bi-directional network connectivity.
 
-* Client > Server
-Under this section you will find whether Consul, Query Analytics and Prometheus API are alive.
+* Client --> Server
+Under this section you will find whether Consul, Query Analytics and Prometheus APIs are alive.
 Also there is a connection performance test results with PMM server displayed.
 
-* Server > Client
+* Client <-- Server
 Here you will see the status of individual Prometheus endpoints and whether it can scrape metrics from this system.
 Note, even this client can reach the server successfully it does not mean Prometheus is able to scrape from exporters.
 
-In case, some of the endpoints are in problem state, please check if the corresponding service is running ("pmm-admin list").
-If all endpoints are down here and "pmm-admin list" shows all services are up,
+In case, some of the endpoints are in problem state, please check if the corresponding service is running ('pmm-admin list').
+If all endpoints are down here and 'pmm-admin list' shows all services are up,
 please check the firewall settings whether this system allows incoming connections by address:port in question.`,
 		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Root().PersistentPreRun(cmd.Root(), args)
 			if err := admin.CheckNetwork(flagNoEmoji); err != nil {
 				fmt.Println("Error checking network status:", err)
 				os.Exit(1)
@@ -335,127 +538,179 @@ please check the firewall settings whether this system allows incoming connectio
 		Short: "Check if PMM server is alive.",
 		Long:  "This command verifies the connectivity with PMM server.",
 		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Root().PersistentPreRun(cmd.Root(), args)
 			// It's all good if PersistentPreRun didn't fail.
-			fmt.Println("OK")
+			fmt.Println("OK, PMM server is alive.\n")
+			admin.ServerInfo()
 		},
 	}
 
 	cmdStart = &cobra.Command{
-		Use:   "start METRIC NAME",
-		Short: "Start metric service by type and name.",
-		Long:  "This command starts the corresponding system service or all.",
-		Example: `  pmm-admin start os db01.vm
-  pmm-admin start mysql db01.vm
-  pmm-admin start queries db01.vm
-  pmm-admin start mongodb db01.vm
+		Use:   "start TYPE [name]",
+		Short: "Start service by type and name.",
+		Long: `This command starts the corresponding system service or all.
+
+[name] is an optional argument, by default it is set to the client name of this PMM client.
+		`,
+		Example: `  pmm-admin start linux:metrics db01.vm
+  pmm-admin start mysql:queries db01.vm
   pmm-admin start --all`,
 		Run: func(cmd *cobra.Command, args []string) {
 			if flagAll {
-				err, noServices := admin.StartStopAllMonitoring("start")
+				err, count := admin.StartStopAllMonitoring("start")
 				if err != nil {
 					fmt.Printf("Error starting one of the services: %s\n", err)
 					os.Exit(1)
 				}
-				if noServices {
+				if count == 0 {
 					fmt.Println("OK, no services found.")
 				} else {
-					fmt.Println("OK, all services are started.")
+					fmt.Printf("OK, %d services are started.\n", count)
 				}
 				os.Exit(0)
 			}
 
 			// Check args.
-			if len(args) < 2 {
-				fmt.Println("No metric type or name specified.\n")
+			if len(args) == 0 {
+				fmt.Println("No service type specified.\n")
 				cmd.Usage()
 				os.Exit(1)
 			}
-			metric := args[0]
-			name := args[1]
-			if metric != "os" && metric != "mysql" && metric != "queries" && metric != "mongodb" {
-				fmt.Println("METRIC argument can take the following values: os, mysql, queries, mongodb.\n")
-				cmd.Usage()
-				os.Exit(1)
+			svcType := args[0]
+			admin.ServiceName = admin.Config.ClientName
+			if len(args) > 1 {
+				admin.ServiceName = args[1]
 			}
 
-			if err := admin.StartStopMonitoring("start", metric, name); err != nil {
-				fmt.Printf("Error starting %s metric service for %s: %s\n", metric, name, err)
+			if err := admin.StartStopMonitoring("start", svcType); err != nil {
+				fmt.Printf("Error starting %s service for %s: %s\n", svcType, admin.ServiceName, err)
 				os.Exit(1)
 			}
-			fmt.Printf("OK, started %s metric service for %s.\n", metric, name)
+			fmt.Printf("OK, started %s service for %s.\n", svcType, admin.ServiceName)
 		},
 	}
-
 	cmdStop = &cobra.Command{
-		Use:   "stop METRIC NAME",
-		Short: "Stop metric service by type and name.",
-		Long:  "This command stops the corresponding system service or all.",
-		Example: `  pmm-admin stop os db01.vm
-  pmm-admin stop mysql db01.vm
-  pmm-admin stop queries db01.vm
-  pmm-admin stop mongodb db01.vm
+		Use:   "stop TYPE [name]",
+		Short: "Stop service by type and name.",
+		Long: `This command stops the corresponding system service or all.
+
+[name] is an optional argument, by default it is set to the client name of this PMM client.
+		`,
+		Example: `  pmm-admin stop linux:metrics db01.vm
+  pmm-admin stop mysql:queries db01.vm
   pmm-admin stop --all`,
 		Run: func(cmd *cobra.Command, args []string) {
 			if flagAll {
-				err, noServices := admin.StartStopAllMonitoring("stop")
+				err, count := admin.StartStopAllMonitoring("stop")
 				if err != nil {
 					fmt.Printf("Error stopping one of the services: %s\n", err)
 					os.Exit(1)
 				}
-				if noServices {
+				if count == 0 {
 					fmt.Println("OK, no services found.")
 				} else {
-					fmt.Println("OK, all services are stopped.")
+					fmt.Printf("OK, %d services are stopped.\n", count)
 				}
 				os.Exit(0)
 			}
 
 			// Check args.
-			if len(args) < 2 {
-				fmt.Println("No metric type or name specified.\n")
+			if len(args) == 0 {
+				fmt.Println("No service type specified.\n")
 				cmd.Usage()
 				os.Exit(1)
 			}
-			metric := args[0]
-			name := args[1]
-			if metric != "os" && metric != "mysql" && metric != "queries" && metric != "mongodb" {
-				fmt.Println("METRIC argument can take the following values: os, mysql, queries, mongodb.\n")
-				cmd.Usage()
-				os.Exit(1)
+			svcType := args[0]
+			admin.ServiceName = admin.Config.ClientName
+			if len(args) > 1 {
+				admin.ServiceName = args[1]
 			}
 
-			if err := admin.StartStopMonitoring("stop", metric, name); err != nil {
-				fmt.Printf("Error stopping %s metric service for %s: %s\n", metric, name, err)
+			if err := admin.StartStopMonitoring("stop", svcType); err != nil {
+				fmt.Printf("Error stopping %s service for %s: %s\n", svcType, admin.ServiceName, err)
 				os.Exit(1)
 			}
-			fmt.Printf("OK, stopped %s metric service for %s.\n", metric, name)
+			fmt.Printf("OK, stopped %s service for %s.\n", svcType, admin.ServiceName)
+		},
+	}
+	cmdRestart = &cobra.Command{
+		Use:   "restart TYPE [name]",
+		Short: "Restart service by type and name.",
+		Long: `This command restarts the corresponding system service or all.
+
+[name] is an optional argument, by default it is set to the client name of this PMM client.
+		`,
+		Example: `  pmm-admin restart linux:metrics db01.vm
+  pmm-admin restart mysql:queries db01.vm
+  pmm-admin restart --all`,
+		Run: func(cmd *cobra.Command, args []string) {
+			if flagAll {
+				err, count := admin.StartStopAllMonitoring("restart")
+				if err != nil {
+					fmt.Printf("Error restarting one of the services: %s\n", err)
+					os.Exit(1)
+				}
+				if count == 0 {
+					fmt.Println("OK, no services found.")
+				} else {
+					fmt.Printf("OK, %d services are restarted.\n", count)
+				}
+				os.Exit(0)
+			}
+
+			// Check args.
+			if len(args) == 0 {
+				fmt.Println("No service type specified.\n")
+				cmd.Usage()
+				os.Exit(1)
+			}
+			svcType := args[0]
+			admin.ServiceName = admin.Config.ClientName
+			if len(args) > 1 {
+				admin.ServiceName = args[1]
+			}
+
+			if err := admin.StartStopMonitoring("restart", svcType); err != nil {
+				fmt.Printf("Error restarting %s service for %s: %s\n", svcType, admin.ServiceName, err)
+				os.Exit(1)
+			}
+			fmt.Printf("OK, restarted %s service for %s.\n", svcType, admin.ServiceName)
 		},
 	}
 
-	flagConfigFile, flagServerAddr, flagClientAddr, flagClientName      string
-	flagVersion, flagNoEmoji, flagAll                                   bool
-	flagServicePort                                                     uint
-	flagMongoURI, flagMongoNodeType, flagMongoReplSet, flagMongoCluster string
+	flagConfigFile, flagMongoURI, flagMongoNodeType, flagMongoReplSet, flagMongoCluster string
 
-	flagM pmm.MySQLFlags
+	flagVersion, flagNoEmoji, flagAll, flagForce bool
+
+	flagServicePort uint
+	flagM           pmm.MySQLFlags
+	flagC           pmm.Config
 )
 
 func main() {
-	// Setup commands and flags.
+	// Commands.
 	cobra.EnableCommandSorting = false
-	rootCmd.AddCommand(cmdAdd, cmdRemove, cmdList, cmdConfig, cmdInfo, cmdCheckNet, cmdPing, cmdStart, cmdStop)
-	cmdAdd.AddCommand(cmdAddOS, cmdAddMySQL, cmdAddQueries, cmdAddMongoDB)
-	cmdRemove.AddCommand(cmdRemoveOS, cmdRemoveMySQL, cmdRemoveQueries, cmdRemoveMongoDB)
+	rootCmd.AddCommand(cmdAdd, cmdRemove, cmdList, cmdConfig, cmdInfo, cmdCheckNet, cmdPing,
+		cmdStart, cmdStop, cmdRestart)
+	cmdAdd.AddCommand(cmdAddMySQL, cmdAddLinuxMetrics, cmdAddMySQLMetrics, cmdAddMySQLQueries,
+		cmdAddMongoDB, cmdAddMongoDBMetrics)
+	cmdRemove.AddCommand(cmdRemoveMySQL, cmdRemoveLinuxMetrics, cmdRemoveMySQLMetrics, cmdRemoveMySQLQueries,
+		cmdRemoveMongoDB, cmdRemoveMongoDBMetrics)
 
+	// Flags.
 	rootCmd.PersistentFlags().StringVarP(&flagConfigFile, "config-file", "c", pmm.ConfigFile, "PMM config file")
 	rootCmd.Flags().BoolVarP(&flagVersion, "version", "v", false, "show version")
 
-	cmdConfig.Flags().StringVar(&flagServerAddr, "server-addr", "", "PMM server address")
-	cmdConfig.Flags().StringVar(&flagClientAddr, "client-addr", "", "Client address")
-	cmdConfig.Flags().StringVar(&flagClientName, "client-name", "", "Client name (node identifier on Consul)")
+	cmdConfig.Flags().StringVar(&flagC.ServerAddress, "server", "", "PMM server address, optionally following with the :port (default port 80 or 443 if using SSL)")
+	cmdConfig.Flags().StringVar(&flagC.ClientAddress, "client-address", "", "Client address (if unset it will be automatically detected)")
+	cmdConfig.Flags().StringVar(&flagC.ClientName, "client-name", "", "Client name (if unset it will be set to the current hostname)")
+	cmdConfig.Flags().StringVar(&flagC.ServerUser, "server-user", "pmm", "Define HTTP user configured on PMM Server")
+	cmdConfig.Flags().StringVar(&flagC.ServerPassword, "server-password", "", "Define HTTP password configured on PMM Server")
+	cmdConfig.Flags().BoolVar(&flagC.ServerSSL, "server-ssl", false, "Enable SSL to communicate with PMM Server")
+	cmdConfig.Flags().BoolVar(&flagC.ServerInsecureSSL, "server-insecure-ssl", false, "Enable insecure SSL (self-signed certificate) to communicate with PMM Server")
 
 	cmdAdd.PersistentFlags().UintVar(&flagServicePort, "service-port", 0, "service port")
+
+	cmdAddLinuxMetrics.Flags().BoolVar(&flagForce, "force", false, "force to add another linux:metrics instance with different name for testing purpose")
 
 	cmdAddMySQL.Flags().StringVar(&flagM.DefaultsFile, "defaults-file", "", "path to my.cnf")
 	cmdAddMySQL.Flags().StringVar(&flagM.Host, "host", "", "MySQL host")
@@ -464,33 +719,60 @@ func main() {
 	cmdAddMySQL.Flags().StringVar(&flagM.Password, "password", "", "MySQL password")
 	cmdAddMySQL.Flags().StringVar(&flagM.Socket, "socket", "", "MySQL socket")
 	cmdAddMySQL.Flags().BoolVar(&flagM.CreateUser, "create-user", false, "create a new MySQL user")
-	cmdAddMySQL.Flags().BoolVar(&flagM.OldPasswords, "old-passwords", false, "use old passwords for a new user")
-	cmdAddMySQL.Flags().UintVar(&flagM.MaxUserConn, "user-connections", 5, "max user connections for a new user")
-	cmdAddMySQL.Flags().BoolVar(&flagM.DisableTableStats, "disable-tablestats", false, "disable table statistics (for MySQL with a huge number of tables)")
+	cmdAddMySQL.Flags().StringVar(&flagM.CreateUserPassword, "create-user-password", "", "optional password for a new MySQL user")
+	cmdAddMySQL.Flags().UintVar(&flagM.MaxUserConn, "create-user-maxconn", 5, "max user connections for a new user")
+	cmdAddMySQL.Flags().BoolVar(&flagM.Force, "force", false, "force to create/update MySQL user")
+	cmdAddMySQL.Flags().BoolVar(&flagM.DisableTableStats, "disable-tablestats", false, "disable table statistics (disabled automatically with 10000+ tables)")
 	cmdAddMySQL.Flags().BoolVar(&flagM.DisableUserStats, "disable-userstats", false, "disable user statistics")
 	cmdAddMySQL.Flags().BoolVar(&flagM.DisableBinlogStats, "disable-binlogstats", false, "disable binlog statistics")
 	cmdAddMySQL.Flags().BoolVar(&flagM.DisableProcesslist, "disable-processlist", false, "disable process state metrics")
+	cmdAddMySQL.Flags().StringVar(&flagM.QuerySource, "query-source", "auto", "source of SQL queries: auto, slowlog, perfschema")
 
-	cmdAddQueries.Flags().StringVar(&flagM.DefaultsFile, "defaults-file", "", "path to my.cnf")
-	cmdAddQueries.Flags().StringVar(&flagM.Host, "host", "", "MySQL host")
-	cmdAddQueries.Flags().StringVar(&flagM.Port, "port", "", "MySQL port")
-	cmdAddQueries.Flags().StringVar(&flagM.User, "user", "", "MySQL username")
-	cmdAddQueries.Flags().StringVar(&flagM.Password, "password", "", "MySQL password")
-	cmdAddQueries.Flags().StringVar(&flagM.Socket, "socket", "", "MySQL socket")
-	cmdAddQueries.Flags().BoolVar(&flagM.CreateUser, "create-user", false, "create a new MySQL user")
-	cmdAddQueries.Flags().BoolVar(&flagM.OldPasswords, "old-passwords", false, "use old passwords for a new user")
-	cmdAddQueries.Flags().UintVar(&flagM.MaxUserConn, "max-user-connections", 5, "max user connections for a new user")
-	cmdAddQueries.Flags().StringVar(&flagM.QuerySource, "query-source", "auto", "source of SQL queries: auto, slowlog, perfschema")
+	cmdAddMySQLMetrics.Flags().StringVar(&flagM.DefaultsFile, "defaults-file", "", "path to my.cnf")
+	cmdAddMySQLMetrics.Flags().StringVar(&flagM.Host, "host", "", "MySQL host")
+	cmdAddMySQLMetrics.Flags().StringVar(&flagM.Port, "port", "", "MySQL port")
+	cmdAddMySQLMetrics.Flags().StringVar(&flagM.User, "user", "", "MySQL username")
+	cmdAddMySQLMetrics.Flags().StringVar(&flagM.Password, "password", "", "MySQL password")
+	cmdAddMySQLMetrics.Flags().StringVar(&flagM.Socket, "socket", "", "MySQL socket")
+	cmdAddMySQLMetrics.Flags().BoolVar(&flagM.CreateUser, "create-user", false, "create a new MySQL user")
+	cmdAddMySQLMetrics.Flags().StringVar(&flagM.CreateUserPassword, "create-user-password", "", "optional password for a new MySQL user")
+	cmdAddMySQLMetrics.Flags().UintVar(&flagM.MaxUserConn, "create-user-maxconn", 5, "max user connections for a new user")
+	cmdAddMySQLMetrics.Flags().BoolVar(&flagM.Force, "force", false, "force to create/update MySQL user")
+	cmdAddMySQLMetrics.Flags().BoolVar(&flagM.DisableTableStats, "disable-tablestats", false, "disable table statistics (for MySQL with a huge number of tables)")
+	cmdAddMySQLMetrics.Flags().BoolVar(&flagM.DisableUserStats, "disable-userstats", false, "disable user statistics")
+	cmdAddMySQLMetrics.Flags().BoolVar(&flagM.DisableBinlogStats, "disable-binlogstats", false, "disable binlog statistics")
+	cmdAddMySQLMetrics.Flags().BoolVar(&flagM.DisableProcesslist, "disable-processlist", false, "disable process state metrics")
 
-	cmdAddMongoDB.Flags().StringVar(&flagMongoURI, "uri", "mongodb://localhost:27017", "MongoDB URI")
+	cmdAddMySQLQueries.Flags().StringVar(&flagM.DefaultsFile, "defaults-file", "", "path to my.cnf")
+	cmdAddMySQLQueries.Flags().StringVar(&flagM.Host, "host", "", "MySQL host")
+	cmdAddMySQLQueries.Flags().StringVar(&flagM.Port, "port", "", "MySQL port")
+	cmdAddMySQLQueries.Flags().StringVar(&flagM.User, "user", "", "MySQL username")
+	cmdAddMySQLQueries.Flags().StringVar(&flagM.Password, "password", "", "MySQL password")
+	cmdAddMySQLQueries.Flags().StringVar(&flagM.Socket, "socket", "", "MySQL socket")
+	cmdAddMySQLQueries.Flags().BoolVar(&flagM.CreateUser, "create-user", false, "create a new MySQL user")
+	cmdAddMySQLQueries.Flags().StringVar(&flagM.CreateUserPassword, "create-user-password", "", "optional password for a new MySQL user")
+	cmdAddMySQLQueries.Flags().UintVar(&flagM.MaxUserConn, "create-user-maxconn", 5, "max user connections for a new user")
+	cmdAddMySQLQueries.Flags().BoolVar(&flagM.Force, "force", false, "force to create/update MySQL user")
+	cmdAddMySQLQueries.Flags().StringVar(&flagM.QuerySource, "query-source", "auto", "source of SQL queries: auto, slowlog, perfschema")
+
+	cmdAddMongoDB.Flags().StringVar(&flagMongoURI, "uri", "localhost:27017", "MongoDB URI, format: [mongodb://][user:pass@]host[:port][/database][?options]")
 	cmdAddMongoDB.Flags().StringVar(&flagMongoNodeType, "nodetype", "", "node type: mongod, mongos, config, arbiter")
 	cmdAddMongoDB.Flags().StringVar(&flagMongoCluster, "cluster", "", "cluster name")
 	cmdAddMongoDB.Flags().StringVar(&flagMongoReplSet, "replset", "", "replSet name")
 
+	cmdAddMongoDBMetrics.Flags().StringVar(&flagMongoURI, "uri", "localhost:27017", "MongoDB URI, format: [mongodb://][user:pass@]host[:port][/database][?options]")
+	cmdAddMongoDBMetrics.Flags().StringVar(&flagMongoNodeType, "nodetype", "", "node type: mongod, mongos, config, arbiter")
+	cmdAddMongoDBMetrics.Flags().StringVar(&flagMongoCluster, "cluster", "", "cluster name")
+	cmdAddMongoDBMetrics.Flags().StringVar(&flagMongoReplSet, "replset", "", "replSet name")
+
+	cmdRemove.Flags().BoolVar(&flagAll, "all", false, "remove all monitoring services")
+	cmdRemove.Flags().BoolVar(&flagForce, "force", false, "ignore any errors")
+
 	cmdCheckNet.Flags().BoolVar(&flagNoEmoji, "no-emoji", false, "avoid emoji in the output")
 
-	cmdStart.Flags().BoolVar(&flagAll, "all", false, "all metric services")
-	cmdStop.Flags().BoolVar(&flagAll, "all", false, "all metric services")
+	cmdStart.Flags().BoolVar(&flagAll, "all", false, "start all monitoring services")
+	cmdStop.Flags().BoolVar(&flagAll, "all", false, "stop all monitoring services")
+	cmdRestart.Flags().BoolVar(&flagAll, "all", false, "restart all monitoring services")
 
 	if os.Getuid() != 0 {
 		fmt.Println("pmm-admin requires superuser privileges to manage system services.")

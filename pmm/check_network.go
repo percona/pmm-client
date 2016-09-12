@@ -18,46 +18,45 @@
 package pmm
 
 import (
+	"crypto/tls"
 	"fmt"
 	"net"
 	"net/http"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/prometheus/client_golang/api/prometheus"
 	"golang.org/x/net/context"
 )
 
 // CheckNetwork check connectivity between client and server.
 func (a *Admin) CheckNetwork(noEmoji bool) error {
-	// Check Consul health.
-	consulStatus := a.ServerAlive()
-
 	// Check QAN API health.
 	qanStatus := false
-	url := a.qanapi.URL(a.Config.ServerAddress, qanAPIBasePath, "ping")
+	url := a.qanapi.URL(a.serverUrl, qanAPIBasePath, "ping")
 	if resp, _, err := a.qanapi.Get(url); err == nil {
 		if resp.StatusCode == http.StatusOK && resp.Header.Get("X-Percona-Qan-Api-Version") != "" {
 			qanStatus = true
 		}
 	}
 
-	// Check Prometheus API.
-	promStatus := false
-	promData := a.getPromTargets()
-	if promData != "" {
-		promStatus = true
+	// Check Prometheus API by retriving all "up" time series.
+	promStatus := true
+	promData, err := a.promapi.Query(context.Background(), "up", time.Now())
+	if err != nil {
+		promStatus = false
 	}
 
 	fmt.Println("PMM Network Status\n")
 	fmt.Printf("%-6s | %s\n", "Server", a.Config.ServerAddress)
 	fmt.Printf("%-6s | %s\n\n", "Client", a.Config.ClientAddress)
-	fmt.Println("* Client > Server")
+	fmt.Println("* Client --> Server")
 	fmt.Printf("%-15s %-13s\n", strings.Repeat("-", 15), strings.Repeat("-", 13))
-	fmt.Printf("%-15s %-13s\n", "SERVICE", "CONNECTIVITY")
+	fmt.Printf("%-15s %-13s\n", "SERVER SERVICE", "CONNECTIVITY")
 	fmt.Printf("%-15s %-13s\n", strings.Repeat("-", 15), strings.Repeat("-", 13))
-	fmt.Printf("%-15s %-13s\n", "Consul API", emojiStatus(noEmoji, consulStatus))
+	// Consul is always alive if we are at this point.
+	fmt.Printf("%-15s %-13s\n", "Consul API", emojiStatus(noEmoji, true))
 	fmt.Printf("%-15s %-13s\n", "QAN API", emojiStatus(noEmoji, qanStatus))
 	fmt.Printf("%-15s %-13s\n", "Prometheus API", emojiStatus(noEmoji, promStatus))
 	fmt.Println()
@@ -76,7 +75,7 @@ func (a *Admin) CheckNetwork(noEmoji bool) error {
 		return nil
 	}
 
-	fmt.Println("* Server > Client")
+	fmt.Println("* Client <-- Server")
 	if len(node.Services) == 0 {
 		fmt.Println("No Prometheus endpoints found.\n")
 		return nil
@@ -86,12 +85,10 @@ func (a *Admin) CheckNetwork(noEmoji bool) error {
 	svcTable := []instanceStatus{}
 	errStatus := false
 	for _, svc := range node.Services {
-		metricType := svc.Service
-		if metricType == "mysql-hr" || metricType == "mysql-mr" || metricType == "mysql-lr" {
-			metricType = "mysql"
-		} else if metricType == "queries" {
+		if !strings.HasSuffix(svc.Service, ":metrics") {
 			continue
 		}
+		metricType := strings.Split(svc.Service, ":")[0]
 
 		name := "-"
 		for _, tag := range svc.Tags {
@@ -102,7 +99,7 @@ func (a *Admin) CheckNetwork(noEmoji bool) error {
 
 		}
 
-		status := a.checkPromTargetStatus(promData, name, metricType, svc.Port)
+		status := checkPromTargetStatus(promData.String(), name, metricType)
 		if !status {
 			errStatus = true
 		}
@@ -115,18 +112,23 @@ func (a *Admin) CheckNetwork(noEmoji bool) error {
 		svcTable = append(svcTable, row)
 	}
 
-	maxNameLen := 5
+	maxTypeLen := len("METRIC")
+	maxNameLen := len("NAME")
 	for _, in := range svcTable {
+		if len(in.Type) > maxTypeLen {
+			maxTypeLen = len(in.Type)
+		}
 		if len(in.Name) > maxNameLen {
 			maxNameLen = len(in.Name)
 		}
 	}
+	maxTypeLen++
 	maxNameLen++
-	linefmt := "%-8s %-" + fmt.Sprintf("%d", maxNameLen) + "s %-22s %-13s\n"
-	fmt.Printf(linefmt, strings.Repeat("-", 8), strings.Repeat("-", maxNameLen), strings.Repeat("-", 22),
+	linefmt := "%-" + fmt.Sprintf("%d", maxTypeLen) + "s %-" + fmt.Sprintf("%d", maxNameLen) + "s %-22s %-13s\n"
+	fmt.Printf(linefmt, strings.Repeat("-", maxTypeLen), strings.Repeat("-", maxNameLen), strings.Repeat("-", 22),
 		strings.Repeat("-", 13))
 	fmt.Printf(linefmt, "METRIC", "NAME", "PROMETHEUS ENDPOINT", "REMOTE STATE")
-	fmt.Printf(linefmt, strings.Repeat("-", 8), strings.Repeat("-", maxNameLen), strings.Repeat("-", 22),
+	fmt.Printf(linefmt, strings.Repeat("-", maxTypeLen), strings.Repeat("-", maxNameLen), strings.Repeat("-", 22),
 		strings.Repeat("-", 13))
 	sort.Sort(sortOutput(svcTable))
 	for _, i := range svcTable {
@@ -135,64 +137,39 @@ func (a *Admin) CheckNetwork(noEmoji bool) error {
 
 	if errStatus {
 		fmt.Println(`
-For endpoints in problem state, please check if the corresponding service is running ("pmm-admin list").
-If all endpoints are down here and "pmm-admin list" shows all services are up,
-please check the firewall settings whether this system allows incoming connections by address:port in question.`)
+For endpoints in problem state, please check if the corresponding local service is running ("pmm-admin list").
+If yes and the endpoint references to a remote machine, ensure that machine is accessible from the current system.
+
+If all endpoints are down here and "pmm-admin list" shows they are up,
+check the firewall settings whether this system allows incoming connections from server by address:port in question.`)
 	}
 	fmt.Println()
 	return nil
 }
 
-// getPromTargets get Prometheus targets and states.
-func (a *Admin) getPromTargets() string {
-	config := prometheus.Config{Address: fmt.Sprintf("http://%s/prometheus", a.Config.ServerAddress)}
-	client, err := prometheus.New(config)
-	if err != nil {
-		return ""
-	}
-
-	// Retrieve all "up" time series.
-	if res, err := prometheus.NewQueryAPI(client).Query(context.Background(), "up", time.Now()); err == nil {
-		return res.String()
-	}
-	return ""
-}
-
-// checkPromTargetStatus check Prometheus target state by metric labels.
-func (a *Admin) checkPromTargetStatus(data, alias, job string, port int) bool {
-	query := fmt.Sprintf(`up{alias="%s", instance="%s:%d", job="%s"}`, alias, a.Config.ClientAddress, port, job)
-	for _, row := range strings.Split(data, "\n") {
-		vals := strings.Split(row, " => ")
-		if vals[0] != query || len(vals) != 2 {
-			continue
-		}
-		if string(vals[1][0]) == "1" {
-			return true
-		} else {
-			return false
-		}
-	}
-	return false
-}
-
 // testNetwork measure round trip duration of server connection.
 func (a *Admin) testNetwork() {
+	insecureFlag := false
+	if a.Config.ServerInsecureSSL {
+		insecureFlag = true
+	}
+
 	conn := &networkTransport{
 		dialer: &net.Dialer{
-			Timeout:   30 * time.Second,
-			KeepAlive: 30 * time.Second,
+			Timeout:   apiTimeout,
+			KeepAlive: apiTimeout,
 		},
 	}
 	conn.rtp = &http.Transport{
-		Proxy: http.ProxyFromEnvironment,
-		Dial:  conn.dial,
+		Proxy:           http.ProxyFromEnvironment,
+		Dial:            conn.dial,
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: insecureFlag},
 	}
 	client := &http.Client{Transport: conn}
 
-	resp, err := client.Get(fmt.Sprintf("http://%s", a.Config.ServerAddress))
+	resp, err := client.Get(a.serverUrl)
 	if err != nil {
-		fmt.Println("Unable to measure a connection performance as it takes longer than 30 sec.")
-		fmt.Println("Looks like there is a bad connectivity and it may affect your monitoring.")
+		fmt.Println("Unable to measure the connection performance.")
 		return
 	}
 	defer resp.Body.Close()
@@ -223,6 +200,17 @@ func (conn *networkTransport) dial(network, addr string) (net.Conn, error) {
 	cn, err := conn.dialer.Dial(network, addr)
 	conn.connEnd = time.Now()
 	return cn, err
+}
+
+// checkPromTargetStatus check Prometheus target state by metric labels.
+func checkPromTargetStatus(data, alias, job string) bool {
+	r, _ := regexp.Compile(fmt.Sprintf(`up{.*instance="%s".*job="%s".*} => 1`, alias, job))
+	for _, row := range strings.Split(data, "\n") {
+		if r.MatchString(row) {
+			return true
+		}
+	}
+	return false
 }
 
 // Map status to emoji or text.

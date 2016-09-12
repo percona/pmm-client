@@ -1,0 +1,6 @@
+#!/bin/bash
+# uninstall
+pmm-admin ping > /dev/null
+if [ $? = 0 ] && [ "$1" = "remove" ]; then
+    pmm-admin remove --all --force
+fi

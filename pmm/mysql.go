@@ -25,20 +25,25 @@ import (
 	"time"
 
 	"github.com/percona/go-mysql/dsn"
+	"strings"
 )
 
-// MySQL and agent specific options.
+// MySQL specific options.
 type MySQLFlags struct {
-	DefaultsFile       string
-	User               string
-	Password           string
-	Host               string
-	Port               string
-	Socket             string
-	QuerySource        string
-	MaxUserConn        uint
-	OldPasswords       bool
+	DefaultsFile string
+	User         string
+	Password     string
+	Host         string
+	Port         string
+	Socket       string
+
+	QuerySource string
+
 	CreateUser         bool
+	CreateUserPassword string
+	MaxUserConn        uint
+	Force              bool
+
 	DisableTableStats  bool
 	DisableUserStats   bool
 	DisableBinlogStats bool
@@ -46,13 +51,16 @@ type MySQLFlags struct {
 }
 
 // DetectMySQL detect MySQL, create user if needed, return DSN and MySQL info strings.
-func DetectMySQL(serviceType string, mf MySQLFlags) (map[string]string, error) {
+func (a *Admin) DetectMySQL(mf MySQLFlags) (map[string]string, error) {
 	// Check for invalid mix of flags.
 	if mf.Socket != "" && mf.Host != "" {
 		return nil, fmt.Errorf("Flags --socket and --host are mutually exclusive.")
 	}
 	if mf.Socket != "" && mf.Port != "" {
 		return nil, fmt.Errorf("Flags --socket and --port are mutually exclusive.")
+	}
+	if !mf.CreateUser && mf.CreateUserPassword != "" {
+		return nil, fmt.Errorf("Flag --create-user-password should be used along with --create-user.")
 	}
 
 	userDSN := dsn.DSN{
@@ -62,7 +70,7 @@ func DetectMySQL(serviceType string, mf MySQLFlags) (map[string]string, error) {
 		Hostname:     mf.Host,
 		Port:         mf.Port,
 		Socket:       mf.Socket,
-		Params:       []string{dsn.ParseTimeParam}, // Probably needed for QAN.
+		Params:       []string{dsn.ParseTimeParam},
 	}
 	// Populate defaults to DSN for missed options.
 	userDSN, err := userDSN.AutoDetect()
@@ -71,126 +79,166 @@ func DetectMySQL(serviceType string, mf MySQLFlags) (map[string]string, error) {
 		return nil, err
 	}
 
-	if mf.OldPasswords {
-		userDSN.Params = append(userDSN.Params, dsn.OldPasswordsParam)
-	}
-
-	// Get MySQL variables and test connection.
 	db, err := sql.Open("mysql", userDSN.String())
 	if err != nil {
 		return nil, err
 	}
 	defer db.Close()
-	helpTxt := "Use additional MySQL flags --user, --password, --host, --port, --socket if needed."
-	info, err := getMysqlInfo(db)
-	if err != nil {
-		err = fmt.Errorf("Cannot connect to MySQL: %s\n\n%s\n%s", err,
-			"Verify that MySQL user exists and has the correct privileges.", helpTxt)
-		return nil, err
+
+	// Test access using detected credentials and stored password.
+	accessOK := false
+	if a.Config.MySQLPassword != "" {
+		pmmDSN := userDSN
+		pmmDSN.Username = "pmm"
+		pmmDSN.Password = a.Config.MySQLPassword
+		if err := testConnection(pmmDSN); err == nil {
+			//fmt.Println("Using stored credentials, DSN is", pmmDSN.String())
+			accessOK = true
+			userDSN = pmmDSN
+			// Not setting this into db connection as it will never have GRANT
+			// in case we want to create a new user below.
+		}
 	}
 
-	info["query_source"] = mf.QuerySource
+	// If the above fails, test MySQL access simply using detected credentials.
+	if !accessOK {
+		if err := testConnection(userDSN); err != nil {
+			err = fmt.Errorf("Cannot connect to MySQL: %s\n\n%s\n%s", err,
+				"Verify that MySQL user exists and has the correct privileges.",
+				"Use additional flags --user, --password, --host, --port, --socket if needed.")
+			return nil, err
+		}
+	}
+
+	// At this point, we verified the MySQL access, so no need to handle SQL errors below
+	// if our queries are predictably good.
+
+	// Get MySQL variables.
+	info := getMysqlInfo(db, mf.DisableTableStats)
+
 	if mf.QuerySource == "auto" {
 		// MySQL is local if the server hostname == MySQL hostname.
 		os_hostname, _ := os.Hostname()
 		if os_hostname == info["hostname"] {
-			info["query_source"] = "slowlog"
+			mf.QuerySource = "slowlog"
 		} else {
-			info["query_source"] = "perfschema"
+			mf.QuerySource = "perfschema"
 		}
 	}
 
 	// Create a new MySQL user.
 	if mf.CreateUser {
-		userDSN, err = createMySQLUser(userDSN, serviceType, info["query_source"], mf.MaxUserConn)
+		userDSN, err = createMySQLUser(db, userDSN, mf)
 		if err != nil {
-			err = fmt.Errorf("Cannot create MySQL user: %s\n\n%s\n%s", err,
-				"Verify that connecting MySQL user exists and has GRANT privilege.", helpTxt)
 			return nil, err
 		}
+
+		// Store generated password.
+		a.Config.MySQLPassword = userDSN.Password
+		a.writeConfig()
 	}
 
+	info["query_source"] = mf.QuerySource
 	info["dsn"] = userDSN.String()
 	info["safe_dsn"] = SanitizeDSN(userDSN.String())
 
 	return info, nil
 }
 
-// --------------------------------------------------------------------------
-
-func createMySQLUser(userDSN dsn.DSN, serviceType, querySource string, maxUserConn uint) (dsn.DSN, error) {
-	db, err := sql.Open("mysql", userDSN.String())
-	if err != nil {
-		return dsn.DSN{}, err
-	}
-	defer db.Close()
-
+func createMySQLUser(db *sql.DB, userDSN dsn.DSN, mf MySQLFlags) (dsn.DSN, error) {
 	// New DSN has same host:port or socket, but different user and pass.
-	newDSN := userDSN
-	newDSN.Username = fmt.Sprintf("pmm-%s", serviceType)
-	newDSN.Password = generatePassword(20)
+	userDSN.Username = "pmm"
+	if mf.CreateUserPassword != "" {
+		userDSN.Password = mf.CreateUserPassword
+	} else {
+		userDSN.Password = generatePassword(20)
+	}
 
-	// Create a new MySQL user with necessary privs.
-	grants := makeGrant(newDSN, serviceType, querySource, maxUserConn)
-	for _, grant := range grants {
-		if _, err := db.Exec(grant); err != nil {
-			return dsn.DSN{}, fmt.Errorf("failed to execute %s: %s", grant, err)
+	hosts := []string{"%"}
+	if userDSN.Socket != "" || userDSN.Hostname == "localhost" {
+		hosts = []string{"localhost", "127.0.0.1"}
+	} else if userDSN.Hostname == "127.0.0.1" {
+		hosts = []string{"127.0.0.1"}
+	}
+
+	if !mf.Force {
+		if err := mysqlCheck(db, hosts); err != nil {
+			return dsn.DSN{}, err
 		}
 	}
 
-	// Go MySQL driver resolves localhost to 127.0.0.1 but localhost is a special value for MySQL,
-	// so 127.0.0.1 may not work with a grant @localhost, so we add a 2nd grant @127.0.0.1 to be sure.
-	if newDSN.Hostname == "localhost" {
-		newDSN_127 := newDSN
-		newDSN_127.Hostname = "127.0.0.1"
-		grants := makeGrant(newDSN_127, serviceType, querySource, maxUserConn)
-		for _, grant := range grants {
-			if _, err := db.Exec(grant); err != nil {
-				return dsn.DSN{}, fmt.Errorf("failed to execute %s: %s", grant, err)
-			}
+	// Create a new MySQL user with the necessary privs.
+	grants := makeGrants(userDSN, hosts, mf.MaxUserConn)
+	for _, grant := range grants {
+		if _, err := db.Exec(grant); err != nil {
+			err = fmt.Errorf("Problem creating a new MySQL user. Failed to execute %s: %s\n\n%s",
+				grant, err, "Verify that connecting MySQL user has GRANT privilege.")
+			return dsn.DSN{}, err
 		}
 	}
 
 	// Verify new MySQL user works. If this fails, the new DSN or grant statements are wrong.
-	if err := testConnection(newDSN); err != nil {
-		return dsn.DSN{}, fmt.Errorf("problem with privileges: %s", err)
+	if err := testConnection(userDSN); err != nil {
+		err = fmt.Errorf("Problem creating a new MySQL user. Insufficient privileges: %s", err)
+		return dsn.DSN{}, err
 	}
 
-	return newDSN, nil
+	return userDSN, nil
 }
 
-func makeGrant(dsn dsn.DSN, serviceType, querySource string, mysqlMaxUserConns uint) []string {
-	host := "%"
-	if dsn.Socket != "" || dsn.Hostname == "localhost" {
-		host = "localhost"
-	} else if dsn.Hostname == "127.0.0.1" {
-		host = "127.0.0.1"
+func mysqlCheck(db *sql.DB, hosts []string) error {
+	var (
+		errors []string
+		varVal string
+	)
+
+	// Check for read_only.
+	if db.QueryRow("SELECT @@read_only").Scan(&varVal); varVal == "1" {
+		errors = append(errors, "* You are trying to write on read-only MySQL host.")
 	}
 
-	superPriv := ""
-	if querySource == "slowlog" {
-		superPriv = ", SUPER"
+	// Check for slave.
+	if slaveStatusRows, err := db.Query("SHOW SLAVE STATUS"); err == nil {
+		if slaveStatusRows.Next() {
+			errors = append(errors, "* You are trying to write on MySQL replication slave.")
+		}
 	}
 
-	// Creating/updating a user's password doesn't work correctly if old_passwords is active.
-	// Just in case, disable it for this session.
-	grants := []string{"SET SESSION old_passwords=0"}
-	if serviceType == "queries" {
-		grants = append(grants,
-			fmt.Sprintf("GRANT SELECT, PROCESS%s ON *.* TO '%s'@'%s' IDENTIFIED BY '%s' WITH MAX_USER_CONNECTIONS %d",
-				superPriv, dsn.Username, host, dsn.Password, mysqlMaxUserConns),
-			fmt.Sprintf("GRANT SELECT, UPDATE, DELETE, DROP ON `performance_schema`.* TO '%s'@'%s'",
-				dsn.Username, host),
-		)
+	// Check if user exists.
+	for _, host := range hosts {
+		if rows, err := db.Query(fmt.Sprintf("SHOW GRANTS FOR 'pmm'@'%s'", host)); err == nil {
+			// MariaDB requires to check .Next() because err is always nil even user doesn't exist %)
+			if !rows.Next() {
+				continue
+			}
+			if host == "%" {
+				host = "%%"
+			}
+			errors = append(errors, fmt.Sprintf("* MySQL user pmm@%s already exists. %s", host,
+				"Try without --create-user flag using the default credentials or specify the existing `pmm` user ones."))
+			break
+		}
 	}
-	if serviceType == "mysql" {
-		grants = append(grants,
-			fmt.Sprintf("GRANT PROCESS, REPLICATION CLIENT ON *.* TO '%s'@'%s' IDENTIFIED BY '%s' WITH MAX_USER_CONNECTIONS %d",
-				dsn.Username, host, dsn.Password, mysqlMaxUserConns),
-			fmt.Sprintf("GRANT SELECT ON `performance_schema`.* TO '%s'@'%s'",
-				dsn.Username, host),
-		)
+
+	if len(errors) > 0 {
+		errors = append([]string{"Problem creating a new MySQL user:", ""}, errors...)
+		errors = append(errors, "", "If you think the above is okay to proceed, you can use --force flag.")
+		return fmt.Errorf(strings.Join(errors, "\n"))
 	}
+
+	return nil
+}
+
+func makeGrants(dsn dsn.DSN, hosts []string, conn uint) []string {
+	var grants []string
+	for _, host := range hosts {
+		grants = append(grants,
+			fmt.Sprintf("GRANT SELECT, PROCESS, REPLICATION CLIENT, SUPER ON *.* TO '%s'@'%s' IDENTIFIED BY '%s' WITH MAX_USER_CONNECTIONS %d",
+				dsn.Username, host, dsn.Password, conn),
+			fmt.Sprintf("GRANT UPDATE, DELETE, DROP ON `performance_schema`.* TO '%s'@'%s'",
+				dsn.Username, host))
+	}
+
 	return grants
 }
 
@@ -209,24 +257,21 @@ func testConnection(userDSN dsn.DSN) error {
 	return nil
 }
 
-func getMysqlInfo(db *sql.DB) (map[string]string, error) {
-	var (
-		hostname string
-		port     string
-		distro   string
-		version  string
-	)
-	if err := db.QueryRow("SELECT @@hostname, @@port, @@version_comment, @@version").Scan(
-		&hostname, &port, &distro, &version); err != nil {
-		return nil, err
+func getMysqlInfo(db *sql.DB, disableTableStats bool) map[string]string {
+	var hostname, port, distro, version, tableCount string
+	db.QueryRow("SELECT @@hostname, @@port, @@version_comment, @@version").Scan(&hostname, &port, &distro, &version)
+	// Do not count number of tables if we explicitly disable table stats.
+	if !disableTableStats {
+		db.QueryRow("SELECT COUNT(*) FROM information_schema.tables").Scan(&tableCount)
 	}
-	info := map[string]string{
-		"hostname": hostname,
-		"port":     port,
-		"distro":   distro,
-		"version":  version,
+
+	return map[string]string{
+		"hostname":    hostname,
+		"port":        port,
+		"distro":      distro,
+		"version":     version,
+		"table_count": tableCount,
 	}
-	return info, nil
 }
 
 // generatePassword generate password to satisfy MySQL 5.7 default password policy.
