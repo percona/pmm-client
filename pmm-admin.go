@@ -81,14 +81,25 @@ var (
 			}
 
 			// Check for broken installation.
-			if brokenServices := admin.CheckInstallation(); len(brokenServices) != 0 {
+			orphanedServices, missedServices := admin.CheckInstallation()
+			if len(orphanedServices) > 0 {
 				fmt.Printf(`We have found system services disconnected from PMM server.
 Usually, this happens when data container is wiped before all monitoring services are removed or client is uninstalled.
 
 Orphaned services: %s
 
-To continue, run 'pmm-admin repair' to remove orphaned services.
-`, strings.Join(brokenServices, ", "))
+`, strings.Join(orphanedServices, ", "))
+			}
+			if len(missedServices) > 0 {
+				fmt.Printf(`PMM server reports services that are missed locally.
+Usually, this happens when the system is completely reinstalled.
+
+Missed services: %s
+
+`, strings.Join(missedServices, ", "))
+			}
+			if len(orphanedServices) > 0 || len(missedServices) > 0 {
+				fmt.Println("To continue, run 'pmm-admin repair' to remove orphaned services.")
 				os.Exit(1)
 			}
 		},
@@ -698,7 +709,10 @@ please check the firewall settings whether this system allows incoming connectio
 	cmdRepair = &cobra.Command{
 		Use:   "repair",
 		Short: "Repair installation.",
-		Long:  "This command removes orphaned services disconnected from PMM server.",
+		Long: `This command removes orphaned system services.
+
+It removes local services disconnected from PMM server and remote services that are missed locally.
+		`,
 		Run: func(cmd *cobra.Command, args []string) {
 			if err := admin.RepairInstallation(); err != nil {
 				fmt.Printf("Problem repairing the installation: %s\n", err)

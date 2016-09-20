@@ -125,8 +125,29 @@ func (a *Admin) SetConfig(cf Config) error {
 	}
 
 	// Client options.
-	// Attempt to change client name.
-	if cf.ClientName != "" && a.Config.ClientName != "" && cf.ClientName != a.Config.ClientName {
+
+	// Client name. Initial setup.
+	if a.Config.ClientName == "" {
+		if cf.ClientName != "" {
+			a.Config.ClientName = cf.ClientName
+		} else {
+			hostname, _ := os.Hostname()
+			a.Config.ClientName = hostname
+		}
+
+		node, _, err := a.consulapi.Catalog().Node(a.Config.ClientName, nil)
+		if err != nil {
+			return fmt.Errorf("Unable to communicate with Consul: %s", err)
+		}
+		if node != nil && len(node.Services) > 0 {
+			return fmt.Errorf(`Another client with the same name '%s' detected, its address is %s.
+It has the active services so this name is not available.
+
+Specify the other one using --client-name flag.`,
+				a.Config.ClientName, node.Node.Address)
+		}
+	} else if cf.ClientName != "" && cf.ClientName != a.Config.ClientName {
+		// Attempt to change client name.
 		// Checking source name.
 		node, _, err := a.consulapi.Catalog().Node(a.Config.ClientName, nil)
 		if err != nil {
@@ -142,23 +163,28 @@ func (a *Admin) SetConfig(cf Config) error {
 			return fmt.Errorf("Unable to communicate with Consul: %s", err)
 		}
 		if node != nil && len(node.Services) > 0 {
-			return fmt.Errorf(`Another client with the same name '%s' detected, by the address %s.
-It has the active services so you cannot change client name to this one.`,
+			return fmt.Errorf(`Another client with the same name '%s' detected, its address is address %s.
+It has the active services so you cannot change client name as requested.`,
 				cf.ClientName, node.Node.Address)
 		}
-		// Allow to change below.
-	}
 
-	if cf.ClientName != "" {
 		a.Config.ClientName = cf.ClientName
 	}
-	if a.Config.ClientName == "" {
-		hostname, _ := os.Hostname()
-		a.Config.ClientName = hostname
-	}
 
-	// Attempt to change client address.
-	if cf.ClientAddress != "" && a.Config.ClientAddress != "" && cf.ClientAddress != a.Config.ClientAddress {
+	// Client address. Initial setup.
+	if a.Config.ClientAddress == "" {
+		if cf.ClientAddress != "" {
+			a.Config.ClientAddress = cf.ClientAddress
+		} else {
+			// Detect remote address from nginx response header.
+			a.Config.ClientAddress = a.getMyRemoteIP()
+		}
+
+		if a.Config.ClientAddress == "" {
+			return fmt.Errorf("Cannot detect client address. Use --client-address flag to set it.")
+		}
+	} else if cf.ClientAddress != "" && cf.ClientAddress != a.Config.ClientAddress {
+		// Attempt to change client address.
 		node, _, err := a.consulapi.Catalog().Node(a.Config.ClientName, nil)
 		if err != nil {
 			return fmt.Errorf("Unable to communicate with Consul: %s", err)
@@ -166,18 +192,8 @@ It has the active services so you cannot change client name to this one.`,
 		if node != nil && len(node.Services) > 0 {
 			return fmt.Errorf("Changing of client address is allowed only if there are no services under monitoring.")
 		}
-		// Allow to change below.
-	}
 
-	if cf.ClientAddress != "" {
 		a.Config.ClientAddress = cf.ClientAddress
-	}
-	if a.Config.ClientAddress == "" {
-		// If user does not define client address, we try to detect it from nginx response header.
-		a.Config.ClientAddress = a.getMyRemoteIP()
-		if a.Config.ClientAddress == "" {
-			return fmt.Errorf("Client address is not set and cannot be detected. Use --client-address flag to set it.")
-		}
 	}
 
 	// If agent config exists, update the options like address, SSL, password etc.
@@ -706,12 +722,13 @@ func (a *Admin) availablePort(port uint) (bool, error) {
 }
 
 // CheckInstallation check for broken installation.
-func (a *Admin) CheckInstallation() []string {
+func (a *Admin) CheckInstallation() ([]string, []string) {
 	var (
-		dir            string
-		extension      string
-		services       []string
-		brokenServices []string
+		dir              string
+		extension        string
+		services         []string
+		orphanedServices []string
+		missedServices   []string
 	)
 	switch service.Platform() {
 	case "linux-systemd":
@@ -737,34 +754,61 @@ func (a *Admin) CheckInstallation() []string {
 
 	node, _, err := a.consulapi.Catalog().Node(a.Config.ClientName, nil)
 	if err != nil || node == nil || len(node.Services) == 0 {
-		return services
+		return services, []string{}
 	}
 
-	// Find which system services are not associated with Consul services.
-MainLoop:
+	// Find orphaned services: local system services that are not associated with Consul services.
+ForLoop1:
 	for _, s := range services {
 		for _, svc := range node.Services {
 			svcName := fmt.Sprintf("pmm-%s-%d", strings.Replace(svc.Service, ":", "-", 1), svc.Port)
 			if s == svcName {
-				continue MainLoop
+				continue ForLoop1
 			}
 		}
-		brokenServices = append(brokenServices, s)
+		orphanedServices = append(orphanedServices, s)
 	}
 
-	return brokenServices
+	// Find missed services: Consul services that are missed locally.
+ForLoop2:
+	for _, svc := range node.Services {
+		svcName := fmt.Sprintf("pmm-%s-%d", strings.Replace(svc.Service, ":", "-", 1), svc.Port)
+		for _, s := range services {
+			if s == svcName {
+				continue ForLoop2
+			}
+		}
+		missedServices = append(missedServices, svc.ID)
+	}
+
+	return orphanedServices, missedServices
 }
 
 // RepairInstallation repair installation.
 func (a *Admin) RepairInstallation() error {
-	services := a.CheckInstallation()
-	for _, s := range services {
+	orphanedServices, missedServices := a.CheckInstallation()
+	// Uninstall local services.
+	for _, s := range orphanedServices {
 		if err := uninstallService(s); err != nil {
 			return err
 		}
 	}
-	if len(services) > 0 {
-		fmt.Printf("OK, removed %d orphaned services.\n", len(services))
+
+	// Remove remote services from Consul.
+	for _, s := range missedServices {
+		dereg := consul.CatalogDeregistration{
+			Node:      a.Config.ClientName,
+			ServiceID: s,
+		}
+		if _, err := a.consulapi.Catalog().Deregister(&dereg, nil); err != nil {
+			return err
+		}
+		prefix := fmt.Sprintf("%s/%s/", a.Config.ClientName, s)
+		a.consulapi.KV().DeleteTree(prefix, nil)
+	}
+
+	if len(orphanedServices) > 0 || len(missedServices) > 0 {
+		fmt.Printf("OK, removed %d orphaned services.\n", len(orphanedServices)+len(missedServices))
 	} else {
 		fmt.Println("No orphaned services found.")
 	}
