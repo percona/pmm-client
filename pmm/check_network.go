@@ -52,9 +52,9 @@ func (a *Admin) CheckNetwork(noEmoji bool) error {
 	fmt.Printf("%-6s | %s\n", "Server", a.Config.ServerAddress)
 	fmt.Printf("%-6s | %s\n\n", "Client", a.Config.ClientAddress)
 	fmt.Println("* Client --> Server")
-	fmt.Printf("%-15s %-13s\n", strings.Repeat("-", 15), strings.Repeat("-", 13))
-	fmt.Printf("%-15s %-13s\n", "SERVER SERVICE", "CONNECTIVITY")
-	fmt.Printf("%-15s %-13s\n", strings.Repeat("-", 15), strings.Repeat("-", 13))
+	fmt.Printf("%-15s %-13s\n", strings.Repeat("-", 15), strings.Repeat("-", 7))
+	fmt.Printf("%-15s %-13s\n", "SERVER SERVICE", "STATUS")
+	fmt.Printf("%-15s %-13s\n", strings.Repeat("-", 15), strings.Repeat("-", 7))
 	// Consul is always alive if we are at this point.
 	fmt.Printf("%-15s %-13s\n", "Consul API", emojiStatus(noEmoji, true))
 	fmt.Printf("%-15s %-13s\n", "QAN API", emojiStatus(noEmoji, qanStatus))
@@ -77,7 +77,7 @@ func (a *Admin) CheckNetwork(noEmoji bool) error {
 
 	fmt.Println("* Client <-- Server")
 	if len(node.Services) == 0 {
-		fmt.Println("No Prometheus endpoints found.\n")
+		fmt.Println("No metric endpoints registered.\n")
 		return nil
 	}
 
@@ -88,7 +88,6 @@ func (a *Admin) CheckNetwork(noEmoji bool) error {
 		if !strings.HasSuffix(svc.Service, ":metrics") {
 			continue
 		}
-		metricType := strings.Split(svc.Service, ":")[0]
 
 		name := "-"
 		for _, tag := range svc.Tags {
@@ -99,12 +98,12 @@ func (a *Admin) CheckNetwork(noEmoji bool) error {
 
 		}
 
-		status := checkPromTargetStatus(promData.String(), name, metricType)
+		status := checkPromTargetStatus(promData.String(), name, strings.Split(svc.Service, ":")[0])
 		if !status {
 			errStatus = true
 		}
 		row := instanceStatus{
-			Type:   metricType,
+			Type:   svc.Service,
 			Name:   name,
 			Port:   fmt.Sprintf("%d", svc.Port),
 			Status: emojiStatus(noEmoji, status),
@@ -112,7 +111,7 @@ func (a *Admin) CheckNetwork(noEmoji bool) error {
 		svcTable = append(svcTable, row)
 	}
 
-	maxTypeLen := len("METRIC")
+	maxTypeLen := len("SERVICE TYPE")
 	maxNameLen := len("NAME")
 	for _, in := range svcTable {
 		if len(in.Type) > maxTypeLen {
@@ -124,12 +123,12 @@ func (a *Admin) CheckNetwork(noEmoji bool) error {
 	}
 	maxTypeLen++
 	maxNameLen++
-	linefmt := "%-" + fmt.Sprintf("%d", maxTypeLen) + "s %-" + fmt.Sprintf("%d", maxNameLen) + "s %-22s %-13s\n"
+	linefmt := "%-" + fmt.Sprintf("%d", maxTypeLen) + "s %-" + fmt.Sprintf("%d", maxNameLen) + "s %-22s %-7s\n"
 	fmt.Printf(linefmt, strings.Repeat("-", maxTypeLen), strings.Repeat("-", maxNameLen), strings.Repeat("-", 22),
-		strings.Repeat("-", 13))
-	fmt.Printf(linefmt, "METRIC", "NAME", "PROMETHEUS ENDPOINT", "REMOTE STATE")
+		strings.Repeat("-", 7))
+	fmt.Printf(linefmt, "SERVICE TYPE", "NAME", "REMOTE ENDPOINT", "STATUS")
 	fmt.Printf(linefmt, strings.Repeat("-", maxTypeLen), strings.Repeat("-", maxNameLen), strings.Repeat("-", 22),
-		strings.Repeat("-", 13))
+		strings.Repeat("-", 7))
 	sort.Sort(sortOutput(svcTable))
 	for _, i := range svcTable {
 		fmt.Printf(linefmt, i.Type, i.Name, a.Config.ClientAddress+":"+i.Port, i.Status)
@@ -137,11 +136,11 @@ func (a *Admin) CheckNetwork(noEmoji bool) error {
 
 	if errStatus {
 		fmt.Println(`
-For endpoints in problem state, please check if the corresponding local service is running ("pmm-admin list").
-If yes and the endpoint references to a remote machine, ensure that machine is accessible from the current system.
+When an endpoint is down it may indicate that the corresponding service is stopped (run 'pmm-admin list' to verify).
+If it's running, check out the logs /var/log/pmm-*.log
 
-If all endpoints are down here and "pmm-admin list" shows they are up,
-check the firewall settings whether this system allows incoming connections from server by address:port in question.`)
+When all endpoints are down but 'pmm-admin list' shows they are up and no errors in the logs,
+check the firewall settings whether this system allows incoming connections from server to address:port in question.`)
 	}
 	fmt.Println()
 	return nil
@@ -219,7 +218,7 @@ func emojiStatus(noEmoji, status bool) string {
 	case noEmoji && status:
 		return "OK"
 	case noEmoji && !status:
-		return "PROBLEM"
+		return "DOWN"
 	case !noEmoji && status:
 		return emojiHappy
 	case !noEmoji && !status:
