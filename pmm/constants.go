@@ -22,11 +22,11 @@ import (
 	"time"
 )
 
-var VERSION = "1.0.4"
+var VERSION = "1.0.5"
 
 const (
 	PMMBaseDir     = "/usr/local/percona/pmm-client"
-	agentBaseDir   = "/usr/local/percona/qan-agent"
+	agentBaseDir   = "/usr/local/percona/qan-agent" // This is also hardcoded in mysql_queries.go
 	qanAPIBasePath = "qan-api"
 	emojiUnhappy   = "😡"
 	emojiHappy     = "🙂"
@@ -41,6 +41,8 @@ var (
 	ErrDuplicate = fmt.Errorf("there is already one instance with this name under monitoring.")
 	ErrNoService = fmt.Errorf("no service found.")
 	ErrOneLinux  = fmt.Errorf("there could be only one instance of linux metrics being monitored for this system.")
+
+	errOrphanedAgent = fmt.Errorf("cannot find os instance on QAN API.")
 )
 
 const nodeExporterArgs = "-collectors.enabled=diskstats,filesystem,loadavg,meminfo,netdev,netstat,stat,time,uname,vmstat"

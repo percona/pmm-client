@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -53,11 +54,35 @@ func (a *Admin) AddMySQLQueries(info map[string]string) error {
 		return err
 	}
 
-	// Register agent if there is not config file.
+	// Register agent if config file does not exist.
 	if !FileExists(agentConfigFile) {
 		if err := a.registerAgent(); err != nil {
 			return err
 		}
+	}
+
+	agentID, err := getAgentID()
+	if err != nil {
+		return err
+	}
+	qanOSInstance, err := a.getQanOSInstance(agentID)
+	if err == errOrphanedAgent {
+		// If agent is orphaned, let's reinstall it.
+		if err := a.registerAgent(); err != nil {
+			return err
+		}
+		// Get new agent id.
+		agentID, err = getAgentID()
+		if err != nil {
+			return err
+		}
+		// Get os instance again.
+		qanOSInstance, err = a.getQanOSInstance(agentID)
+		if err != nil {
+			return err
+		}
+	} else if err != nil {
+		return err
 	}
 
 	// Don't install service if we have already another "mysql:queries".
@@ -97,21 +122,10 @@ func (a *Admin) AddMySQLQueries(info map[string]string) error {
 	}
 
 	// Add new MySQL instance to QAN.
-	agentID, err := getAgentID()
-	if err != nil {
-		return err
-	}
-	qanOSInstance, err := a.getQanOSInstance(agentID)
-	if err != nil {
-		return err
-	}
-
 	in := proto.Instance{
-		// Do not set UUID here, let API do it because if we get a StatusConflict below,
-		// we want the existing instance UUID.
 		Subsystem:  "mysql",
 		ParentUUID: qanOSInstance.ParentUUID,
-		Name:       a.ServiceName, // unique ID
+		Name:       a.ServiceName,
 		DSN:        info["safe_dsn"],
 		Distro:     info["distro"],
 		Version:    info["version"],
@@ -131,7 +145,7 @@ func (a *Admin) AddMySQLQueries(info map[string]string) error {
 	}
 
 	// The URI of the new instance is reported in the Location header, fetch it to get UUID assigned.
-	// Do not use the returned URL as QAN API returns an invalid one.
+	// Do not call the returned URL as QAN API returns an invalid one.
 	var bytes []byte
 	t := strings.Split(resp.Header.Get("Location"), "/")
 	url = a.qanapi.URL(url, t[len(t)-1])
@@ -146,7 +160,7 @@ func (a *Admin) AddMySQLQueries(info map[string]string) error {
 		return err
 	}
 
-	// Start QAN by associating QAN MySQL instance with Agent.
+	// Start QAN by associating MySQL instance with agent.
 	qanConfig := map[string]string{
 		"UUID":        in.UUID,
 		"CollectFrom": info["query_source"],
@@ -289,7 +303,8 @@ func (a *Admin) getQanOSInstance(agentID string) (proto.Instance, error) {
 		return in, err
 	}
 	if resp.StatusCode == http.StatusNotFound {
-		return in, fmt.Errorf("cannot find os instance on QAN API.")
+		// No os instance on QAN API - orphaned agent installation.
+		return in, errOrphanedAgent
 	}
 	if resp.StatusCode != http.StatusOK {
 		return in, a.qanapi.Error("GET", url, resp.StatusCode, http.StatusOK, bytes)
@@ -333,12 +348,12 @@ RetryLoop:
 			time.Sleep(time.Second)
 			continue RetryLoop
 		case http.StatusOK:
-			break RetryLoop
+			return nil
 		}
 		return a.qanapi.Error("PUT", url, resp.StatusCode, http.StatusOK, content)
 	}
 
-	return nil
+	return fmt.Errorf("timeout 10s waiting on agent to connect to API.")
 }
 
 // getAgentID read QAN agent ID from its config file.
@@ -358,6 +373,11 @@ func getAgentID() (string, error) {
 
 // registerAgent Register agent on QAN API using agent installer.
 func (a *Admin) registerAgent() error {
+	// Remove agent dirs to ensure clean installation. Using full paths to avoid unexpected removals.
+	os.RemoveAll("/usr/local/percona/qan-agent/config")
+	os.RemoveAll("/usr/local/percona/qan-agent/data")
+	os.RemoveAll("/usr/local/percona/qan-agent/instance")
+
 	path := fmt.Sprintf("%s/bin/percona-qan-agent-installer", agentBaseDir)
 	args := []string{"-basedir", agentBaseDir, "-mysql=false"}
 	if a.Config.ServerSSL {

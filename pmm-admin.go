@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strings"
 
 	"github.com/percona/pmm-client/pmm"
 	"github.com/spf13/cobra"
@@ -35,8 +36,8 @@ var (
 			// NOTE: this function pre-runs with every command or sub-command with
 			// the only exception "pmm-admin config" which bypasses it.
 
-			// This flag will not run anywhere else than on rootCmd as this flag is not persistent one
-			// and we want it only here without any config checks.
+			// The version flag will not run anywhere else than on rootCmd as this flag is not persistent
+			// and we want it only here without any additional checks.
 			if flagVersion {
 				fmt.Println(pmm.VERSION)
 				os.Exit(0)
@@ -71,6 +72,23 @@ var (
 			// Set APIs and check if server is alive.
 			if err := admin.SetAPI(); err != nil {
 				fmt.Printf("%s\n", err)
+				os.Exit(1)
+			}
+
+			// Proceed to "pmm-admin repair" if requested.
+			if cmd.Name() == "repair" {
+				return
+			}
+
+			// Check for broken installation.
+			if brokenServices := admin.CheckInstallation(); len(brokenServices) != 0 {
+				fmt.Printf(`We have found system services disconnected from PMM server.
+Usually, this happens when data container is wiped before all monitoring services are removed or client is uninstalled.
+
+Orphaned services: %s
+
+To continue, run 'pmm-admin repair' to remove orphaned services.
+`, strings.Join(brokenServices, ", "))
 				os.Exit(1)
 			}
 		},
@@ -677,6 +695,18 @@ please check the firewall settings whether this system allows incoming connectio
 		},
 	}
 
+	cmdRepair = &cobra.Command{
+		Use:   "repair",
+		Short: "Repair installation.",
+		Long:  "This command removes orphaned services disconnected from PMM server.",
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := admin.RepairInstallation(); err != nil {
+				fmt.Printf("Problem repairing the installation: %s\n", err)
+				os.Exit(1)
+			}
+		},
+	}
+
 	flagConfigFile, flagMongoURI, flagMongoNodeType, flagMongoReplSet, flagMongoCluster string
 
 	flagVersion, flagNoEmoji, flagAll, flagForce bool
@@ -689,8 +719,8 @@ please check the firewall settings whether this system allows incoming connectio
 func main() {
 	// Commands.
 	cobra.EnableCommandSorting = false
-	rootCmd.AddCommand(cmdAdd, cmdRemove, cmdList, cmdConfig, cmdInfo, cmdCheckNet, cmdPing,
-		cmdStart, cmdStop, cmdRestart)
+	rootCmd.AddCommand(cmdConfig, cmdAdd, cmdRemove, cmdList, cmdInfo, cmdCheckNet, cmdPing, cmdStart, cmdStop,
+		cmdRestart, cmdRepair)
 	cmdAdd.AddCommand(cmdAddMySQL, cmdAddLinuxMetrics, cmdAddMySQLMetrics, cmdAddMySQLQueries,
 		cmdAddMongoDB, cmdAddMongoDBMetrics)
 	cmdRemove.AddCommand(cmdRemoveMySQL, cmdRemoveLinuxMetrics, cmdRemoveMySQLMetrics, cmdRemoveMySQLQueries,

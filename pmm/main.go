@@ -24,6 +24,8 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -480,11 +482,10 @@ func (a *Admin) PrintInfo() {
 // ServerInfo print server info.
 func (a *Admin) ServerInfo() {
 	var labels []string
-	if a.Config.ServerSSL {
-		labels = append(labels, "SSL")
-	}
 	if a.Config.ServerInsecureSSL {
 		labels = append(labels, "insecure SSL")
+	} else if a.Config.ServerSSL {
+		labels = append(labels, "SSL")
 	}
 	if a.Config.ServerUser != "" {
 		labels = append(labels, "password-protected")
@@ -702,6 +703,72 @@ func (a *Admin) availablePort(port uint) (bool, error) {
 		}
 	}
 	return true, nil
+}
+
+// CheckInstallation check for broken installation.
+func (a *Admin) CheckInstallation() []string {
+	var (
+		dir            string
+		extension      string
+		services       []string
+		brokenServices []string
+	)
+	switch service.Platform() {
+	case "linux-systemd":
+		dir = "/etc/systemd/system"
+		extension = ".service"
+	case "linux-upstart":
+		dir = "/etc/init"
+		extension = ".conf"
+	case "unix-systemv":
+		dir = "/etc/init.d"
+		extension = ""
+	}
+
+	filesFound, err := filepath.Glob(fmt.Sprintf("%s/pmm-*%s", dir, extension))
+	rService, _ := regexp.Compile(fmt.Sprintf("%s/(pmm-.+)%s", dir, extension))
+	for _, f := range filesFound {
+		s := ""
+		if data := rService.FindStringSubmatch(f); data != nil {
+			s = data[1]
+		}
+		services = append(services, s)
+	}
+
+	node, _, err := a.consulapi.Catalog().Node(a.Config.ClientName, nil)
+	if err != nil || node == nil || len(node.Services) == 0 {
+		return services
+	}
+
+	// Find which system services are not associated with Consul services.
+MainLoop:
+	for _, s := range services {
+		for _, svc := range node.Services {
+			svcName := fmt.Sprintf("pmm-%s-%d", strings.Replace(svc.Service, ":", "-", 1), svc.Port)
+			if s == svcName {
+				continue MainLoop
+			}
+		}
+		brokenServices = append(brokenServices, s)
+	}
+
+	return brokenServices
+}
+
+// RepairInstallation repair installation.
+func (a *Admin) RepairInstallation() error {
+	services := a.CheckInstallation()
+	for _, s := range services {
+		if err := uninstallService(s); err != nil {
+			return err
+		}
+	}
+	if len(services) > 0 {
+		fmt.Printf("OK, removed %d orphaned services.\n", len(services))
+	} else {
+		fmt.Println("No orphaned services found.")
+	}
+	return nil
 }
 
 // FileExists check if file exists.
