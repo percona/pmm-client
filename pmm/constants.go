@@ -42,7 +42,7 @@ var (
 	ErrNoService = fmt.Errorf("no service found.")
 	ErrOneLinux  = fmt.Errorf("there could be only one instance of linux metrics being monitored for this system.")
 
-	errOrphanedAgent = fmt.Errorf("cannot find os instance on QAN API.")
+	errNoInstance = fmt.Errorf("no instance found on QAN API.")
 )
 
 const nodeExporterArgs = "-collectors.enabled=diskstats,filesystem,loadavg,meminfo,netdev,netstat,stat,time,uname,vmstat"

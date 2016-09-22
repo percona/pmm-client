@@ -98,7 +98,7 @@ func TestMySQLCheck4(t *testing.T) {
 	rows = sqlmock.NewRows([]string{"col1"})
 	mock.ExpectQuery("SHOW SLAVE STATUS").WillReturnRows(rows)
 
-	rows = sqlmock.NewRows([]string{"col1"})
+	rows = sqlmock.NewRows([]string{"col1"}).AddRow("grants...")
 	mock.ExpectQuery("SHOW GRANTS FOR 'pmm'@'localhost'").WillReturnRows(rows)
 
 	convey.Convey("MySQL checks FAIL", t, func() {

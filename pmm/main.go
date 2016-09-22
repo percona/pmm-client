@@ -803,7 +803,23 @@ func (a *Admin) RepairInstallation() error {
 		if _, err := a.consulapi.Catalog().Deregister(&dereg, nil); err != nil {
 			return err
 		}
+
 		prefix := fmt.Sprintf("%s/%s/", a.Config.ClientName, s)
+
+		// Try to delete mysql instances from QAN associated with queries service on KV.
+		names, _, err := a.consulapi.KV().Keys(prefix, "", nil)
+		if err == nil {
+			for _, name := range names {
+				if !strings.HasSuffix(name, "/qan_mysql_uuid") {
+					continue
+				}
+				data, _, err := a.consulapi.KV().Get(name, nil)
+				if err == nil && data != nil {
+					a.deleteMySQLinstance(string(data.Value))
+				}
+			}
+		}
+
 		a.consulapi.KV().DeleteTree(prefix, nil)
 	}
 

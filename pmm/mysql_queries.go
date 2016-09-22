@@ -65,9 +65,10 @@ func (a *Admin) AddMySQLQueries(info map[string]string) error {
 	if err != nil {
 		return err
 	}
-	qanOSInstance, err := a.getQanOSInstance(agentID)
-	if err == errOrphanedAgent {
-		// If agent is orphaned, let's reinstall it.
+	// Get parent_uuid of agent instance.
+	parentUUID, err := a.getAgentInstance(agentID)
+	if err == errNoInstance {
+		// If agent is orphaned, let's re-register it.
 		if err := a.registerAgent(); err != nil {
 			return err
 		}
@@ -76,8 +77,20 @@ func (a *Admin) AddMySQLQueries(info map[string]string) error {
 		if err != nil {
 			return err
 		}
-		// Get os instance again.
-		qanOSInstance, err = a.getQanOSInstance(agentID)
+		// Get parent_uuid again.
+		parentUUID, err = a.getAgentInstance(agentID)
+		if err != nil {
+			return err
+		}
+	} else if err != nil {
+		return err
+	}
+
+	// Check if related MySQL instance exists or try to re-use the existing one.
+	mysqlUUID, err := a.getMySQLInstance(a.ServiceName, parentUUID)
+	if err == errNoInstance {
+		// Create new MySQL instance on QAN.
+		mysqlUUID, err = a.createMySQLInstance(info, parentUUID)
 		if err != nil {
 			return err
 		}
@@ -121,48 +134,9 @@ func (a *Admin) AddMySQLQueries(info map[string]string) error {
 		}
 	}
 
-	// Add new MySQL instance to QAN.
-	in := proto.Instance{
-		Subsystem:  "mysql",
-		ParentUUID: qanOSInstance.ParentUUID,
-		Name:       a.ServiceName,
-		DSN:        info["safe_dsn"],
-		Distro:     info["distro"],
-		Version:    info["version"],
-	}
-	inBytes, _ := json.Marshal(in)
-	url := a.qanapi.URL(a.serverUrl, qanAPIBasePath, "instances")
-	resp, content, err := a.qanapi.Post(url, inBytes)
-	if err != nil {
-		return err
-	}
-	switch resp.StatusCode {
-	case http.StatusCreated:
-	case http.StatusConflict:
-		// instance already exists based on Name
-	default:
-		return a.qanapi.Error("POST", url, resp.StatusCode, http.StatusCreated, content)
-	}
-
-	// The URI of the new instance is reported in the Location header, fetch it to get UUID assigned.
-	// Do not call the returned URL as QAN API returns an invalid one.
-	var bytes []byte
-	t := strings.Split(resp.Header.Get("Location"), "/")
-	url = a.qanapi.URL(url, t[len(t)-1])
-	resp, bytes, err = a.qanapi.Get(url)
-	if err != nil {
-		return err
-	}
-	if resp.StatusCode != http.StatusOK {
-		return a.qanapi.Error("GET", url, resp.StatusCode, http.StatusOK, bytes)
-	}
-	if err := json.Unmarshal(bytes, &in); err != nil {
-		return err
-	}
-
 	// Start QAN by associating MySQL instance with agent.
 	qanConfig := map[string]string{
-		"UUID":        in.UUID,
+		"UUID":        mysqlUUID,
 		"CollectFrom": info["query_source"],
 		"DSN":         info["dsn"],
 	}
@@ -201,7 +175,7 @@ func (a *Admin) AddMySQLQueries(info map[string]string) error {
 		Value: []byte(info["query_source"])}
 	a.consulapi.KV().Put(d, nil)
 	d = &consul.KVPair{Key: fmt.Sprintf("%s/%s/%s/qan_mysql_uuid", a.Config.ClientName, serviceID, a.ServiceName),
-		Value: []byte(in.UUID)}
+		Value: []byte(mysqlUUID)}
 	a.consulapi.KV().Put(d, nil)
 
 	return nil
@@ -240,16 +214,9 @@ func (a *Admin) RemoveMySQLQueries() error {
 		return err
 	}
 
-	// Remove MySQL instance from QAN.
-	url := a.qanapi.URL(a.serverUrl, qanAPIBasePath, "instances", mysqlUUID)
-	resp, content, err := a.qanapi.Delete(url)
-	if err != nil {
+	// Delete MySQL instance.
+	if err := a.deleteMySQLinstance(mysqlUUID); err != nil {
 		return err
-	}
-	switch resp.StatusCode {
-	case http.StatusNoContent:
-	default:
-		return a.qanapi.Error("DELETE", url, resp.StatusCode, http.StatusNoContent, content)
 	}
 
 	prefix := fmt.Sprintf("%s/%s/%s/", a.Config.ClientName, consulSvc.ID, a.ServiceName)
@@ -294,29 +261,130 @@ func (a *Admin) RemoveMySQLQueries() error {
 	return nil
 }
 
-// getQanOSInstance get os instance from QAN API that the local agent is associated with.
-func (a *Admin) getQanOSInstance(agentID string) (proto.Instance, error) {
+// getAgentInstance get agent instance from QAN API and return its parent_uuid.
+func (a *Admin) getAgentInstance(agentID string) (string, error) {
 	var in proto.Instance
 	url := a.qanapi.URL(a.serverUrl, qanAPIBasePath, "instances", agentID)
 	resp, bytes, err := a.qanapi.Get(url)
 	if err != nil {
-		return in, err
+		return "", err
 	}
 	if resp.StatusCode == http.StatusNotFound {
-		// No os instance on QAN API - orphaned agent installation.
-		return in, errOrphanedAgent
+		// No agent instance on QAN API - orphaned agent installation.
+		return "", errNoInstance
 	}
 	if resp.StatusCode != http.StatusOK {
-		return in, a.qanapi.Error("GET", url, resp.StatusCode, http.StatusOK, bytes)
-	}
-	if err := json.Unmarshal(bytes, &in); err != nil {
-		return in, err
+		return "", a.qanapi.Error("GET", url, resp.StatusCode, http.StatusOK, bytes)
 	}
 
-	return in, nil
+	if err := json.Unmarshal(bytes, &in); err != nil {
+		return "", err
+	}
+
+	return in.ParentUUID, nil
 }
 
-// startQAN call QAN API to start agent.
+// getMySQLInstance get or re-use mysql instance from QAN API and return its UUID.
+func (a *Admin) getMySQLInstance(name, parentUUID string) (string, error) {
+	var in proto.Instance
+	url := a.qanapi.URL(a.serverUrl, qanAPIBasePath, "instances",
+		fmt.Sprintf("?type=mysql&name=%s&parent_uuid=%s", name, parentUUID))
+	resp, bytes, err := a.qanapi.Get(url)
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode == http.StatusNotFound {
+		return "", errNoInstance
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", a.qanapi.Error("GET", url, resp.StatusCode, http.StatusOK, bytes)
+	}
+
+	if err := json.Unmarshal(bytes, &in); err != nil {
+		return "", err
+	}
+	// Ensure this is the right instance.
+	// QAN API 1.0.4 didn't support filtering on parent_uuid, thus returning first record found.
+	if in.ParentUUID != parentUUID {
+		return "", errNoInstance
+	}
+
+	// Instance exists, let's undelete it.
+	in.Deleted = time.Time{}
+	cmdBytes, _ := json.Marshal(in)
+	url = a.qanapi.URL(a.serverUrl, qanAPIBasePath, "instances", in.UUID)
+	resp, content, err := a.qanapi.Put(url, cmdBytes)
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode != http.StatusNoContent {
+		return "", a.qanapi.Error("PUT", url, resp.StatusCode, http.StatusNoContent, content)
+
+	}
+
+	// Ensure it was undeleted.
+	// QAN API 1.0.4 didn't support changing "deleted" field.
+	url = a.qanapi.URL(a.serverUrl, qanAPIBasePath, "instances", in.UUID)
+	resp, bytes, err = a.qanapi.Get(url)
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", a.qanapi.Error("GET", url, resp.StatusCode, http.StatusOK, bytes)
+	}
+
+	if err := json.Unmarshal(bytes, &in); err != nil {
+		return "", err
+	}
+	// If it's not "0001-01-01 00:00:00 +0000 UTC", it was not undeleted.
+	if !in.Deleted.IsZero() {
+		return "", errNoInstance
+	}
+
+	return in.UUID, nil
+}
+
+// createMySQLInstance create mysql instance on QAN API and return its UUID.
+func (a *Admin) createMySQLInstance(info map[string]string, parentUUID string) (string, error) {
+	in := proto.Instance{
+		Subsystem:  "mysql",
+		ParentUUID: parentUUID,
+		Name:       a.ServiceName,
+		DSN:        info["safe_dsn"],
+		Distro:     info["distro"],
+		Version:    info["version"],
+	}
+	inBytes, _ := json.Marshal(in)
+	url := a.qanapi.URL(a.serverUrl, qanAPIBasePath, "instances")
+	resp, content, err := a.qanapi.Post(url, inBytes)
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode != http.StatusCreated {
+		return "", a.qanapi.Error("POST", url, resp.StatusCode, http.StatusCreated, content)
+	}
+
+	// The URI of the new instance is reported in the Location header, fetch it to get UUID assigned.
+	// Do not call the returned URL as QAN API returns an invalid one.
+	var bytes []byte
+	t := strings.Split(resp.Header.Get("Location"), "/")
+	url = a.qanapi.URL(url, t[len(t)-1])
+	resp, bytes, err = a.qanapi.Get(url)
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", a.qanapi.Error("GET", url, resp.StatusCode, http.StatusOK, bytes)
+	}
+
+	if err := json.Unmarshal(bytes, &in); err != nil {
+		return "", err
+	}
+
+	return in.UUID, err
+}
+
+// manageQAN enable/disable QAN on agent through QAN API.
 func (a *Admin) manageQAN(agentID, cmdName, UUID string, config map[string]string) error {
 	var data []byte
 	if cmdName == "StartTool" {
@@ -337,41 +405,24 @@ func (a *Admin) manageQAN(agentID, cmdName, UUID string, config map[string]strin
 
 	// It takes a few seconds for agent to connect to QAN API once it is started via service manager.
 	// QAN API fails to start/stop unconnected agent for QAN, so we retry the request when getting 404 response.
-RetryLoop:
 	for i := 0; i < 10; i++ {
 		resp, content, err := a.qanapi.Put(url, cmdBytes)
 		if err != nil {
 			return err
 		}
-		switch resp.StatusCode {
-		case http.StatusNotFound:
+		if resp.StatusCode == http.StatusNotFound {
 			time.Sleep(time.Second)
-			continue RetryLoop
-		case http.StatusOK:
+			continue
+		}
+		if resp.StatusCode == http.StatusOK {
 			return nil
 		}
 		return a.qanapi.Error("PUT", url, resp.StatusCode, http.StatusOK, content)
 	}
-
 	return fmt.Errorf("timeout 10s waiting on agent to connect to API.")
 }
 
-// getAgentID read QAN agent ID from its config file.
-func getAgentID() (string, error) {
-	jsonData, err := ioutil.ReadFile(agentConfigFile)
-	if err != nil {
-		return "", err
-	}
-
-	config := &config.Agent{}
-	if err := json.Unmarshal(jsonData, &config); err != nil {
-		return "", err
-	}
-
-	return config.UUID, nil
-}
-
-// registerAgent Register agent on QAN API using agent installer.
+// registerAgent register agent on QAN API using agent installer.
 func (a *Admin) registerAgent() error {
 	// Remove agent dirs to ensure clean installation. Using full paths to avoid unexpected removals.
 	os.RemoveAll("/usr/local/percona/qan-agent/config")
@@ -395,4 +446,34 @@ func (a *Admin) registerAgent() error {
 		return fmt.Errorf("problem with agent registration on QAN API: %s", err)
 	}
 	return nil
+}
+
+// deleteMySQLinstance delete mysql instance on QAN API.
+func (a *Admin) deleteMySQLinstance(mysqlUUID string) error {
+	// Remove MySQL instance from QAN.
+	url := a.qanapi.URL(a.serverUrl, qanAPIBasePath, "instances", mysqlUUID)
+	resp, content, err := a.qanapi.Delete(url)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != http.StatusNoContent {
+		return a.qanapi.Error("DELETE", url, resp.StatusCode, http.StatusNoContent, content)
+	}
+
+	return nil
+}
+
+// getAgentID read QAN agent ID from its config file.
+func getAgentID() (string, error) {
+	jsonData, err := ioutil.ReadFile(agentConfigFile)
+	if err != nil {
+		return "", err
+	}
+
+	config := &config.Agent{}
+	if err := json.Unmarshal(jsonData, &config); err != nil {
+		return "", err
+	}
+
+	return config.UUID, nil
 }
