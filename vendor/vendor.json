@@ -47,10 +47,10 @@
 			"revisionTime": "2015-12-22T15:32:29Z"
 		},
 		{
-			"checksumSHA1": "059gprtgiBVVpa/X6gPgTnNva2w=",
+			"checksumSHA1": "NfM8QiaK07ErHiN/2Vwv/zwMJ7U=",
 			"path": "github.com/percona/go-mysql/dsn",
-			"revision": "60ad788a64b0551305882f64fb5b789b51d3476a",
-			"revisionTime": "2016-08-04T17:45:23Z"
+			"revision": "8b6b6a205b05133beec85fb695d17f9074ca79ea",
+			"revisionTime": "2016-09-23T14:13:10Z"
 		},
 		{
 			"checksumSHA1": "ztWAjoHsEa1Z7ZB5UD6DXjeMXS0=",
