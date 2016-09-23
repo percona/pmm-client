@@ -8,6 +8,7 @@ v1.0.5 unreleased 2016-09-23
 * Disallowed inital client configuration with the name that is currently in use.
 * Fixes for "mysql:queries" service:
   * improved registration and detection of orphaned setup
+  * pid file "" is not longer created on Amazon Linux
   * correctly detect when the slow log is rotated
   * handling MySQL using a timezone different than UTC.
 
