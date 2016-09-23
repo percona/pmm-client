@@ -310,7 +310,7 @@ func (a *Admin) getMySQLInstance(name, parentUUID string) (string, error) {
 	}
 
 	// Instance exists, let's undelete it.
-	in.Deleted = time.Time{}
+	in.Deleted = time.Unix(1, 0)
 	cmdBytes, _ := json.Marshal(in)
 	url = a.qanapi.URL(a.serverUrl, qanAPIBasePath, "instances", in.UUID)
 	resp, content, err := a.qanapi.Put(url, cmdBytes)
@@ -336,8 +336,8 @@ func (a *Admin) getMySQLInstance(name, parentUUID string) (string, error) {
 	if err := json.Unmarshal(bytes, &in); err != nil {
 		return "", err
 	}
-	// If it's not "0001-01-01 00:00:00 +0000 UTC", it was not undeleted.
-	if !in.Deleted.IsZero() {
+	// If it's not "1970-01-01 00:00:00 +0000 UTC", it was left deleted.
+	if in.Deleted.Year() != 1970 {
 		return "", errNoInstance
 	}
 
