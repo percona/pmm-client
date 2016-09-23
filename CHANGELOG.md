@@ -7,8 +7,8 @@ v1.0.5 unreleased 2016-09-23
 * Amended "check-network" output.
 * Disallowed inital client configuration with the name that is currently in use.
 * Fixes for "mysql:queries" service:
-  * improved registration
-  * fix for slow log rotation
+  * improved registration and detection of orphaned setup
+  * correctly detect when the slow log is rotated
   * handling MySQL using a timezone different than UTC.
 
 v1.0.4 released 2016-09-13

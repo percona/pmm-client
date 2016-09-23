@@ -70,7 +70,7 @@ func (a *Admin) DetectMySQL(mf MySQLFlags) (map[string]string, error) {
 		Hostname:     mf.Host,
 		Port:         mf.Port,
 		Socket:       mf.Socket,
-		Params:       []string{dsn.ParseTimeParam},
+		Params:       []string{dsn.ParseTimeParam, dsn.TimezoneParam, dsn.LocationParam},
 	}
 	// Populate defaults to DSN for missed options.
 	userDSN, err := userDSN.AutoDetect()
