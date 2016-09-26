@@ -120,8 +120,8 @@ Missed services: %s
 			if len(args) > 0 {
 				admin.ServiceName = args[0]
 			}
-			if match, _ := regexp.MatchString(`^[-\w:\.]+$`, admin.ServiceName); !match {
-				fmt.Println("Service name should contain only alphanumeric characters and _ - . :")
+			if match, _ := regexp.MatchString(`^[-\w:\.]{2,60}$`, admin.ServiceName); !match {
+				fmt.Println("Service name must be 2 to 60 characters long, contain only letters, numbers and symbols _ - . :")
 				os.Exit(1)
 			}
 		},
