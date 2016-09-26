@@ -120,7 +120,7 @@ Missed services: %s
 			if len(args) > 0 {
 				admin.ServiceName = args[0]
 			}
-			if match, _ := regexp.MatchString(`^[-\w:\.]{2,60}$`, admin.ServiceName); !match {
+			if match, _ := regexp.MatchString(pmm.NameRegex, admin.ServiceName); !match {
 				fmt.Println("Service name must be 2 to 60 characters long, contain only letters, numbers and symbols _ - . :")
 				os.Exit(1)
 			}
@@ -725,7 +725,7 @@ It removes local services disconnected from PMM server and remote services that 
 
 	flagVersion, flagNoEmoji, flagAll, flagForce bool
 
-	flagServicePort uint
+	flagServicePort uint16
 	flagM           pmm.MySQLFlags
 	flagC           pmm.Config
 )
@@ -752,7 +752,7 @@ func main() {
 	cmdConfig.Flags().BoolVar(&flagC.ServerSSL, "server-ssl", false, "Enable SSL to communicate with PMM Server")
 	cmdConfig.Flags().BoolVar(&flagC.ServerInsecureSSL, "server-insecure-ssl", false, "Enable insecure SSL (self-signed certificate) to communicate with PMM Server")
 
-	cmdAdd.PersistentFlags().UintVar(&flagServicePort, "service-port", 0, "service port")
+	cmdAdd.PersistentFlags().Uint16Var(&flagServicePort, "service-port", 0, "service port")
 
 	cmdAddLinuxMetrics.Flags().BoolVar(&flagForce, "force", false, "force to add another linux:metrics instance with different name for testing purpose")
 
@@ -764,7 +764,7 @@ func main() {
 	cmdAddMySQL.Flags().StringVar(&flagM.Socket, "socket", "", "MySQL socket")
 	cmdAddMySQL.Flags().BoolVar(&flagM.CreateUser, "create-user", false, "create a new MySQL user")
 	cmdAddMySQL.Flags().StringVar(&flagM.CreateUserPassword, "create-user-password", "", "optional password for a new MySQL user")
-	cmdAddMySQL.Flags().UintVar(&flagM.MaxUserConn, "create-user-maxconn", 5, "max user connections for a new user")
+	cmdAddMySQL.Flags().Uint16Var(&flagM.MaxUserConn, "create-user-maxconn", 5, "max user connections for a new user")
 	cmdAddMySQL.Flags().BoolVar(&flagM.Force, "force", false, "force to create/update MySQL user")
 	cmdAddMySQL.Flags().BoolVar(&flagM.DisableTableStats, "disable-tablestats", false, "disable table statistics (disabled automatically with 10000+ tables)")
 	cmdAddMySQL.Flags().BoolVar(&flagM.DisableUserStats, "disable-userstats", false, "disable user statistics")
@@ -780,7 +780,7 @@ func main() {
 	cmdAddMySQLMetrics.Flags().StringVar(&flagM.Socket, "socket", "", "MySQL socket")
 	cmdAddMySQLMetrics.Flags().BoolVar(&flagM.CreateUser, "create-user", false, "create a new MySQL user")
 	cmdAddMySQLMetrics.Flags().StringVar(&flagM.CreateUserPassword, "create-user-password", "", "optional password for a new MySQL user")
-	cmdAddMySQLMetrics.Flags().UintVar(&flagM.MaxUserConn, "create-user-maxconn", 5, "max user connections for a new user")
+	cmdAddMySQLMetrics.Flags().Uint16Var(&flagM.MaxUserConn, "create-user-maxconn", 5, "max user connections for a new user")
 	cmdAddMySQLMetrics.Flags().BoolVar(&flagM.Force, "force", false, "force to create/update MySQL user")
 	cmdAddMySQLMetrics.Flags().BoolVar(&flagM.DisableTableStats, "disable-tablestats", false, "disable table statistics (for MySQL with a huge number of tables)")
 	cmdAddMySQLMetrics.Flags().BoolVar(&flagM.DisableUserStats, "disable-userstats", false, "disable user statistics")
@@ -795,7 +795,7 @@ func main() {
 	cmdAddMySQLQueries.Flags().StringVar(&flagM.Socket, "socket", "", "MySQL socket")
 	cmdAddMySQLQueries.Flags().BoolVar(&flagM.CreateUser, "create-user", false, "create a new MySQL user")
 	cmdAddMySQLQueries.Flags().StringVar(&flagM.CreateUserPassword, "create-user-password", "", "optional password for a new MySQL user")
-	cmdAddMySQLQueries.Flags().UintVar(&flagM.MaxUserConn, "create-user-maxconn", 5, "max user connections for a new user")
+	cmdAddMySQLQueries.Flags().Uint16Var(&flagM.MaxUserConn, "create-user-maxconn", 5, "max user connections for a new user")
 	cmdAddMySQLQueries.Flags().BoolVar(&flagM.Force, "force", false, "force to create/update MySQL user")
 	cmdAddMySQLQueries.Flags().StringVar(&flagM.QuerySource, "query-source", "auto", "source of SQL queries: auto, slowlog, perfschema")
 

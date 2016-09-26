@@ -100,7 +100,7 @@ func (a *Admin) AddMySQLQueries(info map[string]string) error {
 
 	// Don't install service if we have already another "mysql:queries".
 	// 1 agent handles multiple MySQL instances for QAN.
-	var port uint
+	var port uint16
 	if consulSvc == nil {
 		if a.ServicePort > 0 {
 			// The port is user defined.
@@ -126,7 +126,7 @@ func (a *Admin) AddMySQLQueries(info map[string]string) error {
 			return err
 		}
 	} else {
-		port = uint(consulSvc.Port)
+		port = uint16(consulSvc.Port)
 		// Ensure qan-agent is started if service exists, otherwise it won't be enabled for QAN.
 		if err := startService(fmt.Sprintf("pmm-mysql-queries-%d", port)); err != nil {
 			return err

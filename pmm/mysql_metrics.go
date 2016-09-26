@@ -42,7 +42,7 @@ func (a *Admin) AddMySQLMetrics(info map[string]string, mf MySQLFlags) error {
 	}
 
 	// Choose port.
-	var port uint
+	var port uint16
 	if a.ServicePort > 0 {
 		// The port is user defined.
 		port, err = a.choosePort(a.ServicePort, true)

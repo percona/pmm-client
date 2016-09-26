@@ -61,7 +61,7 @@ type instanceStatus struct {
 // Main class.
 type Admin struct {
 	ServiceName string
-	ServicePort uint
+	ServicePort uint16
 	Config      *Config
 	filename    string
 	serverUrl   string
@@ -169,6 +169,10 @@ It has the active services so you cannot change client name as requested.`,
 		}
 
 		a.Config.ClientName = cf.ClientName
+	}
+	if match, _ := regexp.MatchString(NameRegex, a.Config.ClientName); !match {
+		return fmt.Errorf(`Client name must be 2 to 60 characters long, contain only letters, numbers and symbols _ - . :
+Use --client-name flag to set the correct one.`)
 	}
 
 	// Client address. Initial setup.
@@ -679,7 +683,7 @@ Choose different name for this service.`,
 }
 
 // choosePort automatically choose the port for service.
-func (a *Admin) choosePort(port uint, userDefined bool) (uint, error) {
+func (a *Admin) choosePort(port uint16, userDefined bool) (uint16, error) {
 	// Check if user defined port is not used.
 	if userDefined {
 		ok, err := a.availablePort(port)
@@ -706,14 +710,14 @@ func (a *Admin) choosePort(port uint, userDefined bool) (uint, error) {
 }
 
 // availablePort check if port is occupied by any service on Consul.
-func (a *Admin) availablePort(port uint) (bool, error) {
+func (a *Admin) availablePort(port uint16) (bool, error) {
 	node, _, err := a.consulapi.Catalog().Node(a.Config.ClientName, nil)
 	if err != nil {
 		return false, err
 	}
 	if node != nil {
 		for _, svc := range node.Services {
-			if port == uint(svc.Port) {
+			if port == uint16(svc.Port) {
 				return false, nil
 			}
 		}

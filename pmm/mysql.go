@@ -41,7 +41,7 @@ type MySQLFlags struct {
 
 	CreateUser         bool
 	CreateUserPassword string
-	MaxUserConn        uint
+	MaxUserConn        uint16
 	Force              bool
 
 	DisableTableStats  bool
@@ -229,7 +229,7 @@ func mysqlCheck(db *sql.DB, hosts []string) error {
 	return nil
 }
 
-func makeGrants(dsn dsn.DSN, hosts []string, conn uint) []string {
+func makeGrants(dsn dsn.DSN, hosts []string, conn uint16) []string {
 	var grants []string
 	for _, host := range hosts {
 		grants = append(grants,

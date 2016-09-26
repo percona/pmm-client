@@ -115,7 +115,7 @@ func TestMakeGrants(t *testing.T) {
 	type sample struct {
 		dsn    dsn.DSN
 		hosts  []string
-		conn   uint
+		conn   uint16
 		grants []string
 	}
 	samples := []sample{

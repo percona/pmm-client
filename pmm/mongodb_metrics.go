@@ -42,7 +42,7 @@ func (a *Admin) AddMongoDBMetrics(uri, nodetype, replset, cluster string) error 
 	}
 
 	// Choose port.
-	var port uint
+	var port uint16
 	if a.ServicePort > 0 {
 		// The port is user defined.
 		port, err = a.choosePort(a.ServicePort, true)
