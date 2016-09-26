@@ -86,20 +86,22 @@ var (
 				fmt.Printf(`We have found system services disconnected from PMM server.
 Usually, this happens when data container is wiped before all monitoring services are removed or client is uninstalled.
 
-Orphaned services: %s
+Orphaned local services: %s
 
+To continue, run 'pmm-admin repair' to remove orphaned services.
 `, strings.Join(orphanedServices, ", "))
+				os.Exit(1)
 			}
 			if len(missedServices) > 0 {
 				fmt.Printf(`PMM server reports services that are missed locally.
 Usually, this happens when the system is completely reinstalled.
 
-Missed services: %s
+Orphaned remote services: %s
 
+Beware, if another system with the same client name created those services, repairing the installation will remove remote services
+and the other system will be left with orphaned local services. If you are sure there is no other system with the same name,
+run 'pmm-admin repair' to remove orphaned services. Otherwise, please reinstall this client.
 `, strings.Join(missedServices, ", "))
-			}
-			if len(orphanedServices) > 0 || len(missedServices) > 0 {
-				fmt.Println("To continue, run 'pmm-admin repair' to remove orphaned services.")
 				os.Exit(1)
 			}
 		},
