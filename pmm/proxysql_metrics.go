@@ -19,17 +19,15 @@ package pmm
 
 import (
 	"fmt"
-	"strconv"
-	"strings"
 
 	consul "github.com/hashicorp/consul/api"
 	"github.com/percona/kardianos-service"
 )
 
-// AddMySQLMetrics add mysql metrics service to monitoring.
-func (a *Admin) AddMySQLMetrics(info map[string]string, mf MySQLFlags) error {
+// AddProxySQLMetrics add proxysql service to monitoring.
+func (a *Admin) AddProxySQLMetrics(dsn string) error {
 	// Check if we have already this service on Consul.
-	consulSvc, err := a.getConsulService("mysql:metrics", a.ServiceName)
+	consulSvc, err := a.getConsulService("proxysql:metrics", a.ServiceName)
 	if err != nil {
 		return err
 	}
@@ -37,7 +35,7 @@ func (a *Admin) AddMySQLMetrics(info map[string]string, mf MySQLFlags) error {
 		return ErrDuplicate
 	}
 
-	if err := a.checkGlobalDuplicateService("mysql:metrics", a.ServiceName); err != nil {
+	if err := a.checkGlobalDuplicateService("proxysql:metrics", a.ServiceName); err != nil {
 		return err
 	}
 
@@ -48,34 +46,17 @@ func (a *Admin) AddMySQLMetrics(info map[string]string, mf MySQLFlags) error {
 		port, err = a.choosePort(a.ServicePort, true)
 	} else {
 		// Choose first port available starting the given default one.
-		port, err = a.choosePort(42002, false)
+		port, err = a.choosePort(42004, false)
 	}
-	// We consider the first port available as okay despite 3 mysql services.
 	if err != nil {
 		return err
 	}
 
-	// Opts to disable.
-	var optsToDisable []string
-	count, _ := strconv.ParseUint(info["table_count"], 10, 32)
-	if mf.DisableTableStats || count > 10000 {
-		optsToDisable = append(optsToDisable, "tablestats")
-	}
-	if mf.DisableUserStats {
-		optsToDisable = append(optsToDisable, "userstats")
-	}
-	if mf.DisableBinlogStats {
-		optsToDisable = append(optsToDisable, "binlogstats")
-	}
-	if mf.DisableProcesslist {
-		optsToDisable = append(optsToDisable, "processlist")
-	}
-
 	// Add service to Consul.
-	serviceID := fmt.Sprintf("mysql:metrics-%d", port)
+	serviceID := fmt.Sprintf("proxysql:metrics-%d", port)
 	srv := consul.AgentService{
 		ID:      serviceID,
-		Service: "mysql:metrics",
+		Service: "proxysql:metrics",
 		Tags:    []string{fmt.Sprintf("alias_%s", a.ServiceName)},
 		Port:    int(port),
 	}
@@ -88,36 +69,19 @@ func (a *Admin) AddMySQLMetrics(info map[string]string, mf MySQLFlags) error {
 		return err
 	}
 
-	// Disable exporter options if set so.
-	args := mysqldExporterArgs
-	for _, o := range optsToDisable {
-		for _, f := range mysqldExporterDisableArgs[o] {
-			for i, a := range mysqldExporterArgs {
-				if strings.HasPrefix(a, f) {
-					args[i] = fmt.Sprintf("%sfalse", f)
-					break
-				}
-			}
-		}
-
-		// Add info to Consul KV.
-		d := &consul.KVPair{Key: fmt.Sprintf("%s/%s/%s", a.Config.ClientName, serviceID, o),
-			Value: []byte("OFF")}
-		a.consulapi.KV().Put(d, nil)
-	}
-
+	// Add info to Consul KV.
 	d := &consul.KVPair{Key: fmt.Sprintf("%s/%s/dsn", a.Config.ClientName, serviceID),
-		Value: []byte(info["safe_dsn"])}
+		Value: []byte(SanitizeDSN(dsn))}
 	a.consulapi.KV().Put(d, nil)
 
 	// Install and start service via platform service manager.
 	svcConfig := &service.Config{
-		Name:        fmt.Sprintf("pmm-mysql-metrics-%d", port),
-		DisplayName: fmt.Sprintf("PMM Prometheus mysqld_exporter %d", port),
-		Description: fmt.Sprintf("PMM Prometheus mysqld_exporter %d", port),
-		Executable:  fmt.Sprintf("%s/mysqld_exporter", PMMBaseDir),
-		Arguments:   append(args, fmt.Sprintf("-web.listen-address=%s:%d", a.Config.ClientAddress, port)),
-		Option:      service.KeyValue{"Environment": fmt.Sprintf("DATA_SOURCE_NAME=%s", info["dsn"])},
+		Name:        fmt.Sprintf("pmm-proxysql-metrics-%d", port),
+		DisplayName: "PMM Prometheus proxysql_exporter",
+		Description: "PMM Prometheus proxysql_exporter",
+		Executable:  fmt.Sprintf("%s/proxysql_exporter", PMMBaseDir),
+		Arguments:   []string{fmt.Sprintf("-web.listen-address=%s:%d", a.Config.ClientAddress, port)},
+		Option:      service.KeyValue{"Environment": fmt.Sprintf("DATA_SOURCE_NAME=%s", dsn)},
 	}
 	if err := installService(svcConfig); err != nil {
 		return err
@@ -126,10 +90,10 @@ func (a *Admin) AddMySQLMetrics(info map[string]string, mf MySQLFlags) error {
 	return nil
 }
 
-// RemoveMySQLMetrics remove mysql metrics service from monitoring.
-func (a *Admin) RemoveMySQLMetrics() error {
+// RemoveProxySQLMetrics remove proxysql service from monitoring.
+func (a *Admin) RemoveProxySQLMetrics() error {
 	// Check if we have this service on Consul.
-	consulSvc, err := a.getConsulService("mysql:metrics", a.ServiceName)
+	consulSvc, err := a.getConsulService("proxysql:metrics", a.ServiceName)
 	if err != nil {
 		return err
 	}
@@ -150,7 +114,7 @@ func (a *Admin) RemoveMySQLMetrics() error {
 	a.consulapi.KV().DeleteTree(prefix, nil)
 
 	// Stop and uninstall service.
-	if err := uninstallService(fmt.Sprintf("pmm-mysql-metrics-%d", consulSvc.Port)); err != nil {
+	if err := uninstallService(fmt.Sprintf("pmm-proxysql-metrics-%d", consulSvc.Port)); err != nil {
 		return err
 	}
 

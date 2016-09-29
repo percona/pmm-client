@@ -53,6 +53,10 @@ cd $SOURCE_DIR
 go build -ldflags "-X main.version=$VER -X main.versionGitCommit=$commit" \
     -o distro/bin/mongodb_exporter github.com/Percona-Lab/prometheus_mongodb_exporter
 
+echo "Building proxysql_exporter..."
+go build -ldflags "-X main.version=$VER" \
+    -o distro/bin/proxysql_exporter github.com/percona/proxysql_exporter
+
 echo "Fetching node_exporter $NODE_EXPORTER_VER ..."
 cd distro
 file=node_exporter-${NODE_EXPORTER_VER}.linux-amd64.tar.gz

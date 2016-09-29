@@ -120,7 +120,7 @@ func (a *Admin) AddMySQLQueries(info map[string]string) error {
 			DisplayName: "PMM Query Analytics agent",
 			Description: "PMM Query Analytics agent",
 			Executable:  fmt.Sprintf("%s/bin/percona-qan-agent", agentBaseDir),
-			Arguments: []string{fmt.Sprintf("-listen=127.0.0.1:%d", port)},
+			Arguments:   []string{fmt.Sprintf("-listen=127.0.0.1:%d", port)},
 		}
 		if err := installService(svcConfig); err != nil {
 			return err

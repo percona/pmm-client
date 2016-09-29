@@ -1,9 +1,10 @@
 Percona Monitoring and Management (PMM) Client
 
-v1.0.5 unreleased 2016-09-23
+v1.0.5 unreleased 2016-09-29
 
 * Added check for orphaned local and remote services.
 * Added "repair" command to remove orphaned services.
+* Added "proxysql:metrics" service and proxysql_exporter.
 * Amended "check-network" output.
 * Disallowed inital client configuration with the name that is currently in use.
 * Fixes for "mysql:queries" service:

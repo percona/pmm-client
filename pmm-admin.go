@@ -331,6 +331,21 @@ Use additional options to specify MongoDB node type, cluster, replSet etc.
 			fmt.Println("OK, now monitoring MongoDB metrics using URI", pmm.SanitizeDSN(flagMongoURI))
 		},
 	}
+	cmdAddProxySQLMetrics = &cobra.Command{
+		Use:   "proxysql:metrics [name]",
+		Short: "Add ProxySQL instance to metrics monitoring.",
+		Long: `This command adds the given ProxySQL instance to metrics monitoring.
+
+[name] is an optional argument, by default it is set to the client name of this PMM client.
+		`,
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := admin.AddProxySQLMetrics(flagDSN); err != nil {
+				fmt.Println("Error adding proxysql metrics:", err)
+				os.Exit(1)
+			}
+			fmt.Println("OK, now monitoring ProxySQL metrics using DSN", pmm.SanitizeDSN(flagDSN))
+		},
+	}
 
 	cmdRemove = &cobra.Command{
 		Use:     "remove",
@@ -483,6 +498,21 @@ Use additional options to specify MongoDB node type, cluster, replSet etc.
 				os.Exit(1)
 			}
 			fmt.Printf("OK, removed MongoDB metrics %s from monitoring.\n", admin.ServiceName)
+		},
+	}
+	cmdRemoveProxySQLMetrics = &cobra.Command{
+		Use:   "proxysql:metrics [name]",
+		Short: "Remove ProxySQL instance from metrics monitoring.",
+		Long: `This command removes ProxySQL instance from metrics monitoring.
+
+[name] is an optional argument, by default it is set to the client name of this PMM client.
+		`,
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := admin.RemoveProxySQLMetrics(); err != nil {
+				fmt.Printf("Error removing proxysql metrics %s: %s\n", admin.ServiceName, err)
+				os.Exit(1)
+			}
+			fmt.Printf("OK, removed ProxySQL metrics %s from monitoring.\n", admin.ServiceName)
 		},
 	}
 
@@ -723,7 +753,7 @@ It removes local services disconnected from PMM server and remote services that 
 		},
 	}
 
-	flagConfigFile, flagMongoURI, flagMongoNodeType, flagMongoReplSet, flagMongoCluster string
+	flagConfigFile, flagMongoURI, flagMongoNodeType, flagMongoReplSet, flagMongoCluster, flagDSN string
 
 	flagVersion, flagNoEmoji, flagAll, flagForce bool
 
@@ -738,9 +768,9 @@ func main() {
 	rootCmd.AddCommand(cmdConfig, cmdAdd, cmdRemove, cmdList, cmdInfo, cmdCheckNet, cmdPing, cmdStart, cmdStop,
 		cmdRestart, cmdRepair)
 	cmdAdd.AddCommand(cmdAddMySQL, cmdAddLinuxMetrics, cmdAddMySQLMetrics, cmdAddMySQLQueries,
-		cmdAddMongoDB, cmdAddMongoDBMetrics)
+		cmdAddMongoDB, cmdAddMongoDBMetrics, cmdAddProxySQLMetrics)
 	cmdRemove.AddCommand(cmdRemoveMySQL, cmdRemoveLinuxMetrics, cmdRemoveMySQLMetrics, cmdRemoveMySQLQueries,
-		cmdRemoveMongoDB, cmdRemoveMongoDBMetrics)
+		cmdRemoveMongoDB, cmdRemoveMongoDBMetrics, cmdRemoveProxySQLMetrics)
 
 	// Flags.
 	rootCmd.PersistentFlags().StringVarP(&flagConfigFile, "config-file", "c", pmm.ConfigFile, "PMM config file")
@@ -810,6 +840,8 @@ func main() {
 	cmdAddMongoDBMetrics.Flags().StringVar(&flagMongoNodeType, "nodetype", "", "node type: mongod, mongos, config, arbiter")
 	cmdAddMongoDBMetrics.Flags().StringVar(&flagMongoCluster, "cluster", "", "cluster name")
 	cmdAddMongoDBMetrics.Flags().StringVar(&flagMongoReplSet, "replset", "", "replSet name")
+
+	cmdAddProxySQLMetrics.Flags().StringVar(&flagDSN, "dsn", "admin:admin@tcp(localhost:6032)/", "ProxySQL connection DSN")
 
 	cmdRemove.Flags().BoolVar(&flagAll, "all", false, "remove all monitoring services")
 	cmdRemove.Flags().BoolVar(&flagForce, "force", false, "ignore any errors")

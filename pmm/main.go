@@ -521,10 +521,10 @@ func (a *Admin) ServerInfo() {
 
 // StartStopMonitoring start/stop system service by its metric type and name.
 func (a *Admin) StartStopMonitoring(action, svcType string) error {
-	if svcType != "linux:metrics" && svcType != "mysql:metrics" && svcType != "mysql:queries" && svcType != "mongodb:metrics" {
+	if svcType != "linux:metrics" && svcType != "mysql:metrics" && svcType != "mysql:queries" && svcType != "mongodb:metrics" && svcType != "proxysql:metrics" {
 		return fmt.Errorf(`bad service type.
 
-Service type takes the following values: linux:metrics, mysql:metrics, mysql:queries, mongodb:metrics.`)
+Service type takes the following values: linux:metrics, mysql:metrics, mysql:queries, mongodb:metrics, proxysql:metrics.`)
 	}
 
 	// Check if we have this service on Consul.
@@ -873,6 +873,7 @@ func CheckBinaries() string {
 		fmt.Sprintf("%s/node_exporter", PMMBaseDir),
 		fmt.Sprintf("%s/mysqld_exporter", PMMBaseDir),
 		fmt.Sprintf("%s/mongodb_exporter", PMMBaseDir),
+		fmt.Sprintf("%s/proxysql_exporter", PMMBaseDir),
 		fmt.Sprintf("%s/bin/percona-qan-agent", agentBaseDir),
 		fmt.Sprintf("%s/bin/percona-qan-agent-installer", agentBaseDir),
 	}

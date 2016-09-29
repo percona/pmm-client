@@ -22,10 +22,10 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/percona/go-mysql/dsn"
-	"strings"
 )
 
 // MySQL specific options.
