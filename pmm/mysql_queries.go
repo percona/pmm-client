@@ -87,14 +87,21 @@ func (a *Admin) AddMySQLQueries(info map[string]string) error {
 	}
 
 	// Check if related MySQL instance exists or try to re-use the existing one.
-	mysqlUUID, err := a.getMySQLInstance(a.ServiceName, parentUUID)
+	mysqlInstance, err := a.getMySQLInstance(a.ServiceName, parentUUID)
 	if err == errNoInstance {
 		// Create new MySQL instance on QAN.
-		mysqlUUID, err = a.createMySQLInstance(info, parentUUID)
+		mysqlInstance, err = a.createMySQLInstance(info, parentUUID)
 		if err != nil {
 			return err
 		}
 	} else if err != nil {
+		return err
+	}
+
+	// Write mysql instance config for qan-agent with real DSN.
+	mysqlInstance.DSN = info["dsn"]
+	bytes, _ := json.MarshalIndent(mysqlInstance, "", "    ")
+	if err := ioutil.WriteFile(fmt.Sprintf("%s/instance/%s.json", agentBaseDir, mysqlInstance.UUID), bytes, 0600); err != nil {
 		return err
 	}
 
@@ -135,9 +142,8 @@ func (a *Admin) AddMySQLQueries(info map[string]string) error {
 
 	// Start QAN by associating MySQL instance with agent.
 	qanConfig := map[string]string{
-		"UUID":        mysqlUUID,
+		"UUID":        mysqlInstance.UUID,
 		"CollectFrom": info["query_source"],
-		"DSN":         info["dsn"],
 	}
 	if err := a.manageQAN(agentID, "StartTool", "", qanConfig); err != nil {
 		return err
@@ -174,7 +180,7 @@ func (a *Admin) AddMySQLQueries(info map[string]string) error {
 		Value: []byte(info["query_source"])}
 	a.consulapi.KV().Put(d, nil)
 	d = &consul.KVPair{Key: fmt.Sprintf("%s/%s/%s/qan_mysql_uuid", a.Config.ClientName, serviceID, a.ServiceName),
-		Value: []byte(mysqlUUID)}
+		Value: []byte(mysqlInstance.UUID)}
 	a.consulapi.KV().Put(d, nil)
 
 	return nil
@@ -283,29 +289,29 @@ func (a *Admin) getAgentInstance(agentID string) (string, error) {
 	return in.ParentUUID, nil
 }
 
-// getMySQLInstance get or re-use mysql instance from QAN API and return its UUID.
-func (a *Admin) getMySQLInstance(name, parentUUID string) (string, error) {
+// getMySQLInstance get or re-use mysql instance from QAN API and return it.
+func (a *Admin) getMySQLInstance(name, parentUUID string) (proto.Instance, error) {
 	var in proto.Instance
 	url := a.qanapi.URL(a.serverUrl, qanAPIBasePath, "instances",
 		fmt.Sprintf("?type=mysql&name=%s&parent_uuid=%s", name, parentUUID))
 	resp, bytes, err := a.qanapi.Get(url)
 	if err != nil {
-		return "", err
+		return in, err
 	}
 	if resp.StatusCode == http.StatusNotFound {
-		return "", errNoInstance
+		return in, errNoInstance
 	}
 	if resp.StatusCode != http.StatusOK {
-		return "", a.qanapi.Error("GET", url, resp.StatusCode, http.StatusOK, bytes)
+		return in, a.qanapi.Error("GET", url, resp.StatusCode, http.StatusOK, bytes)
 	}
 
 	if err := json.Unmarshal(bytes, &in); err != nil {
-		return "", err
+		return in, err
 	}
 	// Ensure this is the right instance.
 	// QAN API 1.0.4 didn't support filtering on parent_uuid, thus returning first record found.
 	if in.ParentUUID != parentUUID {
-		return "", errNoInstance
+		return in, errNoInstance
 	}
 
 	// Instance exists, let's undelete it.
@@ -314,10 +320,10 @@ func (a *Admin) getMySQLInstance(name, parentUUID string) (string, error) {
 	url = a.qanapi.URL(a.serverUrl, qanAPIBasePath, "instances", in.UUID)
 	resp, content, err := a.qanapi.Put(url, cmdBytes)
 	if err != nil {
-		return "", err
+		return in, err
 	}
 	if resp.StatusCode != http.StatusNoContent {
-		return "", a.qanapi.Error("PUT", url, resp.StatusCode, http.StatusNoContent, content)
+		return in, a.qanapi.Error("PUT", url, resp.StatusCode, http.StatusNoContent, content)
 
 	}
 
@@ -326,25 +332,25 @@ func (a *Admin) getMySQLInstance(name, parentUUID string) (string, error) {
 	url = a.qanapi.URL(a.serverUrl, qanAPIBasePath, "instances", in.UUID)
 	resp, bytes, err = a.qanapi.Get(url)
 	if err != nil {
-		return "", err
+		return in, err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return "", a.qanapi.Error("GET", url, resp.StatusCode, http.StatusOK, bytes)
+		return in, a.qanapi.Error("GET", url, resp.StatusCode, http.StatusOK, bytes)
 	}
 
 	if err := json.Unmarshal(bytes, &in); err != nil {
-		return "", err
+		return in, err
 	}
 	// If it's not "1970-01-01 00:00:00 +0000 UTC", it was left deleted.
 	if in.Deleted.Year() != 1970 {
-		return "", errNoInstance
+		return in, errNoInstance
 	}
 
-	return in.UUID, nil
+	return in, nil
 }
 
-// createMySQLInstance create mysql instance on QAN API and return its UUID.
-func (a *Admin) createMySQLInstance(info map[string]string, parentUUID string) (string, error) {
+// createMySQLInstance create mysql instance on QAN API and return it.
+func (a *Admin) createMySQLInstance(info map[string]string, parentUUID string) (proto.Instance, error) {
 	in := proto.Instance{
 		Subsystem:  "mysql",
 		ParentUUID: parentUUID,
@@ -357,10 +363,10 @@ func (a *Admin) createMySQLInstance(info map[string]string, parentUUID string) (
 	url := a.qanapi.URL(a.serverUrl, qanAPIBasePath, "instances")
 	resp, content, err := a.qanapi.Post(url, inBytes)
 	if err != nil {
-		return "", err
+		return in, err
 	}
 	if resp.StatusCode != http.StatusCreated {
-		return "", a.qanapi.Error("POST", url, resp.StatusCode, http.StatusCreated, content)
+		return in, a.qanapi.Error("POST", url, resp.StatusCode, http.StatusCreated, content)
 	}
 
 	// The URI of the new instance is reported in the Location header, fetch it to get UUID assigned.
@@ -370,17 +376,17 @@ func (a *Admin) createMySQLInstance(info map[string]string, parentUUID string) (
 	url = a.qanapi.URL(url, t[len(t)-1])
 	resp, bytes, err = a.qanapi.Get(url)
 	if err != nil {
-		return "", err
+		return in, err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return "", a.qanapi.Error("GET", url, resp.StatusCode, http.StatusOK, bytes)
+		return in, a.qanapi.Error("GET", url, resp.StatusCode, http.StatusOK, bytes)
 	}
 
 	if err := json.Unmarshal(bytes, &in); err != nil {
-		return "", err
+		return in, err
 	}
 
-	return in.UUID, err
+	return in, err
 }
 
 // manageQAN enable/disable QAN on agent through QAN API.
