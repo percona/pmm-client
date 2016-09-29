@@ -91,7 +91,7 @@ func (a *Admin) DetectMySQL(mf MySQLFlags) (map[string]string, error) {
 		pmmDSN := userDSN
 		pmmDSN.Username = "pmm"
 		pmmDSN.Password = a.Config.MySQLPassword
-		if err := testConnection(pmmDSN); err == nil {
+		if err := testConnection(pmmDSN.String()); err == nil {
 			//fmt.Println("Using stored credentials, DSN is", pmmDSN.String())
 			accessOK = true
 			userDSN = pmmDSN
@@ -102,7 +102,7 @@ func (a *Admin) DetectMySQL(mf MySQLFlags) (map[string]string, error) {
 
 	// If the above fails, test MySQL access simply using detected credentials.
 	if !accessOK {
-		if err := testConnection(userDSN); err != nil {
+		if err := testConnection(userDSN.String()); err != nil {
 			err = fmt.Errorf("Cannot connect to MySQL: %s\n\n%s\n%s", err,
 				"Verify that MySQL user exists and has the correct privileges.",
 				"Use additional flags --user, --password, --host, --port, --socket if needed.")
@@ -178,7 +178,7 @@ func createMySQLUser(db *sql.DB, userDSN dsn.DSN, mf MySQLFlags) (dsn.DSN, error
 	}
 
 	// Verify new MySQL user works. If this fails, the new DSN or grant statements are wrong.
-	if err := testConnection(userDSN); err != nil {
+	if err := testConnection(userDSN.String()); err != nil {
 		err = fmt.Errorf("Problem creating a new MySQL user. Insufficient privileges: %s", err)
 		return dsn.DSN{}, err
 	}
@@ -242,14 +242,13 @@ func makeGrants(dsn dsn.DSN, hosts []string, conn uint16) []string {
 	return grants
 }
 
-func testConnection(userDSN dsn.DSN) error {
-	db, err := sql.Open("mysql", userDSN.String())
+func testConnection(dsn string) error {
+	db, err := sql.Open("mysql", dsn)
 	if err != nil {
 		return err
 	}
 	defer db.Close()
 
-	// Must call sql.DB.Ping to test actual MySQL connection.
 	if err = db.Ping(); err != nil {
 		return err
 	}

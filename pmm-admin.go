@@ -339,6 +339,10 @@ Use additional options to specify MongoDB node type, cluster, replSet etc.
 [name] is an optional argument, by default it is set to the client name of this PMM client.
 		`,
 		Run: func(cmd *cobra.Command, args []string) {
+			if err := admin.DetectProxySQL(flagDSN); err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
 			if err := admin.AddProxySQLMetrics(flagDSN); err != nil {
 				fmt.Println("Error adding proxysql metrics:", err)
 				os.Exit(1)

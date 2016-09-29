@@ -20,6 +20,7 @@ package pmm
 import (
 	"fmt"
 
+	"github.com/go-sql-driver/mysql"
 	consul "github.com/hashicorp/consul/api"
 	"github.com/percona/kardianos-service"
 )
@@ -116,6 +117,20 @@ func (a *Admin) RemoveProxySQLMetrics() error {
 	// Stop and uninstall service.
 	if err := uninstallService(fmt.Sprintf("pmm-proxysql-metrics-%d", consulSvc.Port)); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+// DetectProxySQL verify ProxySQL connection.
+func (a *Admin) DetectProxySQL(dsnString string) error {
+	dsn, err := mysql.ParseDSN(dsnString)
+	if err != nil {
+		return fmt.Errorf("Bad dsn %s: %s", dsnString, err)
+	}
+
+	if err := testConnection(dsn.FormatDSN()); err != nil {
+		return fmt.Errorf("Cannot connect to ProxySQL using DSN %s: %s", dsnString, err)
 	}
 
 	return nil
