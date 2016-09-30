@@ -845,7 +845,7 @@ func main() {
 	cmdAddMongoDBMetrics.Flags().StringVar(&flagMongoCluster, "cluster", "", "cluster name")
 	cmdAddMongoDBMetrics.Flags().StringVar(&flagMongoReplSet, "replset", "", "replSet name")
 
-	cmdAddProxySQLMetrics.Flags().StringVar(&flagDSN, "dsn", "admin:admin@tcp(localhost:6032)/", "ProxySQL connection DSN")
+	cmdAddProxySQLMetrics.Flags().StringVar(&flagDSN, "dsn", "stats:stats@tcp(localhost:6032)/", "ProxySQL connection DSN")
 
 	cmdRemove.Flags().BoolVar(&flagAll, "all", false, "remove all monitoring services")
 	cmdRemove.Flags().BoolVar(&flagForce, "force", false, "ignore any errors")
