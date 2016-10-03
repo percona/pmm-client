@@ -232,8 +232,14 @@ func mysqlCheck(db *sql.DB, hosts []string) error {
 func makeGrants(dsn dsn.DSN, hosts []string, conn uint16) []string {
 	var grants []string
 	for _, host := range hosts {
+		// Privileges:
+		// PROCESS - for mysqld_exporter to get all processes from `SHOW PROCESSLIST`
+		// REPLICATION CLIENT - for mysqld_exporter to run `SHOW BINARY LOGS`
+		// RELOAD - for qan-agent to run `FLUSH SLOW LOGS`
+		// SUPER - for qan-agent to set global variables (not clear it is still required)
+		// Grants for performance_schema - for qan-agent to manage query digest tables.
 		grants = append(grants,
-			fmt.Sprintf("GRANT SELECT, PROCESS, REPLICATION CLIENT, SUPER ON *.* TO '%s'@'%s' IDENTIFIED BY '%s' WITH MAX_USER_CONNECTIONS %d",
+			fmt.Sprintf("GRANT SELECT, PROCESS, REPLICATION CLIENT, RELOAD, SUPER ON *.* TO '%s'@'%s' IDENTIFIED BY '%s' WITH MAX_USER_CONNECTIONS %d",
 				dsn.Username, host, dsn.Password, conn),
 			fmt.Sprintf("GRANT UPDATE, DELETE, DROP ON `performance_schema`.* TO '%s'@'%s'",
 				dsn.Username, host))

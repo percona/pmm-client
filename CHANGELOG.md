@@ -1,6 +1,6 @@
 Percona Monitoring and Management (PMM) Client
 
-v1.0.5 unreleased 2016-09-29
+v1.0.5 unreleased 2016-10-03
 
 * Added check for orphaned local and remote services.
 * Added "repair" command to remove orphaned services.
@@ -11,7 +11,8 @@ v1.0.5 unreleased 2016-09-29
   * improved registration and detection of orphaned setup
   * pid file "" is not longer created on Amazon Linux (requires to re-add mysql:queries service)
   * correctly detect when the slow log is rotated
-  * handling MySQL using a timezone different than UTC.
+  * handling MySQL using a timezone different than UTC
+  * RELOAD privilige is required to flush slow log if used as a query source.
 
 v1.0.4 released 2016-09-13
 
