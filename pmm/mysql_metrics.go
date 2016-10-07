@@ -57,8 +57,8 @@ func (a *Admin) AddMySQLMetrics(info map[string]string, mf MySQLFlags) error {
 
 	// Opts to disable.
 	var optsToDisable []string
-	count, _ := strconv.ParseUint(info["table_count"], 10, 32)
-	if mf.DisableTableStats || count > 10000 {
+	count, _ := strconv.ParseUint(info["table_count"], 10, 16)
+	if mf.DisableTableStats || uint16(count) > mf.DisableTableStatsLimit {
 		optsToDisable = append(optsToDisable, "tablestats")
 	}
 	if mf.DisableUserStats {

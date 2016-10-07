@@ -141,9 +141,11 @@ func (a *Admin) AddMySQLQueries(info map[string]string) error {
 	}
 
 	// Start QAN by associating MySQL instance with agent.
-	qanConfig := map[string]string{
-		"UUID":        mysqlInstance.UUID,
-		"CollectFrom": info["query_source"],
+	qanConfig := map[string]interface{}{
+		"UUID":           mysqlInstance.UUID,
+		"CollectFrom":    info["query_source"],
+		"Interval":       60,
+		"ExampleQueries": true,
 	}
 	if err := a.manageQAN(agentID, "StartTool", "", qanConfig); err != nil {
 		return err
@@ -390,7 +392,7 @@ func (a *Admin) createMySQLInstance(info map[string]string, parentUUID string) (
 }
 
 // manageQAN enable/disable QAN on agent through QAN API.
-func (a *Admin) manageQAN(agentID, cmdName, UUID string, config map[string]string) error {
+func (a *Admin) manageQAN(agentID, cmdName, UUID string, config map[string]interface{}) error {
 	var data []byte
 	if cmdName == "StartTool" {
 		data, _ = json.Marshal(config)

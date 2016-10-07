@@ -44,10 +44,11 @@ type MySQLFlags struct {
 	MaxUserConn        uint16
 	Force              bool
 
-	DisableTableStats  bool
-	DisableUserStats   bool
-	DisableBinlogStats bool
-	DisableProcesslist bool
+	DisableTableStats      bool
+	DisableTableStatsLimit uint16
+	DisableUserStats       bool
+	DisableBinlogStats     bool
+	DisableProcesslist     bool
 }
 
 // DetectMySQL detect MySQL, create user if needed, return DSN and MySQL info strings.
