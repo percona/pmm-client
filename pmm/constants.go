@@ -75,7 +75,7 @@ var mysqldExporterArgs = []string{
 
 // mysqld_exporter args to disable optionally.
 var mysqldExporterDisableArgs = map[string][]string{
-	"tablestats": []string{
+	"tablestats": {
 		"-collect.auto_increment.columns=",
 		"-collect.info_schema.tables=",
 		"-collect.info_schema.tablestats=",
@@ -83,7 +83,7 @@ var mysqldExporterDisableArgs = map[string][]string{
 		"-collect.perf_schema.tableiowaits=",
 		"-collect.perf_schema.tablelocks=",
 	},
-	"userstats":   []string{"-collect.info_schema.userstats="},
-	"binlogstats": []string{"-collect.binlog_size="},
-	"processlist": []string{"-collect.info_schema.processlist="},
+	"userstats":   {"-collect.info_schema.userstats="},
+	"binlogstats": {"-collect.binlog_size="},
+	"processlist": {"-collect.info_schema.processlist="},
 }

@@ -119,8 +119,8 @@ func (a *Admin) DetectMySQL(mf MySQLFlags) (map[string]string, error) {
 
 	if mf.QuerySource == "auto" {
 		// MySQL is local if the server hostname == MySQL hostname.
-		os_hostname, _ := os.Hostname()
-		if os_hostname == info["hostname"] {
+		osHostname, _ := os.Hostname()
+		if osHostname == info["hostname"] {
 			mf.QuerySource = "slowlog"
 		} else {
 			mf.QuerySource = "perfschema"
@@ -295,7 +295,7 @@ func generatePassword(size int) string {
 		}
 	}
 	// Scramble.
-	for _ = range b {
+	for range b {
 		pos1 := rand.Intn(len(b))
 		pos2 := rand.Intn(len(b))
 		a := b[pos1]

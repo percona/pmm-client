@@ -1,6 +1,6 @@
 Percona Monitoring and Management (PMM) Client
 
-v1.0.5 unreleased 2016-10-07
+v1.0.5 released 2016-10-14
 
 * Added check for orphaned local and remote services.
 * Added "repair" command to remove orphaned services.

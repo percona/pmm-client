@@ -34,7 +34,7 @@ import (
 func (a *Admin) CheckNetwork(noEmoji bool) error {
 	// Check QAN API health.
 	qanStatus := false
-	url := a.qanapi.URL(a.serverUrl, qanAPIBasePath, "ping")
+	url := a.qanapi.URL(a.serverURL, qanAPIBasePath, "ping")
 	if resp, _, err := a.qanapi.Get(url); err == nil {
 		if resp.StatusCode == http.StatusOK && resp.Header.Get("X-Percona-Qan-Api-Version") != "" {
 			qanStatus = true
@@ -48,7 +48,7 @@ func (a *Admin) CheckNetwork(noEmoji bool) error {
 		promStatus = false
 	}
 
-	fmt.Println("PMM Network Status\n")
+	fmt.Print("PMM Network Status\n\n")
 	fmt.Printf("%-6s | %s\n", "Server", a.Config.ServerAddress)
 	fmt.Printf("%-6s | %s\n\n", "Client", a.Config.ClientAddress)
 	fmt.Println("* Client --> Server")
@@ -58,8 +58,7 @@ func (a *Admin) CheckNetwork(noEmoji bool) error {
 	// Consul is always alive if we are at this point.
 	fmt.Printf("%-15s %-13s\n", "Consul API", emojiStatus(noEmoji, true))
 	fmt.Printf("%-15s %-13s\n", "QAN API", emojiStatus(noEmoji, qanStatus))
-	fmt.Printf("%-15s %-13s\n", "Prometheus API", emojiStatus(noEmoji, promStatus))
-	fmt.Println()
+	fmt.Printf("%-15s %-13s\n\n", "Prometheus API", emojiStatus(noEmoji, promStatus))
 
 	a.testNetwork()
 	fmt.Println()
@@ -71,13 +70,13 @@ func (a *Admin) CheckNetwork(noEmoji bool) error {
 	}
 
 	if !promStatus {
-		fmt.Println("Prometheus is down. Please check if PMM server container runs properly.\n")
+		fmt.Print("Prometheus is down. Please check if PMM server container runs properly.\n\n")
 		return nil
 	}
 
 	fmt.Println("* Client <-- Server")
 	if len(node.Services) == 0 {
-		fmt.Println("No metric endpoints registered.\n")
+		fmt.Print("No metric endpoints registered.\n\n")
 		return nil
 	}
 
@@ -166,7 +165,7 @@ func (a *Admin) testNetwork() {
 	}
 	client := &http.Client{Transport: conn}
 
-	resp, err := client.Get(a.serverUrl)
+	resp, err := client.Get(a.serverURL)
 	if err != nil {
 		fmt.Println("Unable to measure the connection performance.")
 		return

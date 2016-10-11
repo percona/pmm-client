@@ -64,7 +64,7 @@ type Admin struct {
 	ServicePort uint16
 	Config      *Config
 	filename    string
-	serverUrl   string
+	serverURL   string
 	qanapi      *API
 	consulapi   *consul.Client
 	promapi     prometheus.QueryAPI
@@ -248,13 +248,13 @@ func (a *Admin) SetAPI() error {
 	a.consulapi, _ = consul.NewClient(&config)
 
 	// Full URL.
-	a.serverUrl = fmt.Sprintf("%s://%s%s", scheme, authStr, a.Config.ServerAddress)
+	a.serverURL = fmt.Sprintf("%s://%s%s", scheme, authStr, a.Config.ServerAddress)
 
 	// QAN API.
 	a.qanapi = NewAPI(a.Config.ServerInsecureSSL)
 
 	// Prometheus API.
-	cfg := prometheus.Config{Address: fmt.Sprintf("%s/prometheus", a.serverUrl)}
+	cfg := prometheus.Config{Address: fmt.Sprintf("%s/prometheus", a.serverURL)}
 	if a.Config.ServerInsecureSSL {
 		cfg.Transport = insecureTransport
 	}
@@ -262,7 +262,7 @@ func (a *Admin) SetAPI() error {
 	a.promapi = prometheus.NewQueryAPI(client)
 
 	// Check if server is alive.
-	url := a.qanapi.URL(a.serverUrl)
+	url := a.qanapi.URL(a.serverURL)
 	resp, _, err := a.qanapi.Get(url)
 	if err != nil {
 		if strings.Contains(err.Error(), "x509: cannot validate certificate") {
@@ -306,7 +306,7 @@ Check if the configured address is correct.`, a.Config.ServerAddress)
 
 // getMyRemoteIP get client remote IP from nginx custom header X-Remote-IP.
 func (a *Admin) getMyRemoteIP() string {
-	url := a.qanapi.URL(a.serverUrl, "v1/status/leader")
+	url := a.qanapi.URL(a.serverURL, "v1/status/leader")
 	resp, _, err := a.qanapi.Get(url)
 	if err != nil {
 		return ""
@@ -349,7 +349,7 @@ func (a *Admin) List() error {
 	}
 
 	if len(node.Services) == 0 {
-		fmt.Println("No services under monitoring.\n")
+		fmt.Print("No services under monitoring.\n\n")
 		return nil
 	}
 
@@ -559,10 +559,10 @@ Service type takes the following values: linux:metrics, mysql:metrics, mysql:que
 }
 
 // StartStopAllMonitoring start/stop all metric services.
-func (a *Admin) StartStopAllMonitoring(action string) (error, int) {
+func (a *Admin) StartStopAllMonitoring(action string) (int, error) {
 	node, _, err := a.consulapi.Catalog().Node(a.Config.ClientName, nil)
 	if err != nil || node == nil || len(node.Services) == 0 {
-		return nil, 0
+		return 0, nil
 	}
 
 	for _, svc := range node.Services {
@@ -570,30 +570,30 @@ func (a *Admin) StartStopAllMonitoring(action string) (error, int) {
 		switch action {
 		case "start":
 			if err := startService(svcName); err != nil {
-				return err, 0
+				return 0, err
 			}
 		case "stop":
 			if err := stopService(svcName); err != nil {
-				return err, 0
+				return 0, err
 			}
 		case "restart":
 			if err := stopService(svcName); err != nil {
-				return err, 0
+				return 0, err
 			}
 			if err := startService(svcName); err != nil {
-				return err, 0
+				return 0, err
 			}
 		}
 	}
 
-	return nil, len(node.Services)
+	return len(node.Services), nil
 }
 
 // RemoveAllMonitoring remove all the monitoring services.
-func (a *Admin) RemoveAllMonitoring(force bool) (error, uint16) {
+func (a *Admin) RemoveAllMonitoring(force bool) (uint16, error) {
 	node, _, err := a.consulapi.Catalog().Node(a.Config.ClientName, nil)
 	if err != nil || node == nil || len(node.Services) == 0 {
-		return nil, 0
+		return 0, nil
 	}
 
 	var count uint16
@@ -606,26 +606,26 @@ func (a *Admin) RemoveAllMonitoring(force bool) (error, uint16) {
 			switch svc.Service {
 			case "linux:metrics":
 				if err := a.RemoveLinuxMetrics(); err != nil && !force {
-					return err, 0
+					return 0, err
 				}
 			case "mysql:metrics":
 				if err := a.RemoveMySQLMetrics(); err != nil && !force {
-					return err, 0
+					return 0, err
 				}
 			case "mysql:queries":
 				if err := a.RemoveMySQLQueries(); err != nil && !force {
-					return err, 0
+					return 0, err
 				}
 			case "mongodb:metrics":
 				if err := a.RemoveMongoDBMetrics(); err != nil && !force {
-					return err, 0
+					return 0, err
 				}
 			}
 			count++
 		}
 	}
 
-	return nil, count
+	return count, nil
 }
 
 // getConsulService get service from Consul by service type and optionally name (alias).

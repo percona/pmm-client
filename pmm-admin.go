@@ -365,7 +365,7 @@ Use additional options to specify MongoDB node type, cluster, replSet etc.
 		},
 		Run: func(cmd *cobra.Command, args []string) {
 			if flagAll {
-				err, count := admin.RemoveAllMonitoring(flagForce)
+				count, err := admin.RemoveAllMonitoring(flagForce)
 				if err != nil {
 					fmt.Printf("Error removing one of the services: %s\n", err)
 					os.Exit(1)
@@ -621,7 +621,7 @@ please check the firewall settings whether this system allows incoming connectio
   pmm-admin start --all`,
 		Run: func(cmd *cobra.Command, args []string) {
 			if flagAll {
-				err, count := admin.StartStopAllMonitoring("start")
+				count, err := admin.StartStopAllMonitoring("start")
 				if err != nil {
 					fmt.Printf("Error starting one of the services: %s\n", err)
 					os.Exit(1)
@@ -665,7 +665,7 @@ please check the firewall settings whether this system allows incoming connectio
   pmm-admin stop --all`,
 		Run: func(cmd *cobra.Command, args []string) {
 			if flagAll {
-				err, count := admin.StartStopAllMonitoring("stop")
+				count, err := admin.StartStopAllMonitoring("stop")
 				if err != nil {
 					fmt.Printf("Error stopping one of the services: %s\n", err)
 					os.Exit(1)
@@ -709,7 +709,7 @@ please check the firewall settings whether this system allows incoming connectio
   pmm-admin restart --all`,
 		Run: func(cmd *cobra.Command, args []string) {
 			if flagAll {
-				err, count := admin.StartStopAllMonitoring("restart")
+				count, err := admin.StartStopAllMonitoring("restart")
 				if err != nil {
 					fmt.Printf("Error restarting one of the services: %s\n", err)
 					os.Exit(1)
