@@ -44,13 +44,13 @@ var (
 			}
 
 			if path := pmm.CheckBinaries(); path != "" {
-				fmt.Println("Installation problem, one of the binaries is missed:", path)
+				fmt.Println("Installation problem, one of the binaries is missing:", path)
 				os.Exit(1)
 			}
 
 			// Read config file.
 			if !pmm.FileExists(flagConfigFile) {
-				fmt.Println("PMM client is not configured, missed config file. Please make sure you have run 'pmm-admin config'.")
+				fmt.Println("PMM client is not configured, missing config file. Please make sure you have run 'pmm-admin config'.")
 				os.Exit(1)
 			}
 
@@ -81,7 +81,7 @@ var (
 			}
 
 			// Check for broken installation.
-			orphanedServices, missedServices := admin.CheckInstallation()
+			orphanedServices, missingServices := admin.CheckInstallation()
 			if len(orphanedServices) > 0 {
 				fmt.Printf(`We have found system services disconnected from PMM server.
 Usually, this happens when data container is wiped before all monitoring services are removed or client is uninstalled.
@@ -92,8 +92,8 @@ To continue, run 'pmm-admin repair' to remove orphaned services.
 `, strings.Join(orphanedServices, ", "))
 				os.Exit(1)
 			}
-			if len(missedServices) > 0 {
-				fmt.Printf(`PMM server reports services that are missed locally.
+			if len(missingServices) > 0 {
+				fmt.Printf(`PMM server reports services that are missing locally.
 Usually, this happens when the system is completely reinstalled.
 
 Orphaned remote services: %s
@@ -101,7 +101,7 @@ Orphaned remote services: %s
 Beware, if another system with the same client name created those services, repairing the installation will remove remote services
 and the other system will be left with orphaned local services. If you are sure there is no other system with the same name,
 run 'pmm-admin repair' to remove orphaned services. Otherwise, please reinstall this client.
-`, strings.Join(missedServices, ", "))
+`, strings.Join(missingServices, ", "))
 				os.Exit(1)
 			}
 		},
@@ -747,7 +747,7 @@ please check the firewall settings whether this system allows incoming connectio
 		Short: "Repair installation.",
 		Long: `This command removes orphaned system services.
 
-It removes local services disconnected from PMM server and remote services that are missed locally.
+It removes local services disconnected from PMM server and remote services that are missing locally.
 		`,
 		Run: func(cmd *cobra.Command, args []string) {
 			if err := admin.RepairInstallation(); err != nil {

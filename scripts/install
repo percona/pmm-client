@@ -19,5 +19,6 @@ cp -f bin/pmm-admin /usr/sbin/
 cp -f bin/node_exporter $PMM_DIR/
 cp -f bin/mysqld_exporter $PMM_DIR/
 cp -f bin/mongodb_exporter $PMM_DIR/
+cp -f bin/proxysql_exporter $PMM_DIR/
 cp -f bin/percona-qan-agent $QAN_DIR/bin/
 cp -f bin/percona-qan-agent-installer $QAN_DIR/bin/

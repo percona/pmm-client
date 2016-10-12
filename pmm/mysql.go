@@ -73,7 +73,7 @@ func (a *Admin) DetectMySQL(mf MySQLFlags) (map[string]string, error) {
 		Socket:       mf.Socket,
 		Params:       []string{dsn.ParseTimeParam, dsn.TimezoneParam, dsn.LocationParam},
 	}
-	// Populate defaults to DSN for missed options.
+	// Populate defaults to DSN for missing options.
 	userDSN, err := userDSN.AutoDetect()
 	if err != nil && err != dsn.ErrNoSocket {
 		err = fmt.Errorf("Problem with MySQL auto-detection: %s", err)

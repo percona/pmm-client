@@ -732,7 +732,7 @@ func (a *Admin) CheckInstallation() ([]string, []string) {
 		extension        string
 		services         []string
 		orphanedServices []string
-		missedServices   []string
+		missingServices  []string
 	)
 	switch service.Platform() {
 	case "linux-systemd":
@@ -773,7 +773,7 @@ ForLoop1:
 		orphanedServices = append(orphanedServices, s)
 	}
 
-	// Find missed services: Consul services that are missed locally.
+	// Find missing services: Consul services that are missing locally.
 ForLoop2:
 	for _, svc := range node.Services {
 		svcName := fmt.Sprintf("pmm-%s-%d", strings.Replace(svc.Service, ":", "-", 1), svc.Port)
@@ -782,15 +782,15 @@ ForLoop2:
 				continue ForLoop2
 			}
 		}
-		missedServices = append(missedServices, svc.ID)
+		missingServices = append(missingServices, svc.ID)
 	}
 
-	return orphanedServices, missedServices
+	return orphanedServices, missingServices
 }
 
 // RepairInstallation repair installation.
 func (a *Admin) RepairInstallation() error {
-	orphanedServices, missedServices := a.CheckInstallation()
+	orphanedServices, missingServices := a.CheckInstallation()
 	// Uninstall local services.
 	for _, s := range orphanedServices {
 		if err := uninstallService(s); err != nil {
@@ -799,7 +799,7 @@ func (a *Admin) RepairInstallation() error {
 	}
 
 	// Remove remote services from Consul.
-	for _, s := range missedServices {
+	for _, s := range missingServices {
 		dereg := consul.CatalogDeregistration{
 			Node:      a.Config.ClientName,
 			ServiceID: s,
@@ -827,8 +827,8 @@ func (a *Admin) RepairInstallation() error {
 		a.consulapi.KV().DeleteTree(prefix, nil)
 	}
 
-	if len(orphanedServices) > 0 || len(missedServices) > 0 {
-		fmt.Printf("OK, removed %d orphaned services.\n", len(orphanedServices)+len(missedServices))
+	if len(orphanedServices) > 0 || len(missingServices) > 0 {
+		fmt.Printf("OK, removed %d orphaned services.\n", len(orphanedServices)+len(missingServices))
 	} else {
 		fmt.Println("No orphaned services found.")
 	}
