@@ -1,0 +1,7 @@
+pmm-admin /usr/sbin/pmm-admin
+node_exporter /usr/local/percona/pmm-client/node_exporter
+mysqld_exporter /usr/local/percona/pmm-client/mysqld_exporter
+mongodb_exporter /usr/local/percona/pmm-client/mongodb_exporter
+proxysql_exporter /usr/local/percona/pmm-client/proxysql_exporter
+percona-qan-agent /usr/local/percona/qan-agent/bin/percona-qan-agent
+percona-qan-agent-installer /usr/local/percona/qan-agent/bin/percona-qan-agent-installer

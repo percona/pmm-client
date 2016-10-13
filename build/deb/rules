@@ -35,25 +35,16 @@ DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
 DISTRIBUTION = $(shell lsb_release -i -s)
 DISTRELEASE = $(shell lsb_release -c -s)
 
-override_dh_auto_configure:
-	@echo "RULES.$@"
-
-	touch $@ 
-
-override_dh_auto_build:
-	@echo "RULES.$@"
-	
-	touch $@ 
+override_dh_usrlocal:
+	dh $@
 
 override_dh_auto_install:
 	@echo "RULES.$@"
-	mkdir -p $(TMP)/usr/local/percona/pmm-client
-	mkdir -p $(TMP)/usr/local/percona/qan-agent/bin
-	mkdir -p $(TMP)/usr/sbin
-	cp distro/pmm-admin $(TMP)/usr/sbin/
-	cp -f distro/node_exporter $(TMP)/usr/local/percona/pmm-client
-	cp -f distro/mysqld_exporter $(TMP)/usr/local/percona/pmm-client
-	cp -f distro/mongodb_exporter $(TMP)/usr/local/percona/pmm-client
-	cp -f distro/proxysql_exporter $(TMP)/usr/local/percona/pmm-client
-	cp -f distro/percona-qan-agent $(TMP)/usr/local/percona/qan-agent/bin
-	cp -f distro/percona-qan-agent-installer $(TMP)/usr/local/percona/qan-agent/bin
+	mkdir -p $(TMP)
+	cp distro/pmm-admin $(TMP)/pmm-admin
+	cp -f distro/node_exporter $(TMP)/node_exporter
+	cp -f distro/mysqld_exporter $(TMP)/mysqld_exporter
+	cp -f distro/mongodb_exporter $(TMP)/mongodb_exporter
+	cp -f distro/proxysql_exporter $(TMP)/proxysql_exporter
+	cp -f distro/percona-qan-agent $(TMP)/percona-qan-agent
+	cp -f distro/percona-qan-agent-installer $(TMP)/percona-qan-agent-installer
