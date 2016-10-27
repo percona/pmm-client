@@ -22,7 +22,7 @@ import (
 	"time"
 )
 
-var VERSION = "1.0.5"
+var VERSION = "1.0.6"
 
 const (
 	PMMBaseDir     = "/usr/local/percona/pmm-client"
@@ -47,7 +47,7 @@ var (
 	errNoInstance = fmt.Errorf("no instance found on QAN API.")
 )
 
-const nodeExporterArgs = "-collectors.enabled=diskstats,filesystem,loadavg,meminfo,netdev,netstat,stat,time,uname,vmstat"
+const nodeExporterArgs = "-collectors.enabled=diskstats,filefd,filesystem,loadavg,meminfo,netdev,netstat,stat,time,uname,vmstat"
 
 var mysqldExporterArgs = []string{
 	"-collect.auto_increment.columns=true",

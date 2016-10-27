@@ -33,6 +33,7 @@ import (
 	"github.com/percona/kardianos-service"
 	"github.com/percona/pmm/proto/config"
 	"github.com/prometheus/client_golang/api/prometheus"
+	//"golang.org/x/net/context"
 	"gopkg.in/yaml.v2"
 )
 
@@ -60,14 +61,15 @@ type instanceStatus struct {
 
 // Main class.
 type Admin struct {
-	ServiceName string
-	ServicePort uint16
-	Config      *Config
-	filename    string
-	serverURL   string
-	qanapi      *API
-	consulapi   *consul.Client
-	promapi     prometheus.QueryAPI
+	ServiceName  string
+	ServicePort  uint16
+	Config       *Config
+	filename     string
+	serverURL    string
+	qanAPI       *API
+	consulAPI    *consul.Client
+	promQueryAPI prometheus.QueryAPI
+	//promSeriesAPI prometheus.SeriesAPI
 }
 
 // LoadConfig read PMM client config file.
@@ -135,7 +137,7 @@ func (a *Admin) SetConfig(cf Config) error {
 			a.Config.ClientName = hostname
 		}
 
-		node, _, err := a.consulapi.Catalog().Node(a.Config.ClientName, nil)
+		node, _, err := a.consulAPI.Catalog().Node(a.Config.ClientName, nil)
 		if err != nil {
 			return fmt.Errorf("Unable to communicate with Consul: %s", err)
 		}
@@ -149,7 +151,7 @@ Specify the other one using --client-name flag.`,
 	} else if cf.ClientName != "" && cf.ClientName != a.Config.ClientName {
 		// Attempt to change client name.
 		// Checking source name.
-		node, _, err := a.consulapi.Catalog().Node(a.Config.ClientName, nil)
+		node, _, err := a.consulAPI.Catalog().Node(a.Config.ClientName, nil)
 		if err != nil {
 			return fmt.Errorf("Unable to communicate with Consul: %s", err)
 		}
@@ -158,7 +160,7 @@ Specify the other one using --client-name flag.`,
 		}
 
 		// Checking target name.
-		node, _, err = a.consulapi.Catalog().Node(cf.ClientName, nil)
+		node, _, err = a.consulAPI.Catalog().Node(cf.ClientName, nil)
 		if err != nil {
 			return fmt.Errorf("Unable to communicate with Consul: %s", err)
 		}
@@ -189,7 +191,7 @@ Use --client-name flag to set the correct one.`)
 		}
 	} else if cf.ClientAddress != "" && cf.ClientAddress != a.Config.ClientAddress {
 		// Attempt to change client address.
-		node, _, err := a.consulapi.Catalog().Node(a.Config.ClientName, nil)
+		node, _, err := a.consulAPI.Catalog().Node(a.Config.ClientName, nil)
 		if err != nil {
 			return fmt.Errorf("Unable to communicate with Consul: %s", err)
 		}
@@ -245,13 +247,13 @@ func (a *Admin) SetAPI() error {
 		config.HttpAuth = &consul.HttpBasicAuth{Username: a.Config.ServerUser, Password: a.Config.ServerPassword}
 		authStr = fmt.Sprintf("%s:%s@", a.Config.ServerUser, a.Config.ServerPassword)
 	}
-	a.consulapi, _ = consul.NewClient(&config)
+	a.consulAPI, _ = consul.NewClient(&config)
 
 	// Full URL.
 	a.serverURL = fmt.Sprintf("%s://%s%s", scheme, authStr, a.Config.ServerAddress)
 
 	// QAN API.
-	a.qanapi = NewAPI(a.Config.ServerInsecureSSL)
+	a.qanAPI = NewAPI(a.Config.ServerInsecureSSL)
 
 	// Prometheus API.
 	cfg := prometheus.Config{Address: fmt.Sprintf("%s/prometheus", a.serverURL)}
@@ -259,11 +261,12 @@ func (a *Admin) SetAPI() error {
 		cfg.Transport = insecureTransport
 	}
 	client, _ := prometheus.New(cfg)
-	a.promapi = prometheus.NewQueryAPI(client)
+	a.promQueryAPI = prometheus.NewQueryAPI(client)
+	//a.promSeriesAPI = prometheus.NewSeriesAPI(client)
 
 	// Check if server is alive.
-	url := a.qanapi.URL(a.serverURL)
-	resp, _, err := a.qanapi.Get(url)
+	url := a.qanAPI.URL(a.serverURL)
+	resp, _, err := a.qanAPI.Get(url)
 	if err != nil {
 		if strings.Contains(err.Error(), "x509: cannot validate certificate") {
 			return fmt.Errorf(`Unable to connect to PMM server by address: %s
@@ -294,7 +297,7 @@ Use 'pmm-admin config' to define server user and password.`, a.Config.ServerAddr
 	}
 
 	// Finally, check Consul status.
-	if leader, err := a.consulapi.Status().Leader(); err != nil || leader != "127.0.0.1:8300" {
+	if leader, err := a.consulAPI.Status().Leader(); err != nil || leader != "127.0.0.1:8300" {
 		return fmt.Errorf(`Unable to connect to PMM server by address: %s
 
 Even though the server is reachable it does not look to be PMM server.
@@ -306,8 +309,8 @@ Check if the configured address is correct.`, a.Config.ServerAddress)
 
 // getMyRemoteIP get client remote IP from nginx custom header X-Remote-IP.
 func (a *Admin) getMyRemoteIP() string {
-	url := a.qanapi.URL(a.serverURL, "v1/status/leader")
-	resp, _, err := a.qanapi.Get(url)
+	url := a.qanAPI.URL(a.serverURL, "v1/status/leader")
+	resp, _, err := a.qanAPI.Get(url)
 	if err != nil {
 		return ""
 	}
@@ -342,7 +345,7 @@ func (a *Admin) syncAgentConfig() error {
 
 // List get all services from Consul.
 func (a *Admin) List() error {
-	node, _, err := a.consulapi.Catalog().Node(a.Config.ClientName, nil)
+	node, _, err := a.consulAPI.Catalog().Node(a.Config.ClientName, nil)
 	if err != nil || node == nil {
 		fmt.Printf("%s '%s'.\n\n", noMonitoring, a.Config.ClientName)
 		return nil
@@ -376,7 +379,7 @@ func (a *Admin) List() error {
 		dsn := "-"
 		// Get values for service from Consul KV.
 		prefix := fmt.Sprintf("%s/%s/", a.Config.ClientName, svc.ID)
-		if data, _, err := a.consulapi.KV().List(prefix, nil); err == nil {
+		if data, _, err := a.consulAPI.KV().List(prefix, nil); err == nil {
 			for _, kvp := range data {
 				key := kvp.Key[len(prefix):]
 				switch key {
@@ -427,7 +430,7 @@ func (a *Admin) List() error {
 			opts := []string{}
 			// Get values for service from Consul KV.
 			prefix := fmt.Sprintf("%s/%s/%s/", a.Config.ClientName, queryService.ID, name)
-			if data, _, err := a.consulapi.KV().List(prefix, nil); err == nil {
+			if data, _, err := a.consulAPI.KV().List(prefix, nil); err == nil {
 				for _, kvp := range data {
 					key := kvp.Key[len(prefix):]
 					switch key {
@@ -560,7 +563,7 @@ Service type takes the following values: linux:metrics, mysql:metrics, mysql:que
 
 // StartStopAllMonitoring start/stop all metric services.
 func (a *Admin) StartStopAllMonitoring(action string) (int, error) {
-	node, _, err := a.consulapi.Catalog().Node(a.Config.ClientName, nil)
+	node, _, err := a.consulAPI.Catalog().Node(a.Config.ClientName, nil)
 	if err != nil || node == nil || len(node.Services) == 0 {
 		return 0, nil
 	}
@@ -591,7 +594,7 @@ func (a *Admin) StartStopAllMonitoring(action string) (int, error) {
 
 // RemoveAllMonitoring remove all the monitoring services.
 func (a *Admin) RemoveAllMonitoring(force bool) (uint16, error) {
-	node, _, err := a.consulapi.Catalog().Node(a.Config.ClientName, nil)
+	node, _, err := a.consulAPI.Catalog().Node(a.Config.ClientName, nil)
 	if err != nil || node == nil || len(node.Services) == 0 {
 		return 0, nil
 	}
@@ -628,9 +631,35 @@ func (a *Admin) RemoveAllMonitoring(force bool) (uint16, error) {
 	return count, nil
 }
 
+// PurgeMetrics purge metrics data on the server by its metric type and name.
+func (a *Admin) PurgeMetrics(svcType string) (uint, error) {
+	if svcType != "linux:metrics" && svcType != "mysql:metrics" && svcType != "mongodb:metrics" && svcType != "proxysql:metrics" {
+		return 0, fmt.Errorf(`bad service type.
+
+Service type takes the following values: linux:metrics, mysql:metrics, mongodb:metrics, proxysql:metrics.`)
+	}
+
+	match := fmt.Sprintf(`{job="%s",instance="%s"}`, strings.Split(svcType, ":")[0], a.ServiceName)
+	// XXX need this https://github.com/prometheus/client_golang/pull/248
+	//count, err := a.promSeriesAPI.Delete(context.Background(), []string{match})
+	//if err != nil {
+	//	return 0, err
+	//}
+	url := a.qanAPI.URL(a.serverURL, fmt.Sprintf("prometheus/api/v1/series?match[]=%s", match))
+	_, data, err := a.qanAPI.Delete(url)
+	if err != nil {
+		return 0, err
+	}
+	var res map[string]interface{}
+	_ = json.Unmarshal(data, &res)
+	count := uint(res["data"].(map[string]interface{})["numDeleted"].(float64))
+
+	return count, nil
+}
+
 // getConsulService get service from Consul by service type and optionally name (alias).
 func (a *Admin) getConsulService(service, name string) (*consul.AgentService, error) {
-	node, _, err := a.consulapi.Catalog().Node(a.Config.ClientName, nil)
+	node, _, err := a.consulAPI.Catalog().Node(a.Config.ClientName, nil)
 	if err != nil || node == nil {
 		return nil, err
 	}
@@ -655,7 +684,7 @@ func (a *Admin) getConsulService(service, name string) (*consul.AgentService, er
 func (a *Admin) checkGlobalDuplicateService(service, name string) error {
 	// Prevent duplicate clients (2 or more nodes using the same name).
 	// This should not usually happen unless the config file is edited manually.
-	node, _, err := a.consulapi.Catalog().Node(a.Config.ClientName, nil)
+	node, _, err := a.consulAPI.Catalog().Node(a.Config.ClientName, nil)
 	if err != nil {
 		return err
 	}
@@ -668,7 +697,7 @@ Re-configure this client with the different name using 'pmm-admin config' comman
 	}
 
 	// Check if service with the name (tag) is globally unique.
-	services, _, err := a.consulapi.Catalog().Service(service, fmt.Sprintf("alias_%s", name), nil)
+	services, _, err := a.consulAPI.Catalog().Service(service, fmt.Sprintf("alias_%s", name), nil)
 	if err != nil {
 		return err
 	}
@@ -711,7 +740,7 @@ func (a *Admin) choosePort(port uint16, userDefined bool) (uint16, error) {
 
 // availablePort check if port is occupied by any service on Consul.
 func (a *Admin) availablePort(port uint16) (bool, error) {
-	node, _, err := a.consulapi.Catalog().Node(a.Config.ClientName, nil)
+	node, _, err := a.consulAPI.Catalog().Node(a.Config.ClientName, nil)
 	if err != nil {
 		return false, err
 	}
@@ -756,7 +785,7 @@ func (a *Admin) CheckInstallation() ([]string, []string) {
 		services = append(services, s)
 	}
 
-	node, _, err := a.consulapi.Catalog().Node(a.Config.ClientName, nil)
+	node, _, err := a.consulAPI.Catalog().Node(a.Config.ClientName, nil)
 	if err != nil || node == nil || len(node.Services) == 0 {
 		return services, []string{}
 	}
@@ -804,27 +833,27 @@ func (a *Admin) RepairInstallation() error {
 			Node:      a.Config.ClientName,
 			ServiceID: s,
 		}
-		if _, err := a.consulapi.Catalog().Deregister(&dereg, nil); err != nil {
+		if _, err := a.consulAPI.Catalog().Deregister(&dereg, nil); err != nil {
 			return err
 		}
 
 		prefix := fmt.Sprintf("%s/%s/", a.Config.ClientName, s)
 
 		// Try to delete mysql instances from QAN associated with queries service on KV.
-		names, _, err := a.consulapi.KV().Keys(prefix, "", nil)
+		names, _, err := a.consulAPI.KV().Keys(prefix, "", nil)
 		if err == nil {
 			for _, name := range names {
 				if !strings.HasSuffix(name, "/qan_mysql_uuid") {
 					continue
 				}
-				data, _, err := a.consulapi.KV().Get(name, nil)
+				data, _, err := a.consulAPI.KV().Get(name, nil)
 				if err == nil && data != nil {
 					a.deleteMySQLinstance(string(data.Value))
 				}
 			}
 		}
 
-		a.consulapi.KV().DeleteTree(prefix, nil)
+		a.consulAPI.KV().DeleteTree(prefix, nil)
 	}
 
 	if len(orphanedServices) > 0 || len(missingServices) > 0 {

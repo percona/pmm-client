@@ -34,8 +34,8 @@ import (
 func (a *Admin) CheckNetwork(noEmoji bool) error {
 	// Check QAN API health.
 	qanStatus := false
-	url := a.qanapi.URL(a.serverURL, qanAPIBasePath, "ping")
-	if resp, _, err := a.qanapi.Get(url); err == nil {
+	url := a.qanAPI.URL(a.serverURL, qanAPIBasePath, "ping")
+	if resp, _, err := a.qanAPI.Get(url); err == nil {
 		if resp.StatusCode == http.StatusOK && resp.Header.Get("X-Percona-Qan-Api-Version") != "" {
 			qanStatus = true
 		}
@@ -43,7 +43,7 @@ func (a *Admin) CheckNetwork(noEmoji bool) error {
 
 	// Check Prometheus API by retriving all "up" time series.
 	promStatus := true
-	promData, err := a.promapi.Query(context.Background(), "up", time.Now())
+	promData, err := a.promQueryAPI.Query(context.Background(), "up", time.Now())
 	if err != nil {
 		promStatus = false
 	}
@@ -63,7 +63,7 @@ func (a *Admin) CheckNetwork(noEmoji bool) error {
 	a.testNetwork()
 	fmt.Println()
 
-	node, _, err := a.consulapi.Catalog().Node(a.Config.ClientName, nil)
+	node, _, err := a.consulAPI.Catalog().Node(a.Config.ClientName, nil)
 	if err != nil || node == nil {
 		fmt.Printf("%s '%s'.\n\n", noMonitoring, a.Config.ClientName)
 		return nil

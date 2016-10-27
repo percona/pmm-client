@@ -72,7 +72,7 @@ func (a *Admin) AddLinuxMetrics(force bool) error {
 		Address: a.Config.ClientAddress,
 		Service: &srv,
 	}
-	if _, err := a.consulapi.Catalog().Register(&reg, nil); err != nil {
+	if _, err := a.consulAPI.Catalog().Register(&reg, nil); err != nil {
 		return err
 	}
 
@@ -108,7 +108,7 @@ func (a *Admin) RemoveLinuxMetrics() error {
 		Node:      a.Config.ClientName,
 		ServiceID: consulSvc.ID,
 	}
-	if _, err := a.consulapi.Catalog().Deregister(&dereg, nil); err != nil {
+	if _, err := a.consulAPI.Catalog().Deregister(&dereg, nil); err != nil {
 		return err
 	}
 

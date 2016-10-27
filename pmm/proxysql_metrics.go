@@ -66,14 +66,14 @@ func (a *Admin) AddProxySQLMetrics(dsn string) error {
 		Address: a.Config.ClientAddress,
 		Service: &srv,
 	}
-	if _, err := a.consulapi.Catalog().Register(&reg, nil); err != nil {
+	if _, err := a.consulAPI.Catalog().Register(&reg, nil); err != nil {
 		return err
 	}
 
 	// Add info to Consul KV.
 	d := &consul.KVPair{Key: fmt.Sprintf("%s/%s/dsn", a.Config.ClientName, serviceID),
 		Value: []byte(SanitizeDSN(dsn))}
-	a.consulapi.KV().Put(d, nil)
+	a.consulAPI.KV().Put(d, nil)
 
 	// Install and start service via platform service manager.
 	svcConfig := &service.Config{
@@ -107,12 +107,12 @@ func (a *Admin) RemoveProxySQLMetrics() error {
 		Node:      a.Config.ClientName,
 		ServiceID: consulSvc.ID,
 	}
-	if _, err := a.consulapi.Catalog().Deregister(&dereg, nil); err != nil {
+	if _, err := a.consulAPI.Catalog().Deregister(&dereg, nil); err != nil {
 		return err
 	}
 
 	prefix := fmt.Sprintf("%s/%s/", a.Config.ClientName, consulSvc.ID)
-	a.consulapi.KV().DeleteTree(prefix, nil)
+	a.consulAPI.KV().DeleteTree(prefix, nil)
 
 	// Stop and uninstall service.
 	if err := uninstallService(fmt.Sprintf("pmm-proxysql-metrics-%d", consulSvc.Port)); err != nil {

@@ -27,7 +27,7 @@ import (
 )
 
 // AddMongoDBMetrics add mongodb metrics service to monitoring.
-func (a *Admin) AddMongoDBMetrics(uri, nodetype, replset, cluster string) error {
+func (a *Admin) AddMongoDBMetrics(uri, cluster string) error {
 	// Check if we have already this service on Consul.
 	consulSvc, err := a.getConsulService("mongodb:metrics", a.ServiceName)
 	if err != nil {
@@ -55,12 +55,6 @@ func (a *Admin) AddMongoDBMetrics(uri, nodetype, replset, cluster string) error 
 	}
 
 	tags := []string{fmt.Sprintf("alias_%s", a.ServiceName)}
-	if nodetype != "" {
-		tags = append(tags, fmt.Sprintf("nodetype_%s", nodetype))
-	}
-	if replset != "" {
-		tags = append(tags, fmt.Sprintf("replset_%s", replset))
-	}
 	if cluster != "" {
 		tags = append(tags, fmt.Sprintf("cluster_%s", cluster))
 	}
@@ -77,14 +71,14 @@ func (a *Admin) AddMongoDBMetrics(uri, nodetype, replset, cluster string) error 
 		Address: a.Config.ClientAddress,
 		Service: &srv,
 	}
-	if _, err := a.consulapi.Catalog().Register(&reg, nil); err != nil {
+	if _, err := a.consulAPI.Catalog().Register(&reg, nil); err != nil {
 		return err
 	}
 
 	// Add info to Consul KV.
 	d := &consul.KVPair{Key: fmt.Sprintf("%s/mongodb:metrics-%d/dsn", a.Config.ClientName, port),
 		Value: []byte(SanitizeDSN(uri))}
-	a.consulapi.KV().Put(d, nil)
+	a.consulAPI.KV().Put(d, nil)
 
 	// Install and start service via platform service manager.
 	svcConfig := &service.Config{
@@ -118,12 +112,12 @@ func (a *Admin) RemoveMongoDBMetrics() error {
 		Node:      a.Config.ClientName,
 		ServiceID: consulSvc.ID,
 	}
-	if _, err := a.consulapi.Catalog().Deregister(&dereg, nil); err != nil {
+	if _, err := a.consulAPI.Catalog().Deregister(&dereg, nil); err != nil {
 		return err
 	}
 
 	prefix := fmt.Sprintf("%s/%s/", a.Config.ClientName, consulSvc.ID)
-	a.consulapi.KV().DeleteTree(prefix, nil)
+	a.consulAPI.KV().DeleteTree(prefix, nil)
 
 	// Stop and uninstall service.
 	if err := uninstallService(fmt.Sprintf("pmm-mongodb-metrics-%d", consulSvc.Port)); err != nil {
@@ -134,12 +128,7 @@ func (a *Admin) RemoveMongoDBMetrics() error {
 }
 
 // DetectMongoDB verify MongoDB connection.
-func (a *Admin) DetectMongoDB(uri, nodetype string) error {
-	// Check --nodetype flag.
-	if nodetype != "" && nodetype != "mongod" && nodetype != "mongos" && nodetype != "config" && nodetype != "arbiter" {
-		return fmt.Errorf("Flag --nodetype can take the following values: mongod, mongos, config, arbiter.")
-	}
-
+func (a *Admin) DetectMongoDB(uri string) error {
 	dialInfo, err := mgo.ParseURL(uri)
 	if err != nil {
 		return fmt.Errorf("Bad MongoDB uri %s: %s", uri, err)

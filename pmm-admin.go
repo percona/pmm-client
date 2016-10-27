@@ -275,12 +275,11 @@ a new user 'pmm@' automatically using the given (auto-detected) MySQL credential
 		Long: `This command adds the given MongoDB instance to system and metrics monitoring.
 
 When adding a MongoDB instance, you may provide --uri if the default one does not work for you.
-Use additional options to specify MongoDB node type, cluster, replSet etc.
 
 [name] is an optional argument, by default it is set to the client name of this PMM client.
 		`,
 		Example: `  pmm-admin add mongodb
-  pmm-admin add mongodb --nodetype mongod --cluster cluster-1.2 --replset rs1`,
+  pmm-admin add mongodb --cluster bare-metal`,
 		Run: func(cmd *cobra.Command, args []string) {
 			err := admin.AddLinuxMetrics(flagForce)
 			if err == pmm.ErrOneLinux {
@@ -292,11 +291,11 @@ Use additional options to specify MongoDB node type, cluster, replSet etc.
 				fmt.Println("[linux:metrics]   OK, now monitoring this system.")
 			}
 
-			if err := admin.DetectMongoDB(flagMongoURI, flagMongoNodeType); err != nil {
+			if err := admin.DetectMongoDB(flagMongoURI); err != nil {
 				fmt.Printf("[mongodb:metrics] %s\n", err)
 				os.Exit(1)
 			}
-			err = admin.AddMongoDBMetrics(flagMongoURI, flagMongoNodeType, flagMongoReplSet, flagMongoCluster)
+			err = admin.AddMongoDBMetrics(flagMongoURI, flagCluster)
 			if err == pmm.ErrDuplicate {
 				fmt.Println("[mongodb:metrics] OK, already monitoring MongoDB metrics.")
 			} else if err != nil {
@@ -313,18 +312,17 @@ Use additional options to specify MongoDB node type, cluster, replSet etc.
 		Long: `This command adds the given MongoDB instance to metrics monitoring.
 
 When adding a MongoDB instance, you may provide --uri if the default one does not work for you.
-Use additional options to specify MongoDB node type, cluster, replSet etc.
 
 [name] is an optional argument, by default it is set to the client name of this PMM client.
 		`,
 		Example: `  pmm-admin add mongodb:metrics
-  pmm-admin add mongodb:metrics --nodetype mongod --cluster cluster-1.2 --replset rs1`,
+  pmm-admin add mongodb:metrics --cluster bare-metal`,
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := admin.DetectMongoDB(flagMongoURI, flagMongoNodeType); err != nil {
+			if err := admin.DetectMongoDB(flagMongoURI); err != nil {
 				fmt.Println(err)
 				os.Exit(1)
 			}
-			if err := admin.AddMongoDBMetrics(flagMongoURI, flagMongoNodeType, flagMongoReplSet, flagMongoCluster); err != nil {
+			if err := admin.AddMongoDBMetrics(flagMongoURI, flagCluster); err != nil {
 				fmt.Println("Error adding MongoDB metrics:", err)
 				os.Exit(1)
 			}
@@ -742,6 +740,42 @@ please check the firewall settings whether this system allows incoming connectio
 		},
 	}
 
+	cmdPurge = &cobra.Command{
+		Use:   "purge TYPE [name]",
+		Short: "Purge metrics by type and name on the PMM server.",
+		Long: `This command purges metrics data associated with metrics service (type) on the PMM server.
+
+It is not required that metric service or name exists.
+[name] is an optional argument, by default it is set to the client name of this PMM client.
+		`,
+		Example: `  pmm-admin purge linux:metrics
+  pmm-admin purge mysql:metrics db01.vm`,
+		Run: func(cmd *cobra.Command, args []string) {
+			// Check args.
+			if len(args) == 0 {
+				fmt.Println("No service type specified.\n")
+				cmd.Usage()
+				os.Exit(1)
+			}
+			svcType := args[0]
+			admin.ServiceName = admin.Config.ClientName
+			if len(args) > 1 {
+				admin.ServiceName = args[1]
+			}
+
+			count, err := admin.PurgeMetrics(svcType)
+			if err != nil {
+				fmt.Printf("Error purging %s data for %s: %s\n", svcType, admin.ServiceName, err)
+				os.Exit(1)
+			}
+			if count == 0 {
+				fmt.Printf("OK, no data purged of %s for %s.\n", svcType, admin.ServiceName)
+			} else {
+				fmt.Printf("OK, purged %d time-series of %s data for %s.\n", count, svcType, admin.ServiceName)
+			}
+		},
+	}
+
 	cmdRepair = &cobra.Command{
 		Use:   "repair",
 		Short: "Repair installation.",
@@ -757,7 +791,7 @@ It removes local services disconnected from PMM server and remote services that 
 		},
 	}
 
-	flagConfigFile, flagMongoURI, flagMongoNodeType, flagMongoReplSet, flagMongoCluster, flagDSN string
+	flagConfigFile, flagMongoURI, flagCluster, flagDSN string
 
 	flagVersion, flagNoEmoji, flagAll, flagForce bool
 
@@ -770,7 +804,7 @@ func main() {
 	// Commands.
 	cobra.EnableCommandSorting = false
 	rootCmd.AddCommand(cmdConfig, cmdAdd, cmdRemove, cmdList, cmdInfo, cmdCheckNet, cmdPing, cmdStart, cmdStop,
-		cmdRestart, cmdRepair)
+		cmdRestart, cmdPurge, cmdRepair)
 	cmdAdd.AddCommand(cmdAddMySQL, cmdAddLinuxMetrics, cmdAddMySQLMetrics, cmdAddMySQLQueries,
 		cmdAddMongoDB, cmdAddMongoDBMetrics, cmdAddProxySQLMetrics)
 	cmdRemove.AddCommand(cmdRemoveMySQL, cmdRemoveLinuxMetrics, cmdRemoveMySQLMetrics, cmdRemoveMySQLQueries,
@@ -838,14 +872,10 @@ func main() {
 	cmdAddMySQLQueries.Flags().StringVar(&flagM.QuerySource, "query-source", "auto", "source of SQL queries: auto, slowlog, perfschema")
 
 	cmdAddMongoDB.Flags().StringVar(&flagMongoURI, "uri", "localhost:27017", "MongoDB URI, format: [mongodb://][user:pass@]host[:port][/database][?options]")
-	cmdAddMongoDB.Flags().StringVar(&flagMongoNodeType, "nodetype", "", "node type: mongod, mongos, config, arbiter")
-	cmdAddMongoDB.Flags().StringVar(&flagMongoCluster, "cluster", "", "cluster name")
-	cmdAddMongoDB.Flags().StringVar(&flagMongoReplSet, "replset", "", "replSet name")
+	cmdAddMongoDB.Flags().StringVar(&flagCluster, "cluster", "", "cluster name")
 
 	cmdAddMongoDBMetrics.Flags().StringVar(&flagMongoURI, "uri", "localhost:27017", "MongoDB URI, format: [mongodb://][user:pass@]host[:port][/database][?options]")
-	cmdAddMongoDBMetrics.Flags().StringVar(&flagMongoNodeType, "nodetype", "", "node type: mongod, mongos, config, arbiter")
-	cmdAddMongoDBMetrics.Flags().StringVar(&flagMongoCluster, "cluster", "", "cluster name")
-	cmdAddMongoDBMetrics.Flags().StringVar(&flagMongoReplSet, "replset", "", "replSet name")
+	cmdAddMongoDBMetrics.Flags().StringVar(&flagCluster, "cluster", "", "cluster name")
 
 	cmdAddProxySQLMetrics.Flags().StringVar(&flagDSN, "dsn", "stats:stats@tcp(localhost:6032)/", "ProxySQL connection DSN")
 

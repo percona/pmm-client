@@ -1,5 +1,17 @@
 Percona Monitoring and Management (PMM) Client
 
+v1.0.6 unreleased 2016-10-27
+
+* Fixes for "mysql:queries" service using perfschema query source:
+  * do not crash when DIGEST_TEXT is NULL
+  * do not iterate over all the query digests on the start
+  * send query examples to Query Analytics.
+* Added "purge" command to purge metrics data on the server.
+* Updated mongodb_exporter with RocksDB support and various fixes.
+* Removed --nodetype and --replset flags for mongodb:metrics, they are not needed now, --cluster flag is made optional.
+  It is recommended to purge the existing mongodb metrics using a new command and re-add mongodb:metrics service.
+* Enabled monitoring of file descriptors (requires re-adding linux:metrics service).
+
 v1.0.5 released 2016-10-14
 
 * Added check for orphaned local and remote services.
