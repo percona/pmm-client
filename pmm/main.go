@@ -31,7 +31,7 @@ import (
 
 	consul "github.com/hashicorp/consul/api"
 	"github.com/percona/kardianos-service"
-	"github.com/percona/pmm/proto/config"
+	protocfg "github.com/percona/pmm/proto/config"
 	"github.com/prometheus/client_golang/api/prometheus"
 	//"golang.org/x/net/context"
 	"gopkg.in/yaml.v2"
@@ -203,8 +203,9 @@ Use --client-name flag to set the correct one.`)
 	}
 
 	// If agent config exists, update the options like address, SSL, password etc.
+	agentConfigFile := fmt.Sprintf("%s/config/agent.conf", agentBaseDir)
 	if FileExists(agentConfigFile) {
-		if err := a.syncAgentConfig(); err != nil {
+		if err := a.syncAgentConfig(agentConfigFile); err != nil {
 			return fmt.Errorf("Unable to update agent config %s: %s", agentConfigFile, err)
 		}
 		// Restart QAN agent.
@@ -324,12 +325,12 @@ func (a *Admin) writeConfig() error {
 }
 
 // syncAgentConfig sync agent config.
-func (a *Admin) syncAgentConfig() error {
+func (a *Admin) syncAgentConfig(agentConfigFile string) error {
 	jsonData, err := ioutil.ReadFile(agentConfigFile)
 	if err != nil {
 		return err
 	}
-	agentConf := &config.Agent{}
+	agentConf := &protocfg.Agent{}
 	if err := json.Unmarshal(jsonData, &agentConf); err != nil {
 		return err
 	}
@@ -436,10 +437,11 @@ func (a *Admin) List() error {
 					switch key {
 					case "dsn":
 						dsn = string(kvp.Value)
-					case "query_source":
-						opts = append(opts, fmt.Sprintf("%s=%s", key, kvp.Value))
+					case "qan_mysql_uuid":
+						f := fmt.Sprintf("%s/config/qan-%s.conf", agentBaseDir, kvp.Value)
+						querySource, _ := getQuerySource(f)
+						opts = append(opts, fmt.Sprintf("query_source=%s", querySource))
 					}
-					// We don't need other, e.g. qan_mysql_uuid.
 				}
 			}
 			row := instanceStatus{

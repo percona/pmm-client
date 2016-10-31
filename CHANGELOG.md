@@ -1,11 +1,12 @@
 Percona Monitoring and Management (PMM) Client
 
-v1.0.6 unreleased 2016-10-28
+v1.0.6 unreleased 2016-10-31
 
 * Fixes for "mysql:queries" service using perfschema query source:
   * do not crash when DIGEST_TEXT is NULL
   * do not iterate over all the query digests on the start
   * send query examples to Query Analytics.
+* Show the actual query source for mysql:queries services by `pmm-admin list`, in case it was changed on UI.
 * Added "purge" command to purge metrics data on the server.
 * Updated mongodb_exporter with RocksDB support and various fixes.
 * Removed --nodetype and --replset flags for mongodb:metrics, they are not needed now, --cluster flag is made optional.
@@ -40,7 +41,7 @@ v1.0.4 released 2016-09-13
 * Added options to support SSL and HTTP password protection on PMM server.
 * Added check whether all the required binaries are installed.
 * Changed behaviour of --create-user MySQL flag:
-  * now pmm-admin employs a single `pmm` MySQL user, verifies if already exists and stores the generated password in the config
+  * now pmm-admin employs a single "pmm" MySQL user, verifies if already exists and stores the generated password in the config
   * added checks whether MySQL is read-only or a replication slave
   * stored credentials are automatically picked up by pmm-admin when valid
 * mysqld_exporter is replaced with custom one https://github.com/percona/mysqld_exporter

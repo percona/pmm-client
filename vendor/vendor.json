@@ -61,14 +61,14 @@
 		{
 			"checksumSHA1": "77jNwmeWSRb4ohYnXMoF6sXXR64=",
 			"path": "github.com/percona/pmm/proto",
-			"revision": "cd8afb3a5e7564ce9f040c60fbd88932fc95de8f",
-			"revisionTime": "2016-08-04T08:58:49Z"
+			"revision": "0fed9855a74efb96a3db4f4496a1bba89e23bf69",
+			"revisionTime": "2016-10-28T10:04:23Z"
 		},
 		{
-			"checksumSHA1": "4FXQU34jEsMT/f6jwXEadWcHUxs=",
+			"checksumSHA1": "bBwqWzQWZcpkyTmoKicR32H3/po=",
 			"path": "github.com/percona/pmm/proto/config",
-			"revision": "486ce2c4c1e8241f7c7fe0be451f23a5997a6cf9",
-			"revisionTime": "2016-09-08T21:38:48Z"
+			"revision": "0fed9855a74efb96a3db4f4496a1bba89e23bf69",
+			"revisionTime": "2016-10-28T10:04:23Z"
 		},
 		{
 			"checksumSHA1": "lWNyUf9sbhkV16+o4PTuACsLUy8=",

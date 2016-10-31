@@ -30,7 +30,7 @@ import (
 	consul "github.com/hashicorp/consul/api"
 	"github.com/percona/kardianos-service"
 	"github.com/percona/pmm/proto"
-	"github.com/percona/pmm/proto/config"
+	protocfg "github.com/percona/pmm/proto/config"
 )
 
 // AddMySQLQueries add mysql instance to QAN.
@@ -55,13 +55,14 @@ func (a *Admin) AddMySQLQueries(info map[string]string) error {
 	}
 
 	// Register agent if config file does not exist.
+	agentConfigFile := fmt.Sprintf("%s/config/agent.conf", agentBaseDir)
 	if !FileExists(agentConfigFile) {
 		if err := a.registerAgent(); err != nil {
 			return err
 		}
 	}
 
-	agentID, err := getAgentID()
+	agentID, err := getAgentID(agentConfigFile)
 	if err != nil {
 		return err
 	}
@@ -73,7 +74,7 @@ func (a *Admin) AddMySQLQueries(info map[string]string) error {
 			return err
 		}
 		// Get new agent id.
-		agentID, err = getAgentID()
+		agentID, err = getAgentID(agentConfigFile)
 		if err != nil {
 			return err
 		}
@@ -178,9 +179,6 @@ func (a *Admin) AddMySQLQueries(info map[string]string) error {
 	d := &consul.KVPair{Key: fmt.Sprintf("%s/%s/%s/dsn", a.Config.ClientName, serviceID, a.ServiceName),
 		Value: []byte(info["safe_dsn"])}
 	a.consulAPI.KV().Put(d, nil)
-	d = &consul.KVPair{Key: fmt.Sprintf("%s/%s/%s/query_source", a.Config.ClientName, serviceID, a.ServiceName),
-		Value: []byte(info["query_source"])}
-	a.consulAPI.KV().Put(d, nil)
 	d = &consul.KVPair{Key: fmt.Sprintf("%s/%s/%s/qan_mysql_uuid", a.Config.ClientName, serviceID, a.ServiceName),
 		Value: []byte(mysqlInstance.UUID)}
 	a.consulAPI.KV().Put(d, nil)
@@ -213,7 +211,8 @@ func (a *Admin) RemoveMySQLQueries() error {
 	mysqlUUID := string(data.Value)
 
 	// Stop QAN for this MySQL instance on the local agent.
-	agentID, err := getAgentID()
+	agentConfigFile := fmt.Sprintf("%s/config/agent.conf", agentBaseDir)
+	agentID, err := getAgentID(agentConfigFile)
 	if err != nil {
 		return err
 	}
@@ -470,17 +469,32 @@ func (a *Admin) deleteMySQLinstance(mysqlUUID string) error {
 	return nil
 }
 
-// getAgentID read QAN agent ID from its config file.
-func getAgentID() (string, error) {
-	jsonData, err := ioutil.ReadFile(agentConfigFile)
+// getAgentID read agent UUID from agent QAN config file.
+func getAgentID(configFile string) (string, error) {
+	jsonData, err := ioutil.ReadFile(configFile)
 	if err != nil {
 		return "", err
 	}
 
-	config := &config.Agent{}
+	config := &protocfg.Agent{}
 	if err := json.Unmarshal(jsonData, &config); err != nil {
 		return "", err
 	}
 
 	return config.UUID, nil
+}
+
+// getQuerySource read CollectFrom from mysql instance QAN config file.
+func getQuerySource(configFile string) (string, error) {
+	jsonData, err := ioutil.ReadFile(configFile)
+	if err != nil {
+		return "", err
+	}
+
+	config := &protocfg.QAN{}
+	if err := json.Unmarshal(jsonData, &config); err != nil {
+		return "", err
+	}
+
+	return config.CollectFrom, nil
 }

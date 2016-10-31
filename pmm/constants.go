@@ -37,8 +37,7 @@ const (
 )
 
 var (
-	ConfigFile      = fmt.Sprintf("%s/pmm.yml", PMMBaseDir)
-	agentConfigFile = fmt.Sprintf("%s/config/agent.conf", agentBaseDir)
+	ConfigFile = fmt.Sprintf("%s/pmm.yml", PMMBaseDir)
 
 	ErrDuplicate = fmt.Errorf("there is already one instance with this name under monitoring.")
 	ErrNoService = fmt.Errorf("no service found.")
