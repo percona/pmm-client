@@ -563,7 +563,7 @@ Note, resetting server address clears up SSL and HTTP authentication if no corre
 			}
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := admin.SetConfig(flagC); err != nil {
+			if err := admin.SetConfig(flagC, flagForce); err != nil {
 				fmt.Printf("%s\n", err)
 				os.Exit(1)
 			}
@@ -837,12 +837,13 @@ func main() {
 	rootCmd.Flags().BoolVarP(&flagVersion, "version", "v", false, "show version")
 
 	cmdConfig.Flags().StringVar(&flagC.ServerAddress, "server", "", "PMM server address, optionally following with the :port (default port 80 or 443 if using SSL)")
-	cmdConfig.Flags().StringVar(&flagC.ClientAddress, "client-address", "", "Client address (if unset it will be automatically detected)")
-	cmdConfig.Flags().StringVar(&flagC.ClientName, "client-name", "", "Client name (if unset it will be set to the current hostname)")
-	cmdConfig.Flags().StringVar(&flagC.ServerUser, "server-user", "pmm", "Define HTTP user configured on PMM Server")
-	cmdConfig.Flags().StringVar(&flagC.ServerPassword, "server-password", "", "Define HTTP password configured on PMM Server")
-	cmdConfig.Flags().BoolVar(&flagC.ServerSSL, "server-ssl", false, "Enable SSL to communicate with PMM Server")
-	cmdConfig.Flags().BoolVar(&flagC.ServerInsecureSSL, "server-insecure-ssl", false, "Enable insecure SSL (self-signed certificate) to communicate with PMM Server")
+	cmdConfig.Flags().StringVar(&flagC.ClientAddress, "client-address", "", "client address (if unset it will be automatically detected)")
+	cmdConfig.Flags().StringVar(&flagC.ClientName, "client-name", "", "client name (if unset it will be set to the current hostname)")
+	cmdConfig.Flags().StringVar(&flagC.ServerUser, "server-user", "pmm", "define HTTP user configured on PMM Server")
+	cmdConfig.Flags().StringVar(&flagC.ServerPassword, "server-password", "", "define HTTP password configured on PMM Server")
+	cmdConfig.Flags().BoolVar(&flagC.ServerSSL, "server-ssl", false, "enable SSL to communicate with PMM Server")
+	cmdConfig.Flags().BoolVar(&flagC.ServerInsecureSSL, "server-insecure-ssl", false, "enable insecure SSL (self-signed certificate) to communicate with PMM Server")
+	cmdConfig.Flags().BoolVar(&flagForce, "force", false, "force to set client name on initial setup after uninstall with unreachable server")
 
 	cmdAdd.PersistentFlags().Uint16Var(&flagServicePort, "service-port", 0, "service port")
 

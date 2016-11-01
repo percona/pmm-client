@@ -92,7 +92,7 @@ func (a *Admin) LoadConfig(filename string) error {
 }
 
 // SetConfig configure PMM client, check connectivity and write the config.
-func (a *Admin) SetConfig(cf Config) error {
+func (a *Admin) SetConfig(cf Config, flagForce bool) error {
 	// Server options.
 	if cf.ServerSSL && cf.ServerInsecureSSL {
 		return fmt.Errorf("Flags --server-ssl and --server-insecure-ssl are mutually exclusive.")
@@ -144,11 +144,19 @@ func (a *Admin) SetConfig(cf Config) error {
 			return fmt.Errorf("Unable to communicate with Consul: %s", err)
 		}
 		if node != nil && len(node.Services) > 0 {
-			return fmt.Errorf(`Another client with the same name '%s' detected, its address is %s.
+			if !flagForce {
+				return fmt.Errorf(`Another client with the same name '%s' detected, its address is %s.
 It has the active services so this name is not available.
 
-Specify the other one using --client-name flag.`,
-				a.Config.ClientName, node.Node.Address)
+Specify the other one using --client-name flag.
+
+In case this is the correct client node that was previously uninstalled with unreachable PMM server,
+you can add --force flag to proceed further. Do not use this flag otherwise.
+The orphaned remote services will be removed automatically.`,
+					a.Config.ClientName, node.Node.Address)
+			}
+			// Allow to set client name and clean missing services.
+			a.RepairInstallation()
 		}
 	} else if cf.ClientName != "" && cf.ClientName != a.Config.ClientName {
 		// Attempt to change client name.
