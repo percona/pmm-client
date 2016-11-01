@@ -26,10 +26,15 @@ as possible.
 %build
 
 %install
-install -m 0755 -d $RPM_BUILD_ROOT/usr/sbin
+%if 0%{?rhel} == 5
+    install -m 0755 -d $RPM_BUILD_ROOT/usr/bin
+    install -m 0755 bin/pmm-admin $RPM_BUILD_ROOT/usr/bin/
+%else
+    install -m 0755 -d $RPM_BUILD_ROOT/usr/sbin
+    install -m 0755 bin/pmm-admin $RPM_BUILD_ROOT/usr/sbin/
+%endif
 install -m 0755 -d $RPM_BUILD_ROOT/usr/local/percona/pmm-client
 install -m 0755 -d $RPM_BUILD_ROOT/usr/local/percona/qan-agent/bin
-install -m 0755 bin/pmm-admin $RPM_BUILD_ROOT/usr/sbin/
 install -m 0755 bin/node_exporter $RPM_BUILD_ROOT/usr/local/percona/pmm-client/
 install -m 0755 bin/mysqld_exporter $RPM_BUILD_ROOT/usr/local/percona/pmm-client/
 install -m 0755 bin/mongodb_exporter $RPM_BUILD_ROOT/usr/local/percona/pmm-client/
@@ -67,4 +72,8 @@ fi
 %dir /usr/local/percona/qan-agent/bin
 /usr/local/percona/pmm-client/*
 /usr/local/percona/qan-agent/bin/*
-/usr/sbin/pmm-admin
+%if 0%{?rhel} == 5
+    /usr/bin/pmm-admin
+%else
+    /usr/sbin/pmm-admin
+%endif
