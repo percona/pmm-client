@@ -28,6 +28,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	consul "github.com/hashicorp/consul/api"
 	"github.com/percona/kardianos-service"
@@ -66,6 +67,7 @@ type Admin struct {
 	Config       *Config
 	filename     string
 	serverURL    string
+	apiTimeout   time.Duration
 	qanAPI       *API
 	consulAPI    *consul.Client
 	promQueryAPI prometheus.QueryAPI
@@ -183,7 +185,7 @@ Use --client-name flag to set the correct one.`)
 			a.Config.ClientAddress = cf.ClientAddress
 		} else {
 			// Detect remote address from nginx response header.
-			a.Config.ClientAddress = a.getMyRemoteIP()
+			a.Config.ClientAddress = a.getNginxHeader("X-Remote-IP")
 		}
 
 		if a.Config.ClientAddress == "" {
@@ -224,6 +226,11 @@ Use --client-name flag to set the correct one.`)
 
 // SetAPI setup Consul, QAN, Prometheus APIs and verify connection.
 func (a *Admin) SetAPI() error {
+	// Set default API timeout if unset.
+	if a.apiTimeout == 0 {
+		a.apiTimeout = apiTimeout
+	}
+
 	scheme := "http"
 	insecureTransport := &http.Transport{}
 	if a.Config.ServerInsecureSSL {
@@ -237,7 +244,7 @@ func (a *Admin) SetAPI() error {
 	// Consul API.
 	config := consul.Config{
 		Address:    a.Config.ServerAddress,
-		HttpClient: &http.Client{Timeout: apiTimeout},
+		HttpClient: &http.Client{Timeout: a.apiTimeout},
 		Scheme:     scheme,
 	}
 	if a.Config.ServerInsecureSSL {
@@ -254,7 +261,7 @@ func (a *Admin) SetAPI() error {
 	a.serverURL = fmt.Sprintf("%s://%s%s", scheme, authStr, a.Config.ServerAddress)
 
 	// QAN API.
-	a.qanAPI = NewAPI(a.Config.ServerInsecureSSL)
+	a.qanAPI = NewAPI(a.Config.ServerInsecureSSL, a.apiTimeout)
 
 	// Prometheus API.
 	cfg := prometheus.Config{Address: fmt.Sprintf("%s/prometheus", a.serverURL)}
@@ -308,14 +315,14 @@ Check if the configured address is correct.`, a.Config.ServerAddress)
 	return nil
 }
 
-// getMyRemoteIP get client remote IP from nginx custom header X-Remote-IP.
-func (a *Admin) getMyRemoteIP() string {
+// getNginxHeader get header value from Nginx response.
+func (a *Admin) getNginxHeader(header string) string {
 	url := a.qanAPI.URL(a.serverURL, "v1/status/leader")
 	resp, _, err := a.qanAPI.Get(url)
 	if err != nil {
 		return ""
 	}
-	return resp.Header.Get("X-Remote-IP")
+	return resp.Header.Get(header)
 }
 
 // writeConfig write config to the file.
@@ -595,7 +602,7 @@ func (a *Admin) StartStopAllMonitoring(action string) (int, error) {
 }
 
 // RemoveAllMonitoring remove all the monitoring services.
-func (a *Admin) RemoveAllMonitoring(force bool) (uint16, error) {
+func (a *Admin) RemoveAllMonitoring(ignoreErrors bool) (uint16, error) {
 	node, _, err := a.consulAPI.Catalog().Node(a.Config.ClientName, nil)
 	if err != nil || node == nil || len(node.Services) == 0 {
 		return 0, nil
@@ -610,20 +617,24 @@ func (a *Admin) RemoveAllMonitoring(force bool) (uint16, error) {
 			a.ServiceName = tag[6:]
 			switch svc.Service {
 			case "linux:metrics":
-				if err := a.RemoveLinuxMetrics(); err != nil && !force {
-					return 0, err
+				if err := a.RemoveLinuxMetrics(); err != nil && !ignoreErrors {
+					return count, err
 				}
 			case "mysql:metrics":
-				if err := a.RemoveMySQLMetrics(); err != nil && !force {
-					return 0, err
+				if err := a.RemoveMySQLMetrics(); err != nil && !ignoreErrors {
+					return count, err
 				}
 			case "mysql:queries":
-				if err := a.RemoveMySQLQueries(); err != nil && !force {
-					return 0, err
+				if err := a.RemoveMySQLQueries(); err != nil && !ignoreErrors {
+					return count, err
 				}
 			case "mongodb:metrics":
-				if err := a.RemoveMongoDBMetrics(); err != nil && !force {
-					return 0, err
+				if err := a.RemoveMongoDBMetrics(); err != nil && !ignoreErrors {
+					return count, err
+				}
+			case "proxysql:metrics":
+				if err := a.RemoveProxySQLMetrics(); err != nil && !ignoreErrors {
+					return count, err
 				}
 			}
 			count++
@@ -777,14 +788,12 @@ func (a *Admin) CheckInstallation() ([]string, []string) {
 		extension = ""
 	}
 
-	filesFound, err := filepath.Glob(fmt.Sprintf("%s/pmm-*%s", dir, extension))
+	filesFound, _ := filepath.Glob(fmt.Sprintf("%s/pmm-*%s", dir, extension))
 	rService, _ := regexp.Compile(fmt.Sprintf("%s/(pmm-.+)%s", dir, extension))
 	for _, f := range filesFound {
-		s := ""
 		if data := rService.FindStringSubmatch(f); data != nil {
-			s = data[1]
+			services = append(services, data[1])
 		}
-		services = append(services, s)
 	}
 
 	node, _, err := a.consulAPI.Catalog().Node(a.Config.ClientName, nil)
@@ -864,6 +873,49 @@ func (a *Admin) RepairInstallation() error {
 		fmt.Println("No orphaned services found.")
 	}
 	return nil
+}
+
+// Uninstall remove all monitoring services with the best effort.
+func (a *Admin) Uninstall(flagConfigFile string) uint16 {
+	var count uint16
+	if FileExists(flagConfigFile) {
+		err := a.LoadConfig(flagConfigFile)
+		if err == nil {
+			a.apiTimeout = 5 * time.Second
+			if err := a.SetAPI(); err == nil {
+				// Try remove all services normally ignoring the errors.
+				count, _ = a.RemoveAllMonitoring(true)
+			}
+		}
+	}
+
+	var dir, extension string
+	switch service.Platform() {
+	case "linux-systemd":
+		dir = "/etc/systemd/system"
+		extension = ".service"
+	case "linux-upstart":
+		dir = "/etc/init"
+		extension = ".conf"
+	case "unix-systemv":
+		dir = "/etc/init.d"
+		extension = ""
+	}
+
+	// Find any local PMM services and try to uninstall ignoring the errors.
+	filesFound, _ := filepath.Glob(fmt.Sprintf("%s/pmm-*%s", dir, extension))
+	rService, _ := regexp.Compile(fmt.Sprintf("%s/(pmm-.+)%s", dir, extension))
+	for _, f := range filesFound {
+		data := rService.FindStringSubmatch(f)
+		if data == nil {
+			continue
+		}
+		if err := uninstallService(data[1]); err == nil {
+			count++
+		}
+	}
+
+	return count
 }
 
 // FileExists check if file exists.

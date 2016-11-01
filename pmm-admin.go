@@ -363,7 +363,7 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 		},
 		Run: func(cmd *cobra.Command, args []string) {
 			if flagAll {
-				count, err := admin.RemoveAllMonitoring(flagForce)
+				count, err := admin.RemoveAllMonitoring(false)
 				if err != nil {
 					fmt.Printf("Error removing one of the services: %s\n", err)
 					os.Exit(1)
@@ -609,7 +609,7 @@ please check the firewall settings whether this system allows incoming connectio
 
 	cmdStart = &cobra.Command{
 		Use:   "start TYPE [name]",
-		Short: "Start service by type and name.",
+		Short: "Start monitoring service.",
 		Long: `This command starts the corresponding system service or all.
 
 [name] is an optional argument, by default it is set to the client name of this PMM client.
@@ -653,7 +653,7 @@ please check the firewall settings whether this system allows incoming connectio
 	}
 	cmdStop = &cobra.Command{
 		Use:   "stop TYPE [name]",
-		Short: "Stop service by type and name.",
+		Short: "Stop monitoring service.",
 		Long: `This command stops the corresponding system service or all.
 
 [name] is an optional argument, by default it is set to the client name of this PMM client.
@@ -697,7 +697,7 @@ please check the firewall settings whether this system allows incoming connectio
 	}
 	cmdRestart = &cobra.Command{
 		Use:   "restart TYPE [name]",
-		Short: "Restart service by type and name.",
+		Short: "Restart monitoring service.",
 		Long: `This command restarts the corresponding system service or all.
 
 [name] is an optional argument, by default it is set to the client name of this PMM client.
@@ -742,7 +742,7 @@ please check the firewall settings whether this system allows incoming connectio
 
 	cmdPurge = &cobra.Command{
 		Use:   "purge TYPE [name]",
-		Short: "Purge metrics by type and name on the PMM server.",
+		Short: "Purge metrics data on PMM server.",
 		Long: `This command purges metrics data associated with metrics service (type) on the PMM server.
 
 It is not required that metric service or name exists.
@@ -791,6 +791,28 @@ It removes local services disconnected from PMM server and remote services that 
 		},
 	}
 
+	cmdUninstall = &cobra.Command{
+		Use:   "uninstall",
+		Short: "Removes all monitoring services with the best effort.",
+		Long: `This command removes all monitoring services with the best effort.
+
+Usuaully, it runs automatically when pmm-client package is uninstalled to remove all local monitoring services
+despite PMM server is alive or not.
+		`,
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			// Cancel root's PersistentPreRun as we do not require server to be alive.
+		},
+		Run: func(cmd *cobra.Command, args []string) {
+			count := admin.Uninstall(flagConfigFile)
+			if count == 0 {
+				fmt.Println("OK, no services found.")
+			} else {
+				fmt.Printf("OK, %d services were removed.\n", count)
+			}
+			os.Exit(0)
+		},
+	}
+
 	flagConfigFile, flagMongoURI, flagCluster, flagDSN string
 
 	flagVersion, flagNoEmoji, flagAll, flagForce bool
@@ -804,7 +826,7 @@ func main() {
 	// Commands.
 	cobra.EnableCommandSorting = false
 	rootCmd.AddCommand(cmdConfig, cmdAdd, cmdRemove, cmdList, cmdInfo, cmdCheckNet, cmdPing, cmdStart, cmdStop,
-		cmdRestart, cmdPurge, cmdRepair)
+		cmdRestart, cmdPurge, cmdRepair, cmdUninstall)
 	cmdAdd.AddCommand(cmdAddMySQL, cmdAddLinuxMetrics, cmdAddMySQLMetrics, cmdAddMySQLQueries,
 		cmdAddMongoDB, cmdAddMongoDBMetrics, cmdAddProxySQLMetrics)
 	cmdRemove.AddCommand(cmdRemoveMySQL, cmdRemoveLinuxMetrics, cmdRemoveMySQLMetrics, cmdRemoveMySQLQueries,
@@ -880,7 +902,6 @@ func main() {
 	cmdAddProxySQLMetrics.Flags().StringVar(&flagDSN, "dsn", "stats:stats@tcp(localhost:6032)/", "ProxySQL connection DSN")
 
 	cmdRemove.Flags().BoolVar(&flagAll, "all", false, "remove all monitoring services")
-	cmdRemove.Flags().BoolVar(&flagForce, "force", false, "ignore any errors")
 
 	cmdCheckNet.Flags().BoolVar(&flagNoEmoji, "no-emoji", false, "avoid emoji in the output")
 

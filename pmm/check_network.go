@@ -20,10 +20,12 @@ package pmm
 import (
 	"crypto/tls"
 	"fmt"
+	"math"
 	"net"
 	"net/http"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -49,12 +51,30 @@ func (a *Admin) CheckNetwork(noEmoji bool) error {
 	}
 
 	fmt.Print("PMM Network Status\n\n")
-	fmt.Printf("%-6s | %s\n", "Server", a.Config.ServerAddress)
-	fmt.Printf("%-6s | %s\n\n", "Client", a.Config.ClientAddress)
+	fmt.Printf("%-14s | %s\n", "Server Address", a.Config.ServerAddress)
+	fmt.Printf("%-14s | %s\n\n", "Client Address", a.Config.ClientAddress)
+
+	t := a.getNginxHeader("X-Server-Time")
+	if t != "" {
+		fmt.Println("* System Time")
+		s, _ := strconv.ParseInt(t, 10, 64)
+		serverTime := time.Unix(s, 0)
+		clientTime := time.Now()
+		fmt.Printf("%-10s | %s\n", "Server", serverTime.Format("2006-01-02 15:04:05 -0700 MST"))
+		fmt.Printf("%-10s | %s\n", "Client", clientTime.Format("2006-01-02 15:04:05 -0700 MST"))
+		drift := math.Abs(float64(serverTime.Unix()) - float64(clientTime.Unix()))
+		driftText := emojiStatus(noEmoji, true)
+		if drift > 300 {
+			driftText = fmt.Sprintf("%s  %.0fs", emojiStatus(noEmoji, false), drift)
+			driftText += "\n\nTime is out of sync. Please make sure the server time is correct to see the metrics."
+		}
+		fmt.Printf("%-10s | %s\n\n\n", "Time Drift", driftText)
+	}
+
 	fmt.Println("* Client --> Server")
-	fmt.Printf("%-15s %-13s\n", strings.Repeat("-", 15), strings.Repeat("-", 7))
+	fmt.Printf("%-15s %-13s\n", strings.Repeat("-", 15), strings.Repeat("-", 8))
 	fmt.Printf("%-15s %-13s\n", "SERVER SERVICE", "STATUS")
-	fmt.Printf("%-15s %-13s\n", strings.Repeat("-", 15), strings.Repeat("-", 7))
+	fmt.Printf("%-15s %-13s\n", strings.Repeat("-", 15), strings.Repeat("-", 8))
 	// Consul is always alive if we are at this point.
 	fmt.Printf("%-15s %-13s\n", "Consul API", emojiStatus(noEmoji, true))
 	fmt.Printf("%-15s %-13s\n", "QAN API", emojiStatus(noEmoji, qanStatus))
@@ -74,6 +94,7 @@ func (a *Admin) CheckNetwork(noEmoji bool) error {
 		return nil
 	}
 
+	fmt.Println()
 	fmt.Println("* Client <-- Server")
 	if len(node.Services) == 0 {
 		fmt.Print("No metric endpoints registered.\n\n")
@@ -122,12 +143,12 @@ func (a *Admin) CheckNetwork(noEmoji bool) error {
 	}
 	maxTypeLen++
 	maxNameLen++
-	linefmt := "%-" + fmt.Sprintf("%d", maxTypeLen) + "s %-" + fmt.Sprintf("%d", maxNameLen) + "s %-22s %-7s\n"
+	linefmt := "%-" + fmt.Sprintf("%d", maxTypeLen) + "s %-" + fmt.Sprintf("%d", maxNameLen) + "s %-22s %-8s\n"
 	fmt.Printf(linefmt, strings.Repeat("-", maxTypeLen), strings.Repeat("-", maxNameLen), strings.Repeat("-", 22),
-		strings.Repeat("-", 7))
+		strings.Repeat("-", 8))
 	fmt.Printf(linefmt, "SERVICE TYPE", "NAME", "REMOTE ENDPOINT", "STATUS")
 	fmt.Printf(linefmt, strings.Repeat("-", maxTypeLen), strings.Repeat("-", maxNameLen), strings.Repeat("-", 22),
-		strings.Repeat("-", 7))
+		strings.Repeat("-", 8))
 	sort.Sort(sortOutput(svcTable))
 	for _, i := range svcTable {
 		fmt.Printf(linefmt, i.Type, i.Name, a.Config.ClientAddress+":"+i.Port, i.Status)
@@ -154,8 +175,8 @@ func (a *Admin) testNetwork() {
 
 	conn := &networkTransport{
 		dialer: &net.Dialer{
-			Timeout:   apiTimeout,
-			KeepAlive: apiTimeout,
+			Timeout:   a.apiTimeout,
+			KeepAlive: a.apiTimeout,
 		},
 	}
 	conn.rtp = &http.Transport{
@@ -217,7 +238,7 @@ func emojiStatus(noEmoji, status bool) string {
 	case noEmoji && status:
 		return "OK"
 	case noEmoji && !status:
-		return "DOWN"
+		return "PROBLEM"
 	case !noEmoji && status:
 		return emojiHappy
 	case !noEmoji && !status:

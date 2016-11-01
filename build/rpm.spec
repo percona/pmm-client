@@ -49,9 +49,8 @@ fi
 
 %preun
 # uninstall
-pmm-admin ping > /dev/null
-if [ $? = 0 ] && [ "$1" = "0" ]; then
-    pmm-admin remove --all --force
+if [ "$1" = "0" ]; then
+    pmm-admin uninstall
 fi
 
 %postun

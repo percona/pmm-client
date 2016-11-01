@@ -28,24 +28,27 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 )
 
 type API struct {
 	headers     map[string]string
 	hostname    string
 	insecureSSL bool
+	apiTimeout  time.Duration
 }
 
 type apiError struct {
 	Error string
 }
 
-func NewAPI(insecureFlag bool) *API {
+func NewAPI(insecureFlag bool, timeout time.Duration) *API {
 	hostname, _ := os.Hostname()
 	a := &API{
 		headers:     nil,
 		hostname:    hostname,
 		insecureSSL: insecureFlag,
+		apiTimeout:  timeout,
 	}
 	return a
 }
@@ -153,7 +156,7 @@ func (a *API) Error(method, url string, gotStatusCode, expectedStatusCode int, c
 // --------------------------------------------------------------------------
 
 func (a *API) newClient() *http.Client {
-	client := &http.Client{Timeout: apiTimeout}
+	client := &http.Client{Timeout: a.apiTimeout}
 	if a.insecureSSL {
 		client.Transport = &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
