@@ -57,14 +57,18 @@ func (a *Admin) CheckNetwork(noEmoji bool) error {
 	t := a.getNginxHeader("X-Server-Time")
 	if t != "" {
 		fmt.Println("* System Time")
-		s, _ := strconv.ParseInt(t, 10, 64)
-		serverTime := time.Unix(s, 0)
+		var serverTime time.Time
+		if s, err := strconv.ParseInt(t, 10, 64); err == nil {
+			serverTime = time.Unix(s, 0)
+		} else {
+			serverTime, _ = time.Parse("Monday, 02-Jan-2006 15:04:05 MST", t)
+		}
 		clientTime := time.Now()
 		fmt.Printf("%-10s | %s\n", "Server", serverTime.Format("2006-01-02 15:04:05 -0700 MST"))
 		fmt.Printf("%-10s | %s\n", "Client", clientTime.Format("2006-01-02 15:04:05 -0700 MST"))
 		drift := math.Abs(float64(serverTime.Unix()) - float64(clientTime.Unix()))
 		driftText := emojiStatus(noEmoji, true)
-		if drift > 300 {
+		if drift > 120 {
 			driftText = fmt.Sprintf("%s  %.0fs", emojiStatus(noEmoji, false), drift)
 			driftText += "\n\nTime is out of sync. Please make sure the server time is correct to see the metrics."
 		}
