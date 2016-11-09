@@ -53,10 +53,10 @@
 			"revisionTime": "2016-09-23T14:13:10Z"
 		},
 		{
-			"checksumSHA1": "ztWAjoHsEa1Z7ZB5UD6DXjeMXS0=",
+			"checksumSHA1": "tfBBUomC3bCB9LN0wQRBRRGoWx8=",
 			"path": "github.com/percona/kardianos-service",
-			"revision": "c6df4fd2af62975c63dfafcc0efb93b806c0b831",
-			"revisionTime": "2016-08-04T10:41:11Z"
+			"revision": "4f2961391f12578fc6523c1d0353623f294ab20e",
+			"revisionTime": "2016-11-09T20:14:57Z"
 		},
 		{
 			"checksumSHA1": "77jNwmeWSRb4ohYnXMoF6sXXR64=",

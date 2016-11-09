@@ -39,7 +39,7 @@ var (
 			// The version flag will not run anywhere else than on rootCmd as this flag is not persistent
 			// and we want it only here without any additional checks.
 			if flagVersion {
-				fmt.Println(pmm.VERSION)
+				fmt.Println(pmm.Version)
 				os.Exit(0)
 			}
 
@@ -59,7 +59,7 @@ var (
 				os.Exit(1)
 			}
 
-			if admin.Config.ServerAddress == "" || admin.Config.ClientName == "" || admin.Config.ClientAddress == "" {
+			if admin.Config.ServerAddress == "" || admin.Config.ClientName == "" || admin.Config.ClientAddress == "" || admin.Config.BindAddress == "" {
 				fmt.Println("PMM client is not configured properly. Please make sure you have run 'pmm-admin config'.")
 				os.Exit(1)
 			}
@@ -142,7 +142,8 @@ Table statistics is automatically disabled when there are more than 10000 tables
 [name] is an optional argument, by default it is set to the client name of this PMM client.
 		`,
 		Example: `  pmm-admin add mysql --password abc123
-  pmm-admin add mysql --password abc123 --create-user`,
+  pmm-admin add mysql --password abc123 --create-user
+  pmm-admin add mysql --password abc123 --port 3307 instance3307`,
 		Run: func(cmd *cobra.Command, args []string) {
 			// Check --query-source flag.
 			if flagM.QuerySource != "auto" && flagM.QuerySource != "slowlog" && flagM.QuerySource != "perfschema" {
@@ -221,7 +222,8 @@ Table statistics is automatically disabled when there are more than 10000 tables
 [name] is an optional argument, by default it is set to the client name of this PMM client.
 		`,
 		Example: `  pmm-admin add mysql:metrics --password abc123
-  pmm-admin add mysql:metrics --password abc123 --host 192.168.1.2 --create-user
+  pmm-admin add mysql:metrics --password abc123 --create-user
+  pmm-admin add mysql:metrics --password abc123 --port 3307 instance3307
   pmm-admin add mysql:metrics --user rdsuser --password abc123 --host my-rds.1234567890.us-east-1.rds.amazonaws.com my-rds`,
 		Run: func(cmd *cobra.Command, args []string) {
 			info, err := admin.DetectMySQL(flagM)
@@ -248,7 +250,8 @@ a new user 'pmm@' automatically using the given (auto-detected) MySQL credential
 [name] is an optional argument, by default it is set to the client name of this PMM client.
 		`,
 		Example: `  pmm-admin add mysql:queries --password abc123
-  pmm-admin add mysql:queries --password abc123 --host 192.168.1.2 --create-user
+  pmm-admin add mysql:queries --password abc123 --create-user
+  pmm-admin add mysql:metrics --password abc123 --port 3307 instance3307
   pmm-admin add mysql:queries --user rdsuser --password abc123 --host my-rds.1234567890.us-east-1.rds.amazonaws.com my-rds`,
 		Run: func(cmd *cobra.Command, args []string) {
 			// Check --query-source flag.
@@ -837,8 +840,9 @@ func main() {
 	rootCmd.Flags().BoolVarP(&flagVersion, "version", "v", false, "show version")
 
 	cmdConfig.Flags().StringVar(&flagC.ServerAddress, "server", "", "PMM server address, optionally following with the :port (default port 80 or 443 if using SSL)")
-	cmdConfig.Flags().StringVar(&flagC.ClientAddress, "client-address", "", "client address (if unset it will be automatically detected)")
-	cmdConfig.Flags().StringVar(&flagC.ClientName, "client-name", "", "client name (if unset it will be set to the current hostname)")
+	cmdConfig.Flags().StringVar(&flagC.ClientAddress, "client-address", "", "client address, also remote/public address for this system (if omitted it will be automatically detected by asking server)")
+	cmdConfig.Flags().StringVar(&flagC.BindAddress, "bind-address", "", "bind address, also local/private address that is mapped from client address via NAT/port forwarding (defaults to the client address)")
+	cmdConfig.Flags().StringVar(&flagC.ClientName, "client-name", "", "client name (defaults to the system hostname)")
 	cmdConfig.Flags().StringVar(&flagC.ServerUser, "server-user", "pmm", "define HTTP user configured on PMM Server")
 	cmdConfig.Flags().StringVar(&flagC.ServerPassword, "server-password", "", "define HTTP password configured on PMM Server")
 	cmdConfig.Flags().BoolVar(&flagC.ServerSSL, "server-ssl", false, "enable SSL to communicate with PMM Server")

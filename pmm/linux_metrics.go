@@ -82,7 +82,7 @@ func (a *Admin) AddLinuxMetrics(force bool) error {
 		DisplayName: "PMM Prometheus node_exporter",
 		Description: "PMM Prometheus node_exporter",
 		Executable:  fmt.Sprintf("%s/node_exporter", PMMBaseDir),
-		Arguments: []string{fmt.Sprintf("-web.listen-address=%s:%d", a.Config.ClientAddress, port),
+		Arguments: []string{fmt.Sprintf("-web.listen-address=%s:%d", a.Config.BindAddress, port),
 			nodeExporterArgs},
 	}
 	if err := installService(svcConfig); err != nil {

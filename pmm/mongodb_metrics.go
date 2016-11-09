@@ -86,7 +86,7 @@ func (a *Admin) AddMongoDBMetrics(uri, cluster string) error {
 		DisplayName: fmt.Sprintf("PMM Prometheus mongodb_exporter %d", port),
 		Description: fmt.Sprintf("PMM Prometheus mongodb_exporter %d", port),
 		Executable:  fmt.Sprintf("%s/mongodb_exporter", PMMBaseDir),
-		Arguments: []string{fmt.Sprintf("-web.listen-address=%s:%d", a.Config.ClientAddress, port),
+		Arguments: []string{fmt.Sprintf("-web.listen-address=%s:%d", a.Config.BindAddress, port),
 			fmt.Sprintf("-mongodb.uri=%s", uri)},
 	}
 	if err := installService(svcConfig); err != nil {

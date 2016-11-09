@@ -81,7 +81,7 @@ func (a *Admin) AddProxySQLMetrics(dsn string) error {
 		DisplayName: "PMM Prometheus proxysql_exporter",
 		Description: "PMM Prometheus proxysql_exporter",
 		Executable:  fmt.Sprintf("%s/proxysql_exporter", PMMBaseDir),
-		Arguments:   []string{fmt.Sprintf("-web.listen-address=%s:%d", a.Config.ClientAddress, port)},
+		Arguments:   []string{fmt.Sprintf("-web.listen-address=%s:%d", a.Config.BindAddress, port)},
 		Option:      service.KeyValue{"Environment": fmt.Sprintf("DATA_SOURCE_NAME=%s", dsn)},
 	}
 	if err := installService(svcConfig); err != nil {

@@ -1,5 +1,12 @@
 Percona Monitoring and Management (PMM) Client
 
+v1.0.7 unreleased 2016-11-09
+
+* Added --bind-address flag to support running PMM server and client on the different networks.
+  By default, this address is the same as client one. When running PMM on different networks, --client-address should be set to remote (public) address
+  and --bind-address to local (private) address. This also assumes you configure NAT and port forwarding between those addresses.
+* Amended output of systemv service status if run adhoc (requires re-adding services).
+
 v1.0.6 unreleased 2016-11-04
 
 * Fixes for "mysql:queries" service using perfschema query source:

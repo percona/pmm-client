@@ -50,9 +50,14 @@ func (a *Admin) CheckNetwork(noEmoji bool) error {
 		promStatus = false
 	}
 
+	bindAddress := ""
+	if a.Config.ClientAddress != a.Config.BindAddress {
+		bindAddress = fmt.Sprintf("(%s)", a.Config.BindAddress)
+	}
+
 	fmt.Print("PMM Network Status\n\n")
 	fmt.Printf("%-14s | %s\n", "Server Address", a.Config.ServerAddress)
-	fmt.Printf("%-14s | %s\n\n", "Client Address", a.Config.ClientAddress)
+	fmt.Printf("%-14s | %s %s\n\n", "Client Address", a.Config.ClientAddress, bindAddress)
 
 	t := a.getNginxHeader("X-Server-Time")
 	if t != "" {
@@ -147,15 +152,26 @@ func (a *Admin) CheckNetwork(noEmoji bool) error {
 	}
 	maxTypeLen++
 	maxNameLen++
-	linefmt := "%-" + fmt.Sprintf("%d", maxTypeLen) + "s %-" + fmt.Sprintf("%d", maxNameLen) + "s %-22s %-8s\n"
-	fmt.Printf(linefmt, strings.Repeat("-", maxTypeLen), strings.Repeat("-", maxNameLen), strings.Repeat("-", 22),
+	maxAddrLen := len(a.Config.ClientAddress) + 7
+	if a.Config.ClientAddress != a.Config.BindAddress {
+		maxAddrLen = len(a.Config.ClientAddress) + len(a.Config.BindAddress) + 10
+	}
+	linefmt := "%-" + fmt.Sprintf("%d", maxTypeLen) + "s %-" + fmt.Sprintf("%d", maxNameLen) + "s %-" +
+		fmt.Sprintf("%d", maxAddrLen) + "s %-8s\n"
+	fmt.Printf(linefmt, strings.Repeat("-", maxTypeLen), strings.Repeat("-", maxNameLen), strings.Repeat("-", maxAddrLen),
 		strings.Repeat("-", 8))
 	fmt.Printf(linefmt, "SERVICE TYPE", "NAME", "REMOTE ENDPOINT", "STATUS")
-	fmt.Printf(linefmt, strings.Repeat("-", maxTypeLen), strings.Repeat("-", maxNameLen), strings.Repeat("-", 22),
+	fmt.Printf(linefmt, strings.Repeat("-", maxTypeLen), strings.Repeat("-", maxNameLen), strings.Repeat("-", maxAddrLen),
 		strings.Repeat("-", 8))
 	sort.Sort(sortOutput(svcTable))
 	for _, i := range svcTable {
-		fmt.Printf(linefmt, i.Type, i.Name, a.Config.ClientAddress+":"+i.Port, i.Status)
+		if a.Config.ClientAddress != a.Config.BindAddress {
+			fmt.Printf(linefmt, i.Type, i.Name, a.Config.ClientAddress+"-->"+a.Config.BindAddress+":"+i.Port,
+				i.Status)
+		} else {
+			fmt.Printf(linefmt, i.Type, i.Name, a.Config.ClientAddress+":"+i.Port, i.Status)
+		}
+
 	}
 
 	if errStatus {
@@ -165,6 +181,10 @@ If it's running, check out the logs /var/log/pmm-*.log
 
 When all endpoints are down but 'pmm-admin list' shows they are up and no errors in the logs,
 check the firewall settings whether this system allows incoming connections from server to address:port in question.`)
+		if a.Config.ClientAddress != a.Config.BindAddress {
+			fmt.Println(`
+IMPORTANT: client and bind addresses are not the same which means you need to configure NAT/port forwarding to map them.`)
+		}
 	}
 	fmt.Println()
 	return nil

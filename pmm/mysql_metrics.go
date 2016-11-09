@@ -116,7 +116,7 @@ func (a *Admin) AddMySQLMetrics(info map[string]string, mf MySQLFlags) error {
 		DisplayName: fmt.Sprintf("PMM Prometheus mysqld_exporter %d", port),
 		Description: fmt.Sprintf("PMM Prometheus mysqld_exporter %d", port),
 		Executable:  fmt.Sprintf("%s/mysqld_exporter", PMMBaseDir),
-		Arguments:   append(args, fmt.Sprintf("-web.listen-address=%s:%d", a.Config.ClientAddress, port)),
+		Arguments:   append(args, fmt.Sprintf("-web.listen-address=%s:%d", a.Config.BindAddress, port)),
 		Option:      service.KeyValue{"Environment": fmt.Sprintf("DATA_SOURCE_NAME=%s", info["dsn"])},
 	}
 	if err := installService(svcConfig); err != nil {

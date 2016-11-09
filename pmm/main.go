@@ -20,8 +20,10 @@ package pmm
 import (
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -42,6 +44,7 @@ import (
 type Config struct {
 	ServerAddress     string `yaml:"server_address"`
 	ClientAddress     string `yaml:"client_address"`
+	BindAddress       string `yaml:"bind_address"`
 	ClientName        string `yaml:"client_name"`
 	MySQLPassword     string `yaml:"mysql_password,omitempty"`
 	ServerUser        string `yaml:"server_user,omitempty"`
@@ -88,6 +91,11 @@ func (a *Admin) LoadConfig(filename string) error {
 	if err := yaml.Unmarshal(bytes, a.Config); err != nil {
 		return err
 	}
+
+	// If not set previously, assume it equals to client address.
+	if a.Config.BindAddress == "" {
+		a.Config.BindAddress = a.Config.ClientAddress
+	}
 	return nil
 }
 
@@ -95,7 +103,7 @@ func (a *Admin) LoadConfig(filename string) error {
 func (a *Admin) SetConfig(cf Config, flagForce bool) error {
 	// Server options.
 	if cf.ServerSSL && cf.ServerInsecureSSL {
-		return fmt.Errorf("Flags --server-ssl and --server-insecure-ssl are mutually exclusive.")
+		return errors.New("Flags --server-ssl and --server-insecure-ssl are mutually exclusive.")
 	}
 
 	if cf.ServerAddress != "" {
@@ -107,7 +115,7 @@ func (a *Admin) SetConfig(cf Config, flagForce bool) error {
 		a.Config.ServerPassword = ""
 	}
 	if a.Config.ServerAddress == "" {
-		return fmt.Errorf("Server address is not set. Use --server flag to set it.")
+		return errors.New("Server address is not set. Use --server flag to set it.")
 	}
 
 	if cf.ServerPassword != "" {
@@ -166,7 +174,7 @@ The orphaned remote services will be removed automatically.`,
 			return fmt.Errorf("Unable to communicate with Consul: %s", err)
 		}
 		if node != nil && len(node.Services) > 0 {
-			return fmt.Errorf("Changing of client name is allowed only if there are no services under monitoring.")
+			return errors.New("Changing of client name is allowed only if there are no services under monitoring.")
 		}
 
 		// Checking target name.
@@ -183,21 +191,23 @@ It has the active services so you cannot change client name as requested.`,
 		a.Config.ClientName = cf.ClientName
 	}
 	if match, _ := regexp.MatchString(NameRegex, a.Config.ClientName); !match {
-		return fmt.Errorf(`Client name must be 2 to 60 characters long, contain only letters, numbers and symbols _ - . :
+		return errors.New(`Client name must be 2 to 60 characters long, contain only letters, numbers and symbols _ - . :
 Use --client-name flag to set the correct one.`)
 	}
 
 	// Client address. Initial setup.
+	isDetectedIP := false
 	if a.Config.ClientAddress == "" {
 		if cf.ClientAddress != "" {
 			a.Config.ClientAddress = cf.ClientAddress
 		} else {
 			// Detect remote address from nginx response header.
 			a.Config.ClientAddress = a.getNginxHeader("X-Remote-IP")
+			isDetectedIP = true
 		}
 
 		if a.Config.ClientAddress == "" {
-			return fmt.Errorf("Cannot detect client address. Use --client-address flag to set it.")
+			return errors.New("Cannot detect client address. Use --client-address flag to set it.")
 		}
 	} else if cf.ClientAddress != "" && cf.ClientAddress != a.Config.ClientAddress {
 		// Attempt to change client address.
@@ -206,10 +216,56 @@ Use --client-name flag to set the correct one.`)
 			return fmt.Errorf("Unable to communicate with Consul: %s", err)
 		}
 		if node != nil && len(node.Services) > 0 {
-			return fmt.Errorf("Changing of client address is allowed only if there are no services under monitoring.")
+			return errors.New("Changing of client address is allowed only if there are no services under monitoring.")
 		}
 
 		a.Config.ClientAddress = cf.ClientAddress
+	}
+
+	// Bind address. Initial setup.
+	if a.Config.BindAddress == "" {
+		a.Config.BindAddress = a.Config.ClientAddress
+		if cf.BindAddress != "" {
+			a.Config.BindAddress = cf.BindAddress
+			isDetectedIP = false
+		}
+	} else if cf.BindAddress != "" && cf.BindAddress != a.Config.BindAddress {
+		// Attempt to change bind address.
+		node, _, err := a.consulAPI.Catalog().Node(a.Config.ClientName, nil)
+		if err != nil {
+			return fmt.Errorf("Unable to communicate with Consul: %s", err)
+		}
+		if node != nil && len(node.Services) > 0 {
+			return errors.New("Changing of bind address is allowed only if there are no services under monitoring.")
+		}
+
+		a.Config.BindAddress = cf.BindAddress
+	}
+
+	if !isAddressLocal(a.Config.BindAddress) {
+		if isDetectedIP {
+			return fmt.Errorf(`Detected address '%s' is not locally bound.
+This usually happens when client and server are on the different networks.
+
+Use --bind-address flag to set locally bound address, usually a private one, while client address is public.
+The bind address should correspond to the detected client address via NAT and you would need to configure port forwarding.
+
+PMM server should be able to connect to the client address '%s' which should translate to a local bind address.
+What ports to map you can find from "pmm-admin check-network" output once you add instances to the monitoring.`,
+				a.Config.BindAddress, a.Config.ClientAddress)
+		}
+		return fmt.Errorf(`Client Address: %s
+Bind Address: %s
+
+The bind address is not locally bound.
+
+Use --bind-address flag to set locally bound address, usually a private one,
+and --client-address flag to set the corresponding remote address, usually a public one.
+The bind address should correspond to the client address via NAT and you would need to configure port forwarding.
+
+PMM server should be able to connect to the client address which should translate to a local bind address.
+What ports to map you can find from "pmm-admin check-network" output once you add instances to the monitoring.`,
+			a.Config.ClientAddress, a.Config.BindAddress)
 	}
 
 	// If agent config exists, update the options like address, SSL, password etc.
@@ -331,6 +387,17 @@ func (a *Admin) getNginxHeader(header string) string {
 		return ""
 	}
 	return resp.Header.Get(header)
+}
+
+// isAddressLocal check if IP address is locally bound on the system.
+func isAddressLocal(myAddress string) bool {
+	ips, _ := net.InterfaceAddrs()
+	for _, ip := range ips {
+		if strings.HasPrefix(ip.String(), myAddress+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 // writeConfig write config to the file.
@@ -514,7 +581,7 @@ func (a *Admin) List() error {
 
 // GetInfo print PMM client info.
 func (a *Admin) PrintInfo() {
-	fmt.Printf("pmm-admin %s\n\n", VERSION)
+	fmt.Printf("pmm-admin %s\n\n", Version)
 	a.ServerInfo()
 	fmt.Printf("%-15s | %s\n\n", "Service manager", service.Platform())
 }
@@ -530,19 +597,25 @@ func (a *Admin) ServerInfo() {
 	if a.Config.ServerUser != "" {
 		labels = append(labels, "password-protected")
 	}
-	info := ""
+	securityInfo := ""
 	if len(labels) > 0 {
-		info = fmt.Sprintf("(%s)", strings.Join(labels, ", "))
+		securityInfo = fmt.Sprintf("(%s)", strings.Join(labels, ", "))
 	}
-	fmt.Printf("%-15s | %s %s\n", "PMM Server", a.Config.ServerAddress, info)
+
+	bindAddress := ""
+	if a.Config.ClientAddress != a.Config.BindAddress {
+		bindAddress = fmt.Sprintf("(%s)", a.Config.BindAddress)
+	}
+
+	fmt.Printf("%-15s | %s %s\n", "PMM Server", a.Config.ServerAddress, securityInfo)
 	fmt.Printf("%-15s | %s\n", "Client Name", a.Config.ClientName)
-	fmt.Printf("%-15s | %s\n", "Client Address", a.Config.ClientAddress)
+	fmt.Printf("%-15s | %s %s\n", "Client Address", a.Config.ClientAddress, bindAddress)
 }
 
 // StartStopMonitoring start/stop system service by its metric type and name.
 func (a *Admin) StartStopMonitoring(action, svcType string) error {
 	if svcType != "linux:metrics" && svcType != "mysql:metrics" && svcType != "mysql:queries" && svcType != "mongodb:metrics" && svcType != "proxysql:metrics" {
-		return fmt.Errorf(`bad service type.
+		return errors.New(`bad service type.
 
 Service type takes the following values: linux:metrics, mysql:metrics, mysql:queries, mongodb:metrics, proxysql:metrics.`)
 	}
@@ -655,7 +728,7 @@ func (a *Admin) RemoveAllMonitoring(ignoreErrors bool) (uint16, error) {
 // PurgeMetrics purge metrics data on the server by its metric type and name.
 func (a *Admin) PurgeMetrics(svcType string) (uint, error) {
 	if svcType != "linux:metrics" && svcType != "mysql:metrics" && svcType != "mongodb:metrics" && svcType != "proxysql:metrics" {
-		return 0, fmt.Errorf(`bad service type.
+		return 0, errors.New(`bad service type.
 
 Service type takes the following values: linux:metrics, mysql:metrics, mongodb:metrics, proxysql:metrics.`)
 	}

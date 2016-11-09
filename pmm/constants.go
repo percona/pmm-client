@@ -18,11 +18,10 @@
 package pmm
 
 import (
+	"errors"
 	"fmt"
 	"time"
 )
-
-var VERSION = "1.0.6"
 
 const (
 	PMMBaseDir     = "/usr/local/percona/pmm-client"
@@ -36,13 +35,13 @@ const (
 )
 
 var (
+	Version    = "EXPERIMENTAL"
 	ConfigFile = fmt.Sprintf("%s/pmm.yml", PMMBaseDir)
 
-	ErrDuplicate = fmt.Errorf("there is already one instance with this name under monitoring.")
-	ErrNoService = fmt.Errorf("no service found.")
-	ErrOneLinux  = fmt.Errorf("there could be only one instance of linux metrics being monitored for this system.")
-
-	errNoInstance = fmt.Errorf("no instance found on QAN API.")
+	ErrDuplicate  = errors.New("there is already one instance with this name under monitoring.")
+	ErrNoService  = errors.New("no service found.")
+	ErrOneLinux   = errors.New("there could be only one instance of linux metrics being monitored for this system.")
+	errNoInstance = errors.New("no instance found on QAN API.")
 )
 
 const nodeExporterArgs = "-collectors.enabled=diskstats,filefd,filesystem,loadavg,meminfo,netdev,netstat,stat,time,uname,vmstat"
