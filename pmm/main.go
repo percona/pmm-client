@@ -40,7 +40,7 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-// PMM client config structure.
+// Config pmm.yml config file.
 type Config struct {
 	ServerAddress     string `yaml:"server_address"`
 	ClientAddress     string `yaml:"client_address"`
@@ -63,7 +63,7 @@ type instanceStatus struct {
 	Options string
 }
 
-// Main class.
+// Admin main class.
 type Admin struct {
 	ServiceName  string
 	ServicePort  uint16
@@ -579,7 +579,7 @@ func (a *Admin) List() error {
 	return nil
 }
 
-// GetInfo print PMM client info.
+// PrintInfo print PMM client info.
 func (a *Admin) PrintInfo() {
 	fmt.Printf("pmm-admin %s\n\n", Version)
 	a.ServerInfo()

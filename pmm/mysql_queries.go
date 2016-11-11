@@ -19,6 +19,7 @@ package pmm
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -425,7 +426,7 @@ func (a *Admin) manageQAN(agentID, cmdName, UUID string, config map[string]inter
 		}
 		return a.qanAPI.Error("PUT", url, resp.StatusCode, http.StatusOK, content)
 	}
-	return fmt.Errorf("timeout 10s waiting on agent to connect to API.")
+	return errors.New("timeout 10s waiting on agent to connect to API.")
 }
 
 // registerAgent register agent on QAN API using agent installer.
