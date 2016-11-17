@@ -29,11 +29,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fatih/color"
 	"golang.org/x/net/context"
 )
 
 // CheckNetwork check connectivity between client and server.
-func (a *Admin) CheckNetwork(noEmoji bool) error {
+func (a *Admin) CheckNetwork() error {
 	// Check QAN API health.
 	qanStatus := false
 	url := a.qanAPI.URL(a.serverURL, qanAPIBasePath, "ping")
@@ -61,7 +62,7 @@ func (a *Admin) CheckNetwork(noEmoji bool) error {
 
 	t := a.getNginxHeader("X-Server-Time")
 	if t != "" {
-		fmt.Println("* System Time")
+		color.New(color.Bold).Println("* System Time")
 		var serverTime time.Time
 		if s, err := strconv.ParseInt(t, 10, 64); err == nil {
 			serverTime = time.Unix(s, 0)
@@ -72,22 +73,21 @@ func (a *Admin) CheckNetwork(noEmoji bool) error {
 		fmt.Printf("%-10s | %s\n", "Server", serverTime.Format("2006-01-02 15:04:05 -0700 MST"))
 		fmt.Printf("%-10s | %s\n", "Client", clientTime.Format("2006-01-02 15:04:05 -0700 MST"))
 		drift := math.Abs(float64(serverTime.Unix()) - float64(clientTime.Unix()))
-		driftText := emojiStatus(noEmoji, true)
+		fmt.Printf("%-10s | %s\n\n", "Time Drift", colorStatus("OK", fmt.Sprintf("%.0fs", drift), drift <= 120))
 		if drift > 120 {
-			driftText = fmt.Sprintf("%s  %.0fs", emojiStatus(noEmoji, false), drift)
-			driftText += "\n\nTime is out of sync. Please make sure the server time is correct to see the metrics."
+			fmt.Print("Time is out of sync. Please make sure the server time is correct to see the metrics.\n\n")
 		}
-		fmt.Printf("%-10s | %s\n\n\n", "Time Drift", driftText)
 	}
 
-	fmt.Println("* Client --> Server")
-	fmt.Printf("%-15s %-13s\n", strings.Repeat("-", 15), strings.Repeat("-", 8))
+	fmt.Println()
+	color.New(color.Bold).Println("* Client --> Server")
+	fmt.Printf("%-15s %-13s\n", strings.Repeat("-", 15), strings.Repeat("-", 7))
 	fmt.Printf("%-15s %-13s\n", "SERVER SERVICE", "STATUS")
-	fmt.Printf("%-15s %-13s\n", strings.Repeat("-", 15), strings.Repeat("-", 8))
+	fmt.Printf("%-15s %-13s\n", strings.Repeat("-", 15), strings.Repeat("-", 7))
 	// Consul is always alive if we are at this point.
-	fmt.Printf("%-15s %-13s\n", "Consul API", emojiStatus(noEmoji, true))
-	fmt.Printf("%-15s %-13s\n", "QAN API", emojiStatus(noEmoji, qanStatus))
-	fmt.Printf("%-15s %-13s\n\n", "Prometheus API", emojiStatus(noEmoji, promStatus))
+	fmt.Printf("%-15s %-13s\n", "Consul API", colorStatus("OK", "", true))
+	fmt.Printf("%-15s %-13s\n", "QAN API", colorStatus("OK", "DOWN", qanStatus))
+	fmt.Printf("%-15s %-13s\n\n", "Prometheus API", colorStatus("OK", "DOWN", promStatus))
 
 	a.testNetwork()
 	fmt.Println()
@@ -104,7 +104,7 @@ func (a *Admin) CheckNetwork(noEmoji bool) error {
 	}
 
 	fmt.Println()
-	fmt.Println("* Client <-- Server")
+	color.New(color.Bold).Println("* Client <-- Server")
 	if len(node.Services) == 0 {
 		fmt.Print("No metric endpoints registered.\n\n")
 		return nil
@@ -135,7 +135,7 @@ func (a *Admin) CheckNetwork(noEmoji bool) error {
 			Type:   svc.Service,
 			Name:   name,
 			Port:   fmt.Sprintf("%d", svc.Port),
-			Status: emojiStatus(noEmoji, status),
+			Status: status,
 		}
 		svcTable = append(svcTable, row)
 	}
@@ -156,20 +156,24 @@ func (a *Admin) CheckNetwork(noEmoji bool) error {
 	if a.Config.ClientAddress != a.Config.BindAddress {
 		maxAddrLen = len(a.Config.ClientAddress) + len(a.Config.BindAddress) + 10
 	}
-	linefmt := "%-" + fmt.Sprintf("%d", maxTypeLen) + "s %-" + fmt.Sprintf("%d", maxNameLen) + "s %-" +
-		fmt.Sprintf("%d", maxAddrLen) + "s %-8s\n"
+
+	fmtPattern := "%%-%ds %%-%ds %%-%ds %%-%ds\n"
+	linefmt := fmt.Sprintf(fmtPattern, maxTypeLen, maxNameLen, maxAddrLen, 7)
+
 	fmt.Printf(linefmt, strings.Repeat("-", maxTypeLen), strings.Repeat("-", maxNameLen), strings.Repeat("-", maxAddrLen),
-		strings.Repeat("-", 8))
+		strings.Repeat("-", 7))
 	fmt.Printf(linefmt, "SERVICE TYPE", "NAME", "REMOTE ENDPOINT", "STATUS")
 	fmt.Printf(linefmt, strings.Repeat("-", maxTypeLen), strings.Repeat("-", maxNameLen), strings.Repeat("-", maxAddrLen),
-		strings.Repeat("-", 8))
+		strings.Repeat("-", 7))
+
 	sort.Sort(sortOutput(svcTable))
 	for _, i := range svcTable {
 		if a.Config.ClientAddress != a.Config.BindAddress {
 			fmt.Printf(linefmt, i.Type, i.Name, a.Config.ClientAddress+"-->"+a.Config.BindAddress+":"+i.Port,
-				i.Status)
+				colorStatus("OK", "DOWN", i.Status))
 		} else {
-			fmt.Printf(linefmt, i.Type, i.Name, a.Config.ClientAddress+":"+i.Port, i.Status)
+			fmt.Printf(linefmt, i.Type, i.Name, a.Config.ClientAddress+":"+i.Port,
+				colorStatus("OK", "DOWN", i.Status))
 		}
 
 	}
@@ -254,19 +258,4 @@ func checkPromTargetStatus(data, alias, job string) bool {
 		}
 	}
 	return false
-}
-
-// Map status to emoji or text.
-func emojiStatus(noEmoji, status bool) string {
-	switch true {
-	case noEmoji && status:
-		return "OK"
-	case noEmoji && !status:
-		return "PROBLEM"
-	case !noEmoji && status:
-		return emojiHappy
-	case !noEmoji && !status:
-		return emojiUnhappy
-	}
-	return "N/A"
 }

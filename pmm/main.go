@@ -32,6 +32,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fatih/color"
 	consul "github.com/hashicorp/consul/api"
 	"github.com/percona/kardianos-service"
 	protocfg "github.com/percona/pmm/proto/config"
@@ -58,7 +59,7 @@ type instanceStatus struct {
 	Type    string
 	Name    string
 	Port    string
-	Status  string
+	Status  bool
 	DSN     string
 	Options string
 }
@@ -453,10 +454,8 @@ func (a *Admin) List() error {
 			continue
 		}
 
-		status := "NO"
-		if getServiceStatus(fmt.Sprintf("pmm-%s-%d", strings.Replace(svcType, ":", "-", 1), svc.Port)) {
-			status = "YES"
-		}
+		status := getServiceStatus(fmt.Sprintf("pmm-%s-%d", strings.Replace(svcType, ":", "-", 1), svc.Port))
+
 		opts := []string{}
 		name := "-"
 		dsn := "-"
@@ -495,10 +494,7 @@ func (a *Admin) List() error {
 
 	// Parse queries service.
 	if queryService != nil {
-		status := "NO"
-		if getServiceStatus(fmt.Sprintf("pmm-mysql-queries-%d", queryService.Port)) {
-			status = "YES"
-		}
+		status := getServiceStatus(fmt.Sprintf("pmm-mysql-queries-%d", queryService.Port))
 
 		// Get names from Consul tags.
 		names := []string{}
@@ -539,7 +535,6 @@ func (a *Admin) List() error {
 	}
 
 	// Print table.
-	// Info header.
 	maxTypeLen := len("SERVICE TYPE")
 	maxNameLen := len("NAME")
 	maxDSNlen := len("DATA SOURCE")
@@ -562,17 +557,24 @@ func (a *Admin) List() error {
 	maxNameLen++
 	maxDSNlen++
 	maxOptsLen++
-	linefmt := "%-" + fmt.Sprintf("%d", maxTypeLen) + "s %-" + fmt.Sprintf("%d", maxNameLen) + "s %-12s %-8s %-" +
-		fmt.Sprintf("%d", maxDSNlen) + "s %-" + fmt.Sprintf("%d", maxOptsLen) + "s\n"
-	fmt.Printf(linefmt, strings.Repeat("-", maxTypeLen), strings.Repeat("-", maxNameLen), strings.Repeat("-", 12),
-		strings.Repeat("-", 8), strings.Repeat("-", maxDSNlen), strings.Repeat("-", maxOptsLen))
-	fmt.Printf(linefmt, "SERVICE TYPE", "NAME", "CLIENT PORT", "RUNNING", "DATA SOURCE", "OPTIONS")
-	fmt.Printf(linefmt, strings.Repeat("-", maxTypeLen), strings.Repeat("-", maxNameLen), strings.Repeat("-", 12),
-		strings.Repeat("-", 8), strings.Repeat("-", maxDSNlen), strings.Repeat("-", maxOptsLen))
-	// Data table.
+	maxStatusLen := 8
+
+	fmtPattern := "%%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds\n"
+	linefmt := fmt.Sprintf(fmtPattern, maxTypeLen, maxNameLen, 11, maxStatusLen, maxDSNlen, maxOptsLen, 10)
+
+	fmt.Printf(linefmt, strings.Repeat("-", maxTypeLen), strings.Repeat("-", maxNameLen), strings.Repeat("-", 11),
+		strings.Repeat("-", maxStatusLen), strings.Repeat("-", maxDSNlen), strings.Repeat("-", maxOptsLen),
+		strings.Repeat("-", 10))
+	fmt.Printf(linefmt, "SERVICE TYPE", "NAME", "LOCAL PORT", "RUNNING", "DATA SOURCE", "OPTIONS", "PROTECTED")
+	fmt.Printf(linefmt, strings.Repeat("-", maxTypeLen), strings.Repeat("-", maxNameLen), strings.Repeat("-", 11),
+		strings.Repeat("-", maxStatusLen), strings.Repeat("-", maxDSNlen), strings.Repeat("-", maxOptsLen),
+		strings.Repeat("-", 10))
+
 	sort.Sort(sortOutput(svcTable))
+	maxStatusLen += 11
+	linefmt = fmt.Sprintf(fmtPattern, maxTypeLen, maxNameLen, 11, maxStatusLen, maxDSNlen, maxOptsLen, 10)
 	for _, i := range svcTable {
-		fmt.Printf(linefmt, i.Type, i.Name, i.Port, i.Status, i.DSN, i.Options)
+		fmt.Printf(linefmt, i.Type, i.Name, i.Port, colorStatus("YES", "NO", i.Status), i.DSN, i.Options, "NO")
 	}
 	fmt.Println()
 
@@ -1065,4 +1067,15 @@ func (s sortOutput) Less(i, j int) bool {
 		return true
 	}
 	return false
+}
+
+// Output colored text.
+func colorStatus(msgOK string, msgNotOK string, ok bool) string {
+	c := color.New(color.FgRed, color.Bold).SprintFunc()
+	if ok {
+		c = color.New(color.FgGreen, color.Bold).SprintFunc()
+		return c(msgOK)
+	}
+
+	return c(msgNotOK)
 }

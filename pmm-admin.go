@@ -592,7 +592,7 @@ In case, some of the endpoints are in problem state, please check if the corresp
 If all endpoints are down here and 'pmm-admin list' shows all services are up,
 please check the firewall settings whether this system allows incoming connections by address:port in question.`,
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := admin.CheckNetwork(flagNoEmoji); err != nil {
+			if err := admin.CheckNetwork(); err != nil {
 				fmt.Println("Error checking network status:", err)
 				os.Exit(1)
 			}
@@ -818,7 +818,7 @@ despite PMM server is alive or not.
 
 	flagConfigFile, flagMongoURI, flagCluster, flagDSN string
 
-	flagVersion, flagNoEmoji, flagAll, flagForce bool
+	flagVersion, flagAll, flagForce bool
 
 	flagServicePort uint16
 	flagM           pmm.MySQLFlags
@@ -907,8 +907,6 @@ func main() {
 	cmdAddProxySQLMetrics.Flags().StringVar(&flagDSN, "dsn", "stats:stats@tcp(localhost:6032)/", "ProxySQL connection DSN")
 
 	cmdRemove.Flags().BoolVar(&flagAll, "all", false, "remove all monitoring services")
-
-	cmdCheckNet.Flags().BoolVar(&flagNoEmoji, "no-emoji", false, "avoid emoji in the output")
 
 	cmdStart.Flags().BoolVar(&flagAll, "all", false, "start all monitoring services")
 	cmdStop.Flags().BoolVar(&flagAll, "all", false, "stop all monitoring services")

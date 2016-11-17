@@ -27,8 +27,6 @@ const (
 	PMMBaseDir     = "/usr/local/percona/pmm-client"
 	agentBaseDir   = "/usr/local/percona/qan-agent" // This is also hardcoded in mysql_queries.go
 	qanAPIBasePath = "qan-api"
-	emojiUnhappy   = "😡"
-	emojiHappy     = "🙂"
 	noMonitoring   = "No monitoring registered for this node identified as"
 	apiTimeout     = 30 * time.Second
 	NameRegex      = `^[-\w:\.]{2,60}$`
