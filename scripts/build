@@ -2,8 +2,6 @@
 
 set -eu
 
-NODE_EXPORTER_VER=0.12.0
-
 SOURCE_DIR="$PWD"
 VERSION="$(cat VERSION)"
 
@@ -43,6 +41,17 @@ echo "Building percona-qan-agent-installer..."
 go build -ldflags "-X github.com/percona/qan-agent/agent/release.VERSION=$VERSION" \
     -o distro/bin/percona-qan-agent-installer github.com/percona/qan-agent/bin/percona-qan-agent-installer
 
+printf "Building node_exporter...\t"
+cd $GOPATH/src/github.com/percona/node_exporter
+commit=$(git rev-parse HEAD)
+branch=$(git rev-parse --abbrev-ref HEAD)
+echo $(git log -1 --format="%d %cd")
+importpath=github.com/percona/node_exporter/vendor/github.com/prometheus/common
+govendor sync
+cd $SOURCE_DIR
+go build -ldflags "-X $importpath/version.Version=$VERSION -X $importpath/version.Branch=$branch -X $importpath/version.Revision=$commit" \
+    -o distro/bin/node_exporter github.com/percona/node_exporter
+
 printf "Building mysqld_exporter...\t"
 cd $GOPATH/src/github.com/percona/mysqld_exporter
 commit=$(git rev-parse HEAD)
@@ -70,15 +79,6 @@ govendor sync
 cd $SOURCE_DIR
 go build -ldflags "-X main.version=$VERSION" \
     -o distro/bin/proxysql_exporter github.com/percona/proxysql_exporter
-
-printf "Fetching node_exporter...\t$NODE_EXPORTER_VER\n"
-cd distro
-file=node_exporter-${NODE_EXPORTER_VER}.linux-amd64.tar.gz
-if [ ! -e $file ]; then
-    curl -s -LO https://github.com/prometheus/node_exporter/releases/download/${NODE_EXPORTER_VER}/$file
-fi
-tar zxf $file --strip-components=1
-cp node_exporter bin
 
 # Prepare tarball dir.
 cd $SOURCE_DIR
