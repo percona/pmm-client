@@ -821,8 +821,9 @@ despite PMM server is alive or not.
 	flagVersion, flagAll, flagForce bool
 
 	flagServicePort uint16
-	flagM           pmm.MySQLFlags
-	flagC           pmm.Config
+
+	flagM pmm.MySQLFlags
+	flagC pmm.Config
 )
 
 func main() {
