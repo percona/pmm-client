@@ -80,14 +80,20 @@ func (a *Admin) AddMongoDBMetrics(uri, cluster string) error {
 		Value: []byte(SanitizeDSN(uri))}
 	a.consulAPI.KV().Put(d, nil)
 
+	env := []string{fmt.Sprintf("MONGODB_URI=%s", uri)}
+	// Enable http auth if the same is set for PMM server.
+	if a.Config.ServerUser != "" {
+		env = append(env, fmt.Sprintf("HTTP_AUTH=%s:%s", a.Config.ServerUser, a.Config.ServerPassword))
+	}
+
 	// Install and start service via platform service manager.
 	svcConfig := &service.Config{
 		Name:        fmt.Sprintf("pmm-mongodb-metrics-%d", port),
 		DisplayName: fmt.Sprintf("PMM Prometheus mongodb_exporter %d", port),
 		Description: fmt.Sprintf("PMM Prometheus mongodb_exporter %d", port),
 		Executable:  fmt.Sprintf("%s/mongodb_exporter", PMMBaseDir),
-		Arguments: []string{fmt.Sprintf("-web.listen-address=%s:%d", a.Config.BindAddress, port),
-			fmt.Sprintf("-mongodb.uri=%s", uri)},
+		Arguments:   []string{fmt.Sprintf("-web.listen-address=%s:%d", a.Config.BindAddress, port)},
+		Environment: env,
 	}
 	if err := installService(svcConfig); err != nil {
 		return err

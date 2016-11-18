@@ -110,6 +110,12 @@ func (a *Admin) AddMySQLMetrics(info map[string]string, mf MySQLFlags) error {
 		Value: []byte(info["safe_dsn"])}
 	a.consulAPI.KV().Put(d, nil)
 
+	env := []string{fmt.Sprintf("DATA_SOURCE_NAME=%s", info["dsn"])}
+	// Enable http auth if the same is set for PMM server.
+	if a.Config.ServerUser != "" {
+		env = append(env, fmt.Sprintf("HTTP_AUTH=%s:%s", a.Config.ServerUser, a.Config.ServerPassword))
+	}
+
 	// Install and start service via platform service manager.
 	svcConfig := &service.Config{
 		Name:        fmt.Sprintf("pmm-mysql-metrics-%d", port),
@@ -117,7 +123,7 @@ func (a *Admin) AddMySQLMetrics(info map[string]string, mf MySQLFlags) error {
 		Description: fmt.Sprintf("PMM Prometheus mysqld_exporter %d", port),
 		Executable:  fmt.Sprintf("%s/mysqld_exporter", PMMBaseDir),
 		Arguments:   append(args, fmt.Sprintf("-web.listen-address=%s:%d", a.Config.BindAddress, port)),
-		Option:      service.KeyValue{"Environment": fmt.Sprintf("DATA_SOURCE_NAME=%s", info["dsn"])},
+		Environment: env,
 	}
 	if err := installService(svcConfig); err != nil {
 		return err
