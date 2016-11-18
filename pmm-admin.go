@@ -570,7 +570,7 @@ Note, resetting server address clears up SSL and HTTP authentication if no corre
 				fmt.Printf("%s\n", err)
 				os.Exit(1)
 			}
-			fmt.Println("OK, PMM server is alive.\n")
+			fmt.Print("OK, PMM server is alive.\n\n")
 			admin.ServerInfo()
 		},
 	}
@@ -605,7 +605,7 @@ please check the firewall settings whether this system allows incoming connectio
 		Long:  "This command verifies the connectivity with PMM server.",
 		Run: func(cmd *cobra.Command, args []string) {
 			// It's all good if PersistentPreRun didn't fail.
-			fmt.Println("OK, PMM server is alive.\n")
+			fmt.Print("OK, PMM server is alive.\n\n")
 			admin.ServerInfo()
 		},
 	}
@@ -637,7 +637,7 @@ please check the firewall settings whether this system allows incoming connectio
 
 			// Check args.
 			if len(args) == 0 {
-				fmt.Println("No service type specified.\n")
+				fmt.Print("No service type specified.\n\n")
 				cmd.Usage()
 				os.Exit(1)
 			}
@@ -681,7 +681,7 @@ please check the firewall settings whether this system allows incoming connectio
 
 			// Check args.
 			if len(args) == 0 {
-				fmt.Println("No service type specified.\n")
+				fmt.Print("No service type specified.\n\n")
 				cmd.Usage()
 				os.Exit(1)
 			}
@@ -725,7 +725,7 @@ please check the firewall settings whether this system allows incoming connectio
 
 			// Check args.
 			if len(args) == 0 {
-				fmt.Println("No service type specified.\n")
+				fmt.Print("No service type specified.\n\n")
 				cmd.Usage()
 				os.Exit(1)
 			}
@@ -756,7 +756,7 @@ It is not required that metric service or name exists.
 		Run: func(cmd *cobra.Command, args []string) {
 			// Check args.
 			if len(args) == 0 {
-				fmt.Println("No service type specified.\n")
+				fmt.Print("No service type specified.\n\n")
 				cmd.Usage()
 				os.Exit(1)
 			}

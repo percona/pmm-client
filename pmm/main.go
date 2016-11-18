@@ -50,16 +50,6 @@ type Admin struct {
 	//promSeriesAPI prometheus.SeriesAPI
 }
 
-// Service status description.
-type instanceStatus struct {
-	Type    string
-	Name    string
-	Port    string
-	Status  bool
-	DSN     string
-	Options string
-}
-
 // SetAPI setup Consul, QAN, Prometheus APIs and verify connection.
 func (a *Admin) SetAPI() error {
 	// Set default API timeout if unset.
@@ -619,24 +609,6 @@ func CheckBinaries() string {
 		}
 	}
 	return ""
-}
-
-// Sort rows of formatted table output (list, check-networks commands).
-type sortOutput []instanceStatus
-
-func (s sortOutput) Len() int {
-	return len(s)
-}
-
-func (s sortOutput) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
-}
-
-func (s sortOutput) Less(i, j int) bool {
-	if strings.Compare(s[i].Port, s[j].Port) == -1 {
-		return true
-	}
-	return false
 }
 
 // Output colored text.

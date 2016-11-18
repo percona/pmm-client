@@ -25,6 +25,34 @@ import (
 	consul "github.com/hashicorp/consul/api"
 )
 
+// Service status description.
+type instanceStatus struct {
+	Type    string
+	Name    string
+	Port    string
+	Status  bool
+	DSN     string
+	Options string
+}
+
+// Sort rows of formatted table output (list, check-networks commands).
+type sortOutput []instanceStatus
+
+func (s sortOutput) Len() int {
+	return len(s)
+}
+
+func (s sortOutput) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+func (s sortOutput) Less(i, j int) bool {
+	if strings.Compare(s[i].Port, s[j].Port) == -1 {
+		return true
+	}
+	return false
+}
+
 // List get all services from Consul.
 func (a *Admin) List() error {
 	node, _, err := a.consulAPI.Catalog().Node(a.Config.ClientName, nil)
@@ -172,9 +200,17 @@ func (a *Admin) List() error {
 	maxStatusLen += 11
 	linefmt = fmt.Sprintf(fmtPattern, maxTypeLen, maxNameLen, 11, maxStatusLen, maxDSNlen, maxOptsLen, 10)
 	for _, i := range svcTable {
-		fmt.Printf(linefmt, i.Type, i.Name, i.Port, colorStatus("YES", "NO", i.Status), i.DSN, i.Options, "NO")
+		pw := "-"
+		if i.Status {
+			pw = isPasswordProtected(i)
+		}
+		fmt.Printf(linefmt, i.Type, i.Name, i.Port, colorStatus("YES", "NO", i.Status), i.DSN, i.Options, pw)
 	}
 	fmt.Println()
 
 	return nil
+}
+
+func isPasswordProtected(inst instanceStatus) string {
+	return "?"
 }
