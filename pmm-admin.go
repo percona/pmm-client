@@ -553,7 +553,11 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 You can enable SSL or setup HTTP basic authentication.
 When HTTP password and no user is given, the default username will be "pmm".
 
-Note, resetting server address clears up SSL and HTTP authentication if no corresponding flags are provided.`,
+Notes:
+- resetting server address clears up SSL and HTTP auth options if no corresponding flags are provided;
+- if server user and password are configured, the same credentials will be used to protect newerly added metric services;
+- if you change or remove http credentials to match the server, you need to re-add all previously protected
+metric services (see "pmm-admin check-network" output before change). Otherwise, they will remain down.`,
 		Example: `  pmm-admin config --server 192.168.56.100
   pmm-admin config --server 192.168.56.100:8000
   pmm-admin config --server 192.168.56.100 --server-password abc123`,

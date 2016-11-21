@@ -113,6 +113,9 @@ func (a *Admin) CheckNetwork() error {
 	// Check Prometheus endpoint status.
 	svcTable := []instanceStatus{}
 	errStatus := false
+	maxProtectedLen := 0
+	protectedVal := ""
+	protectedCol := ""
 	for _, svc := range node.Services {
 		if !strings.HasSuffix(svc.Service, ":metrics") {
 			continue
@@ -131,11 +134,23 @@ func (a *Admin) CheckNetwork() error {
 		if !status {
 			errStatus = true
 		}
+
+		// Check protected status.
+		if a.Config.ServerUser != "" {
+			maxProtectedLen = 10
+			protectedVal = "-"
+			protectedCol = "PROTECTED"
+			if status {
+				protectedVal = colorStatus("YES", "NO", a.isPasswordProtected(svc.Service, svc.Port))
+			}
+		}
+
 		row := instanceStatus{
-			Type:   svc.Service,
-			Name:   name,
-			Port:   fmt.Sprintf("%d", svc.Port),
-			Status: status,
+			Type:      svc.Service,
+			Name:      name,
+			Port:      fmt.Sprintf("%d", svc.Port),
+			Status:    status,
+			Protected: protectedVal,
 		}
 		svcTable = append(svcTable, row)
 	}
@@ -153,27 +168,30 @@ func (a *Admin) CheckNetwork() error {
 	maxTypeLen++
 	maxNameLen++
 	maxAddrLen := len(a.Config.ClientAddress) + 7
+	maxStatusLen := 7
 	if a.Config.ClientAddress != a.Config.BindAddress {
 		maxAddrLen = len(a.Config.ClientAddress) + len(a.Config.BindAddress) + 10
 	}
 
-	fmtPattern := "%%-%ds %%-%ds %%-%ds %%-%ds\n"
-	linefmt := fmt.Sprintf(fmtPattern, maxTypeLen, maxNameLen, maxAddrLen, 7)
+	fmtPattern := "%%-%ds %%-%ds %%-%ds %%-%ds %%-%ds\n"
+	linefmt := fmt.Sprintf(fmtPattern, maxTypeLen, maxNameLen, maxAddrLen, maxStatusLen, maxProtectedLen)
 
 	fmt.Printf(linefmt, strings.Repeat("-", maxTypeLen), strings.Repeat("-", maxNameLen), strings.Repeat("-", maxAddrLen),
-		strings.Repeat("-", 7))
-	fmt.Printf(linefmt, "SERVICE TYPE", "NAME", "REMOTE ENDPOINT", "STATUS")
+		strings.Repeat("-", maxStatusLen), strings.Repeat("-", maxProtectedLen))
+	fmt.Printf(linefmt, "SERVICE TYPE", "NAME", "REMOTE ENDPOINT", "STATUS", protectedCol)
 	fmt.Printf(linefmt, strings.Repeat("-", maxTypeLen), strings.Repeat("-", maxNameLen), strings.Repeat("-", maxAddrLen),
-		strings.Repeat("-", 7))
+		strings.Repeat("-", maxStatusLen), strings.Repeat("-", maxProtectedLen))
 
 	sort.Sort(sortOutput(svcTable))
+	maxStatusLen += 11
+	linefmt = fmt.Sprintf(fmtPattern, maxTypeLen, maxNameLen, maxAddrLen, maxStatusLen, maxProtectedLen)
 	for _, i := range svcTable {
 		if a.Config.ClientAddress != a.Config.BindAddress {
 			fmt.Printf(linefmt, i.Type, i.Name, a.Config.ClientAddress+"-->"+a.Config.BindAddress+":"+i.Port,
-				colorStatus("OK", "DOWN", i.Status))
+				colorStatus("OK", "DOWN", i.Status), i.Protected)
 		} else {
 			fmt.Printf(linefmt, i.Type, i.Name, a.Config.ClientAddress+":"+i.Port,
-				colorStatus("OK", "DOWN", i.Status))
+				colorStatus("OK", "DOWN", i.Status), i.Protected)
 		}
 
 	}
@@ -258,4 +276,20 @@ func checkPromTargetStatus(data, alias, job string) bool {
 		}
 	}
 	return false
+}
+
+// isPasswordProtected check if endpoint is password protected.
+func (a *Admin) isPasswordProtected(svcType string, port int) bool {
+	status := false
+
+	urlPath := "metrics"
+	if svcType == "mysql:metrics" {
+		urlPath = "metrics-hr"
+	}
+	url := a.qanAPI.URL(fmt.Sprintf("http://%s:%d", a.Config.BindAddress, port), urlPath)
+	if resp, _, err := a.qanAPI.Get(url); err == nil && resp.StatusCode == http.StatusUnauthorized {
+		status = true
+	}
+
+	return status
 }

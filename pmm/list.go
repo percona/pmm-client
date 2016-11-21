@@ -27,12 +27,13 @@ import (
 
 // Service status description.
 type instanceStatus struct {
-	Type    string
-	Name    string
-	Port    string
-	Status  bool
-	DSN     string
-	Options string
+	Type      string
+	Name      string
+	Port      string
+	Status    bool
+	DSN       string
+	Options   string
+	Protected string
 }
 
 // Sort rows of formatted table output (list, check-networks commands).
@@ -107,6 +108,7 @@ func (a *Admin) List() error {
 			tag := strings.Replace(tag, "_", "=", 1)
 			opts = append(opts, tag)
 		}
+
 		row := instanceStatus{
 			Type:    svcType,
 			Name:    name,
@@ -185,32 +187,22 @@ func (a *Admin) List() error {
 	maxOptsLen++
 	maxStatusLen := 8
 
-	fmtPattern := "%%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds\n"
-	linefmt := fmt.Sprintf(fmtPattern, maxTypeLen, maxNameLen, 11, maxStatusLen, maxDSNlen, maxOptsLen, 10)
+	fmtPattern := "%%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds\n"
+	linefmt := fmt.Sprintf(fmtPattern, maxTypeLen, maxNameLen, 11, maxStatusLen, maxDSNlen, maxOptsLen)
 
 	fmt.Printf(linefmt, strings.Repeat("-", maxTypeLen), strings.Repeat("-", maxNameLen), strings.Repeat("-", 11),
-		strings.Repeat("-", maxStatusLen), strings.Repeat("-", maxDSNlen), strings.Repeat("-", maxOptsLen),
-		strings.Repeat("-", 10))
-	fmt.Printf(linefmt, "SERVICE TYPE", "NAME", "LOCAL PORT", "RUNNING", "DATA SOURCE", "OPTIONS", "PROTECTED")
+		strings.Repeat("-", maxStatusLen), strings.Repeat("-", maxDSNlen), strings.Repeat("-", maxOptsLen))
+	fmt.Printf(linefmt, "SERVICE TYPE", "NAME", "LOCAL PORT", "RUNNING", "DATA SOURCE", "OPTIONS")
 	fmt.Printf(linefmt, strings.Repeat("-", maxTypeLen), strings.Repeat("-", maxNameLen), strings.Repeat("-", 11),
-		strings.Repeat("-", maxStatusLen), strings.Repeat("-", maxDSNlen), strings.Repeat("-", maxOptsLen),
-		strings.Repeat("-", 10))
+		strings.Repeat("-", maxStatusLen), strings.Repeat("-", maxDSNlen), strings.Repeat("-", maxOptsLen))
 
 	sort.Sort(sortOutput(svcTable))
 	maxStatusLen += 11
-	linefmt = fmt.Sprintf(fmtPattern, maxTypeLen, maxNameLen, 11, maxStatusLen, maxDSNlen, maxOptsLen, 10)
+	linefmt = fmt.Sprintf(fmtPattern, maxTypeLen, maxNameLen, 11, maxStatusLen, maxDSNlen, maxOptsLen)
 	for _, i := range svcTable {
-		pw := "-"
-		if i.Status {
-			pw = isPasswordProtected(i)
-		}
-		fmt.Printf(linefmt, i.Type, i.Name, i.Port, colorStatus("YES", "NO", i.Status), i.DSN, i.Options, pw)
+		fmt.Printf(linefmt, i.Type, i.Name, i.Port, colorStatus("YES", "NO", i.Status), i.DSN, i.Options)
 	}
 	fmt.Println()
 
 	return nil
-}
-
-func isPasswordProtected(inst instanceStatus) string {
-	return "?"
 }
