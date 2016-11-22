@@ -527,7 +527,6 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 		Short:   "List monitoring services for this system.",
 		Long:    "This command displays the list of monitoring services and their details.",
 		Run: func(cmd *cobra.Command, args []string) {
-			admin.PrintInfo()
 			err := admin.List()
 			if err != nil {
 				fmt.Println("Error listing instances:", err)

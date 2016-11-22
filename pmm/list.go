@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	consul "github.com/hashicorp/consul/api"
+	"github.com/percona/kardianos-service"
 )
 
 // Service status description.
@@ -56,6 +57,10 @@ func (s sortOutput) Less(i, j int) bool {
 
 // List get all services from Consul.
 func (a *Admin) List() error {
+	fmt.Printf("pmm-admin %s\n\n", Version)
+	a.ServerInfo()
+	fmt.Printf("%-15s | %s\n\n", "Service Manager", service.Platform())
+
 	node, _, err := a.consulAPI.Catalog().Node(a.Config.ClientName, nil)
 	if err != nil || node == nil {
 		fmt.Printf("%s '%s'.\n\n", noMonitoring, a.Config.ClientName)
