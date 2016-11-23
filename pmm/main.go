@@ -149,7 +149,7 @@ func (a *Admin) PrintInfo() {
 	fmt.Printf("%-15s | %s\n\n", "Service Manager", service.Platform())
 
 	fmt.Printf("%-15s | %s\n", "Go Version", strings.Replace(runtime.Version(), "go", "", 1))
-	fmt.Printf("%-15s | %s/%s\n\n", "Runtime Info",  runtime.GOOS, runtime.GOARCH)
+	fmt.Printf("%-15s | %s/%s\n\n", "Runtime Info", runtime.GOOS, runtime.GOARCH)
 }
 
 // ServerInfo print server info.

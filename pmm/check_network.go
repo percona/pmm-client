@@ -197,12 +197,20 @@ func (a *Admin) CheckNetwork() error {
 	}
 
 	if errStatus {
-		fmt.Println(`
+		scheme := "http"
+		if a.Config.ServerInsecureSSL || a.Config.ServerSSL {
+			scheme = "https"
+		}
+		url := fmt.Sprintf("%s://%s/prometheus/targets", scheme, a.Config.ServerAddress)
+		fmt.Printf(`
 When an endpoint is down it may indicate that the corresponding service is stopped (run 'pmm-admin list' to verify).
 If it's running, check out the logs /var/log/pmm-*.log
 
 When all endpoints are down but 'pmm-admin list' shows they are up and no errors in the logs,
-check the firewall settings whether this system allows incoming connections from server to address:port in question.`)
+check the firewall settings whether this system allows incoming connections from server to address:port in question.
+
+Also you can check the endpoint status by the URL: %s
+			`, url)
 		if a.Config.ClientAddress != a.Config.BindAddress {
 			fmt.Println(`
 IMPORTANT: client and bind addresses are not the same which means you need to configure NAT/port forwarding to map them.`)
