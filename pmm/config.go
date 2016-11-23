@@ -45,13 +45,12 @@ type Config struct {
 }
 
 // LoadConfig read PMM client config file.
-func (a *Admin) LoadConfig(filename string) error {
-	a.filename = filename
+func (a *Admin) LoadConfig() error {
 	a.Config = &Config{}
-	if !FileExists(filename) {
+	if !FileExists(ConfigFile) {
 		return nil
 	}
-	bytes, err := ioutil.ReadFile(filename)
+	bytes, err := ioutil.ReadFile(ConfigFile)
 	if err != nil {
 		return err
 	}
@@ -249,7 +248,7 @@ What ports to map you can find from "pmm-admin check-network" output once you ad
 
 	// Write the config.
 	if err := a.writeConfig(); err != nil {
-		return fmt.Errorf("Unable to write config file %s: %s", a.filename, err)
+		return fmt.Errorf("Unable to write config file %s: %s", ConfigFile, err)
 	}
 
 	return nil
@@ -258,7 +257,7 @@ What ports to map you can find from "pmm-admin check-network" output once you ad
 // writeConfig write config to the file.
 func (a *Admin) writeConfig() error {
 	bytes, _ := yaml.Marshal(a.Config)
-	return ioutil.WriteFile(a.filename, bytes, 0600)
+	return ioutil.WriteFile(ConfigFile, bytes, 0600)
 }
 
 // syncAgentConfig sync agent config.

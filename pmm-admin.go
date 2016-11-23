@@ -49,13 +49,13 @@ var (
 			}
 
 			// Read config file.
-			if !pmm.FileExists(flagConfigFile) {
+			if !pmm.FileExists(pmm.ConfigFile) {
 				fmt.Println("PMM client is not configured, missing config file. Please make sure you have run 'pmm-admin config'.")
 				os.Exit(1)
 			}
 
-			if err := admin.LoadConfig(flagConfigFile); err != nil {
-				fmt.Printf("Error reading config file %s: %s\n", flagConfigFile, err)
+			if err := admin.LoadConfig(); err != nil {
+				fmt.Printf("Error reading config file %s: %s\n", pmm.ConfigFile, err)
 				os.Exit(1)
 			}
 
@@ -563,8 +563,8 @@ metric services (see "pmm-admin check-network" output before change). Otherwise,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			// Cancel root's PersistentPreRun as we do not require config file to exist here.
 			// If the config does not exist, we will init an empty and write on Run.
-			if err := admin.LoadConfig(flagConfigFile); err != nil {
-				fmt.Printf("Cannot read config file %s: %s\n", flagConfigFile, err)
+			if err := admin.LoadConfig(); err != nil {
+				fmt.Printf("Cannot read config file %s: %s\n", pmm.ConfigFile, err)
 				os.Exit(1)
 			}
 		},
@@ -809,7 +809,7 @@ despite PMM server is alive or not.
 			// Cancel root's PersistentPreRun as we do not require server to be alive.
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			count := admin.Uninstall(flagConfigFile)
+			count := admin.Uninstall()
 			if count == 0 {
 				fmt.Println("OK, no services found.")
 			} else {
@@ -819,7 +819,7 @@ despite PMM server is alive or not.
 		},
 	}
 
-	flagConfigFile, flagMongoURI, flagCluster, flagDSN string
+	flagMongoURI, flagCluster, flagDSN string
 
 	flagVersion, flagAll, flagForce bool
 
@@ -840,7 +840,7 @@ func main() {
 		cmdRemoveMongoDB, cmdRemoveMongoDBMetrics, cmdRemoveProxySQLMetrics)
 
 	// Flags.
-	rootCmd.PersistentFlags().StringVarP(&flagConfigFile, "config-file", "c", pmm.ConfigFile, "PMM config file")
+	rootCmd.PersistentFlags().StringVarP(&pmm.ConfigFile, "config-file", "c", pmm.ConfigFile, "PMM config file")
 	rootCmd.Flags().BoolVarP(&flagVersion, "version", "v", false, "show version")
 
 	cmdConfig.Flags().StringVar(&flagC.ServerAddress, "server", "", "PMM server address, optionally following with the :port (default port 80 or 443 if using SSL)")

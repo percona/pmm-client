@@ -42,7 +42,6 @@ type Admin struct {
 	ServiceName  string
 	ServicePort  uint16
 	Config       *Config
-	filename     string
 	serverURL    string
 	apiTimeout   time.Duration
 	qanAPI       *API
@@ -523,10 +522,10 @@ func (a *Admin) RepairInstallation() error {
 }
 
 // Uninstall remove all monitoring services with the best effort.
-func (a *Admin) Uninstall(flagConfigFile string) uint16 {
+func (a *Admin) Uninstall() uint16 {
 	var count uint16
-	if FileExists(flagConfigFile) {
-		err := a.LoadConfig(flagConfigFile)
+	if FileExists(ConfigFile) {
+		err := a.LoadConfig()
 		if err == nil {
 			a.apiTimeout = 5 * time.Second
 			if err := a.SetAPI(); err == nil {
