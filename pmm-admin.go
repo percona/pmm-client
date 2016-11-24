@@ -549,14 +549,11 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 		Short: "Configure PMM Client.",
 		Long: `This command configures pmm-admin to communicate with PMM server.
 
-You can enable SSL or setup HTTP basic authentication.
-When HTTP password and no user is given, the default username will be "pmm".
+You can enable SSL (including self-signed certificates) and HTTP basic authentication with the server.
+If HTTP authentication is enabled with the server, the same credendials will be used for all metric services
+automatically to protect them.
 
-Notes:
-- resetting server address clears up SSL and HTTP auth options if no corresponding flags are provided;
-- if server user and password are configured, the same credentials will be used to protect newerly added metric services;
-- if you change or remove http credentials to match the server, you need to re-add all previously protected
-metric services (see "pmm-admin check-network" output before change). Otherwise, they will remain down.`,
+Note, resetting of server address clears up SSL and HTTP auth options if no corresponding flags are provided.`,
 		Example: `  pmm-admin config --server 192.168.56.100
   pmm-admin config --server 192.168.56.100:8000
   pmm-admin config --server 192.168.56.100 --server-password abc123`,
@@ -610,6 +607,15 @@ please check the firewall settings whether this system allows incoming connectio
 			// It's all good if PersistentPreRun didn't fail.
 			fmt.Print("OK, PMM server is alive.\n\n")
 			admin.ServerInfo()
+		},
+	}
+
+	cmdShowPass = &cobra.Command{
+		Use:   "show-passwords",
+		Short: "Show PMM Client password information (works offline).",
+		Long:  "This command shows passwords stored in the config file.",
+		Run: func(cmd *cobra.Command, args []string) {
+			admin.ShowPasswords()
 		},
 	}
 
@@ -833,7 +839,7 @@ func main() {
 	// Commands.
 	cobra.EnableCommandSorting = false
 	rootCmd.AddCommand(cmdConfig, cmdAdd, cmdRemove, cmdList, cmdInfo, cmdCheckNet, cmdPing, cmdStart, cmdStop,
-		cmdRestart, cmdPurge, cmdRepair, cmdUninstall)
+		cmdRestart, cmdShowPass, cmdPurge, cmdRepair, cmdUninstall)
 	cmdAdd.AddCommand(cmdAddMySQL, cmdAddLinuxMetrics, cmdAddMySQLMetrics, cmdAddMySQLQueries,
 		cmdAddMongoDB, cmdAddMongoDBMetrics, cmdAddProxySQLMetrics)
 	cmdRemove.AddCommand(cmdRemoveMySQL, cmdRemoveLinuxMetrics, cmdRemoveMySQLMetrics, cmdRemoveMySQLQueries,

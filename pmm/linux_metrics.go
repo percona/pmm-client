@@ -76,10 +76,10 @@ func (a *Admin) AddLinuxMetrics(force bool) error {
 		return err
 	}
 
-	env := []string{}
-	// Enable http auth if the same is set for PMM server.
-	if a.Config.ServerUser != "" {
-		env = append(env, fmt.Sprintf("HTTP_AUTH=%s:%s", a.Config.ServerUser, a.Config.ServerPassword))
+	args := []string{
+		nodeExporterArgs,
+		fmt.Sprintf("-web.listen-address=%s:%d", a.Config.BindAddress, port),
+		fmt.Sprintf("-web.auth-file=%s", ConfigFile),
 	}
 
 	// Install and start service via platform service manager.
@@ -88,8 +88,7 @@ func (a *Admin) AddLinuxMetrics(force bool) error {
 		DisplayName: "PMM Prometheus node_exporter",
 		Description: "PMM Prometheus node_exporter",
 		Executable:  fmt.Sprintf("%s/node_exporter", PMMBaseDir),
-		Arguments:   []string{nodeExporterArgs, fmt.Sprintf("-web.listen-address=%s:%d", a.Config.BindAddress, port)},
-		Environment: env,
+		Arguments:   args,
 	}
 	if err := installService(svcConfig); err != nil {
 		return err

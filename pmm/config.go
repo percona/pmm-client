@@ -251,6 +251,14 @@ What ports to map you can find from "pmm-admin check-network" output once you ad
 		return fmt.Errorf("Unable to write config file %s: %s", ConfigFile, err)
 	}
 
+	// Restart all services when resetting server address (wiping password) or changing password.
+	if cf.ServerAddress != "" || cf.ServerPassword != "" {
+		_, err := a.StartStopAllMonitoring("restart")
+		if err != nil {
+			return fmt.Errorf("Error restarting one of the services: %s", err)
+		}
+	}
+
 	return nil
 }
 

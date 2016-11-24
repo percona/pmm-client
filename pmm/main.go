@@ -564,6 +564,17 @@ func (a *Admin) Uninstall() uint16 {
 	return count
 }
 
+// ShowPasswords display passwords from config file.
+func (a *Admin) ShowPasswords() {
+	fmt.Println("HTTP basic authentication")
+	fmt.Printf("%-8s | %s\n", "User", a.Config.ServerUser)
+	fmt.Printf("%-8s | %s\n\n", "Password", a.Config.ServerPassword)
+
+	fmt.Println("MySQL new user creation")
+	fmt.Printf("%-8s | %s\n", "Password", a.Config.MySQLPassword)
+	fmt.Println()
+}
+
 // FileExists check if file exists.
 func FileExists(file string) bool {
 	_, err := os.Stat(file)

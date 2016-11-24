@@ -137,9 +137,9 @@ func (a *Admin) CheckNetwork() error {
 
 		// Check protected status.
 		if a.Config.ServerUser != "" {
-			maxProtectedLen = 10
+			maxProtectedLen = 9
 			protectedVal = "-"
-			protectedCol = "PROTECTED"
+			protectedCol = "PASSWORD"
 			if status {
 				protectedVal = colorStatus("YES", "NO", a.isPasswordProtected(svc.Service, svc.Port))
 			}
