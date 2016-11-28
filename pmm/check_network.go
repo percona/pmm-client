@@ -113,9 +113,6 @@ func (a *Admin) CheckNetwork() error {
 	// Check Prometheus endpoint status.
 	svcTable := []instanceStatus{}
 	errStatus := false
-	maxProtectedLen := 0
-	protectedVal := ""
-	protectedCol := ""
 	for _, svc := range node.Services {
 		if !strings.HasSuffix(svc.Service, ":metrics") {
 			continue
@@ -138,14 +135,10 @@ func (a *Admin) CheckNetwork() error {
 		// Check protection status.
 		localStatus := getServiceStatus(fmt.Sprintf("pmm-%s-%d", strings.Replace(svc.Service, ":", "-", 1), svc.Port))
 		sslVal := "-"
+		protectedVal := "-"
 		if localStatus {
 			sslVal = colorStatus("YES", "NO", a.isSSLProtected(svc.Service, svc.Port))
-		}
-		if a.Config.ServerUser != "" {
-			maxProtectedLen = 9
-			protectedVal = "-"
-			protectedCol = "PASSWORD"
-			if localStatus {
+			if a.Config.ServerUser != "" {
 				protectedVal = colorStatus("YES", "NO", a.isPasswordProtected(svc.Service, svc.Port))
 			}
 		}
@@ -175,6 +168,7 @@ func (a *Admin) CheckNetwork() error {
 	maxNameLen++
 	maxAddrLen := len(a.Config.ClientAddress) + 7
 	maxStatusLen := 7
+	maxProtectedLen := 9
 	maxSSLLen := 10
 	if a.Config.ClientAddress != a.Config.BindAddress {
 		maxAddrLen = len(a.Config.ClientAddress) + len(a.Config.BindAddress) + 10
@@ -185,15 +179,17 @@ func (a *Admin) CheckNetwork() error {
 
 	fmt.Printf(linefmt, strings.Repeat("-", maxTypeLen), strings.Repeat("-", maxNameLen), strings.Repeat("-", maxAddrLen),
 		strings.Repeat("-", maxStatusLen), strings.Repeat("-", maxSSLLen), strings.Repeat("-", maxProtectedLen))
-	fmt.Printf(linefmt, "SERVICE TYPE", "NAME", "REMOTE ENDPOINT", "STATUS", "HTTPS/TLS", protectedCol)
+	fmt.Printf(linefmt, "SERVICE TYPE", "NAME", "REMOTE ENDPOINT", "STATUS", "HTTPS/TLS", "PASSWORD")
 	fmt.Printf(linefmt, strings.Repeat("-", maxTypeLen), strings.Repeat("-", maxNameLen), strings.Repeat("-", maxAddrLen),
 		strings.Repeat("-", maxStatusLen), strings.Repeat("-", maxSSLLen), strings.Repeat("-", maxProtectedLen))
 
 	sort.Sort(sortOutput(svcTable))
 	maxStatusLen += 11
-	maxSSLLen += 11
 	linefmt = fmt.Sprintf(fmtPattern, maxTypeLen, maxNameLen, maxAddrLen, maxStatusLen, maxSSLLen, maxProtectedLen)
 	for _, i := range svcTable {
+		if i.SSL != "-" {
+			linefmt = fmt.Sprintf(fmtPattern, maxTypeLen, maxNameLen, maxAddrLen, maxStatusLen, maxSSLLen+11, maxProtectedLen)
+		}
 		if a.Config.ClientAddress != a.Config.BindAddress {
 			fmt.Printf(linefmt, i.Type, i.Name, a.Config.ClientAddress+"-->"+a.Config.BindAddress+":"+i.Port,
 				colorStatus("OK", "DOWN", i.Status), i.SSL, i.Password)
