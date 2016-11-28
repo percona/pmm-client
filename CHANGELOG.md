@@ -8,6 +8,7 @@ v1.0.7 unreleased 2016-11-28
 * Added --bind-address flag to support running PMM server and client on the different networks.
   By default, this address is the same as client one. When running PMM on different networks, --client-address should be set to remote (public) address
   and --bind-address to local (private) address. This also assumes you configure NAT and port forwarding between those addresses.
+* "mysql:queries" service (percona-qan-agent process) does not need to listen a network port.
 * Added "show-passwords" command to display the current http auth credentials and password of the last created user on MySQL (useful for PMM installation on replication setup).
 * Do not pass MongoDB connection string in command-line arguments to hide password from the process list (requires re-adding mongodb:metrics service).
 * Expose PXC/Galera gcache size as a metric.

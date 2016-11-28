@@ -161,7 +161,7 @@ func (a *Admin) List() error {
 			row := instanceStatus{
 				Type:    queryService.Service,
 				Name:    name,
-				Port:    fmt.Sprintf("%d", queryService.Port),
+				Port:    "-",
 				Status:  status,
 				DSN:     dsn,
 				Options: strings.Join(opts, ", "),

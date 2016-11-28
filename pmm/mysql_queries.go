@@ -109,19 +109,8 @@ func (a *Admin) AddMySQLQueries(info map[string]string) error {
 
 	// Don't install service if we have already another "mysql:queries".
 	// 1 agent handles multiple MySQL instances for QAN.
-	var port uint16
+	port := 0
 	if consulSvc == nil {
-		if a.ServicePort > 0 {
-			// The port is user defined.
-			port, err = a.choosePort(a.ServicePort, true)
-		} else {
-			// Choose first port available starting the given default one.
-			port, err = a.choosePort(42001, false)
-		}
-		if err != nil {
-			return err
-		}
-
 		// Install and start service via platform service manager.
 		// We have to run agent before adding it to QAN.
 		svcConfig := &service.Config{
@@ -129,13 +118,12 @@ func (a *Admin) AddMySQLQueries(info map[string]string) error {
 			DisplayName: "PMM Query Analytics agent",
 			Description: "PMM Query Analytics agent",
 			Executable:  fmt.Sprintf("%s/bin/percona-qan-agent", agentBaseDir),
-			Arguments:   []string{fmt.Sprintf("-listen=127.0.0.1:%d", port)},
 		}
 		if err := installService(svcConfig); err != nil {
 			return err
 		}
 	} else {
-		port = uint16(consulSvc.Port)
+		port = consulSvc.Port
 		// Ensure qan-agent is started if service exists, otherwise it won't be enabled for QAN.
 		if err := startService(fmt.Sprintf("pmm-mysql-queries-%d", port)); err != nil {
 			return err
@@ -165,7 +153,7 @@ func (a *Admin) AddMySQLQueries(info map[string]string) error {
 		ID:      serviceID,
 		Service: "mysql:queries",
 		Tags:    tags,
-		Port:    int(port),
+		Port:    port,
 	}
 	reg := consul.CatalogRegistration{
 		Node:    a.Config.ClientName,
