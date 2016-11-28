@@ -28,13 +28,14 @@ import (
 
 // Service status description.
 type instanceStatus struct {
-	Type      string
-	Name      string
-	Port      string
-	Status    bool
-	DSN       string
-	Options   string
-	Protected string
+	Type     string
+	Name     string
+	Port     string
+	Status   bool
+	DSN      string
+	Options  string
+	SSL      string
+	Password string
 }
 
 // Sort rows of formatted table output (list, check-networks commands).
@@ -76,17 +77,16 @@ func (a *Admin) List() error {
 	var queryService *consul.AgentService
 	var svcTable []instanceStatus
 	for _, svc := range node.Services {
-		svcType := svc.Service
 		// When server hostname == client name, we have to exclude consul.
-		if svcType == "consul" {
+		if svc.Service == "consul" {
 			continue
 		}
-		if svcType == "mysql:queries" {
+		if svc.Service == "mysql:queries" {
 			queryService = svc
 			continue
 		}
 
-		status := getServiceStatus(fmt.Sprintf("pmm-%s-%d", strings.Replace(svcType, ":", "-", 1), svc.Port))
+		status := getServiceStatus(fmt.Sprintf("pmm-%s-%d", strings.Replace(svc.Service, ":", "-", 1), svc.Port))
 
 		opts := []string{}
 		name := "-"
@@ -110,12 +110,15 @@ func (a *Admin) List() error {
 				name = tag[6:]
 				continue
 			}
+			if tag == "scheme_https" {
+				continue
+			}
 			tag := strings.Replace(tag, "_", "=", 1)
 			opts = append(opts, tag)
 		}
 
 		row := instanceStatus{
-			Type:    svcType,
+			Type:    svc.Service,
 			Name:    name,
 			Port:    fmt.Sprintf("%d", svc.Port),
 			Status:  status,

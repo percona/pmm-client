@@ -64,7 +64,7 @@ func (a *Admin) AddLinuxMetrics(force bool) error {
 	srv := consul.AgentService{
 		ID:      fmt.Sprintf("linux:metrics-%d", port),
 		Service: "linux:metrics",
-		Tags:    []string{fmt.Sprintf("alias_%s", a.ServiceName)},
+		Tags:    []string{fmt.Sprintf("alias_%s", a.ServiceName), "scheme_https"},
 		Port:    int(port),
 	}
 	reg := consul.CatalogRegistration{
@@ -76,10 +76,17 @@ func (a *Admin) AddLinuxMetrics(force bool) error {
 		return err
 	}
 
+	// Check and generate certificate if needed.
+	if err := a.checkSSLCertificate(); err != nil {
+		return err
+	}
+
 	args := []string{
 		nodeExporterArgs,
 		fmt.Sprintf("-web.listen-address=%s:%d", a.Config.BindAddress, port),
 		fmt.Sprintf("-web.auth-file=%s", ConfigFile),
+		fmt.Sprintf("-web.ssl-cert-file=%s", SSLCertFile),
+		fmt.Sprintf("-web.ssl-key-file=%s", SSLKeyFile),
 	}
 
 	// Install and start service via platform service manager.

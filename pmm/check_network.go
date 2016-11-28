@@ -81,13 +81,13 @@ func (a *Admin) CheckNetwork() error {
 
 	fmt.Println()
 	color.New(color.Bold).Println("* Client --> Server")
-	fmt.Printf("%-15s %-13s\n", strings.Repeat("-", 15), strings.Repeat("-", 7))
-	fmt.Printf("%-15s %-13s\n", "SERVER SERVICE", "STATUS")
-	fmt.Printf("%-15s %-13s\n", strings.Repeat("-", 15), strings.Repeat("-", 7))
+	fmt.Printf("%-24s %-13s\n", strings.Repeat("-", 24), strings.Repeat("-", 7))
+	fmt.Printf("%-24s %-13s\n", "SERVER SERVICE", "STATUS")
+	fmt.Printf("%-24s %-13s\n", strings.Repeat("-", 24), strings.Repeat("-", 7))
 	// Consul is always alive if we are at this point.
-	fmt.Printf("%-15s %-13s\n", "Consul API", colorStatus("OK", "", true))
-	fmt.Printf("%-15s %-13s\n", "QAN API", colorStatus("OK", "DOWN", qanStatus))
-	fmt.Printf("%-15s %-13s\n\n", "Prometheus API", colorStatus("OK", "DOWN", promStatus))
+	fmt.Printf("%-24s %-13s\n", "Consul API", colorStatus("OK", "", true))
+	fmt.Printf("%-24s %-13s\n", "Prometheus API", colorStatus("OK", "DOWN", promStatus))
+	fmt.Printf("%-24s %-13s\n\n", "QAN API (mysql:queries)", colorStatus("OK", "DOWN", qanStatus))
 
 	a.testNetwork()
 	fmt.Println()
@@ -135,22 +135,28 @@ func (a *Admin) CheckNetwork() error {
 			errStatus = true
 		}
 
-		// Check protected status.
+		// Check protection status.
+		localStatus := getServiceStatus(fmt.Sprintf("pmm-%s-%d", strings.Replace(svc.Service, ":", "-", 1), svc.Port))
+		sslVal := "-"
+		if localStatus {
+			sslVal = colorStatus("YES", "NO", a.isSSLProtected(svc.Service, svc.Port))
+		}
 		if a.Config.ServerUser != "" {
 			maxProtectedLen = 9
 			protectedVal = "-"
 			protectedCol = "PASSWORD"
-			if status {
+			if localStatus {
 				protectedVal = colorStatus("YES", "NO", a.isPasswordProtected(svc.Service, svc.Port))
 			}
 		}
 
 		row := instanceStatus{
-			Type:      svc.Service,
-			Name:      name,
-			Port:      fmt.Sprintf("%d", svc.Port),
-			Status:    status,
-			Protected: protectedVal,
+			Type:     svc.Service,
+			Name:     name,
+			Port:     fmt.Sprintf("%d", svc.Port),
+			Status:   status,
+			SSL:      sslVal,
+			Password: protectedVal,
 		}
 		svcTable = append(svcTable, row)
 	}
@@ -169,29 +175,31 @@ func (a *Admin) CheckNetwork() error {
 	maxNameLen++
 	maxAddrLen := len(a.Config.ClientAddress) + 7
 	maxStatusLen := 7
+	maxSSLLen := 10
 	if a.Config.ClientAddress != a.Config.BindAddress {
 		maxAddrLen = len(a.Config.ClientAddress) + len(a.Config.BindAddress) + 10
 	}
 
-	fmtPattern := "%%-%ds %%-%ds %%-%ds %%-%ds %%-%ds\n"
-	linefmt := fmt.Sprintf(fmtPattern, maxTypeLen, maxNameLen, maxAddrLen, maxStatusLen, maxProtectedLen)
+	fmtPattern := "%%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds\n"
+	linefmt := fmt.Sprintf(fmtPattern, maxTypeLen, maxNameLen, maxAddrLen, maxStatusLen, maxSSLLen, maxProtectedLen)
 
 	fmt.Printf(linefmt, strings.Repeat("-", maxTypeLen), strings.Repeat("-", maxNameLen), strings.Repeat("-", maxAddrLen),
-		strings.Repeat("-", maxStatusLen), strings.Repeat("-", maxProtectedLen))
-	fmt.Printf(linefmt, "SERVICE TYPE", "NAME", "REMOTE ENDPOINT", "STATUS", protectedCol)
+		strings.Repeat("-", maxStatusLen), strings.Repeat("-", maxSSLLen), strings.Repeat("-", maxProtectedLen))
+	fmt.Printf(linefmt, "SERVICE TYPE", "NAME", "REMOTE ENDPOINT", "STATUS", "HTTPS/TLS", protectedCol)
 	fmt.Printf(linefmt, strings.Repeat("-", maxTypeLen), strings.Repeat("-", maxNameLen), strings.Repeat("-", maxAddrLen),
-		strings.Repeat("-", maxStatusLen), strings.Repeat("-", maxProtectedLen))
+		strings.Repeat("-", maxStatusLen), strings.Repeat("-", maxSSLLen), strings.Repeat("-", maxProtectedLen))
 
 	sort.Sort(sortOutput(svcTable))
 	maxStatusLen += 11
-	linefmt = fmt.Sprintf(fmtPattern, maxTypeLen, maxNameLen, maxAddrLen, maxStatusLen, maxProtectedLen)
+	maxSSLLen += 11
+	linefmt = fmt.Sprintf(fmtPattern, maxTypeLen, maxNameLen, maxAddrLen, maxStatusLen, maxSSLLen, maxProtectedLen)
 	for _, i := range svcTable {
 		if a.Config.ClientAddress != a.Config.BindAddress {
 			fmt.Printf(linefmt, i.Type, i.Name, a.Config.ClientAddress+"-->"+a.Config.BindAddress+":"+i.Port,
-				colorStatus("OK", "DOWN", i.Status), i.Protected)
+				colorStatus("OK", "DOWN", i.Status), i.SSL, i.Password)
 		} else {
 			fmt.Printf(linefmt, i.Type, i.Name, a.Config.ClientAddress+":"+i.Port,
-				colorStatus("OK", "DOWN", i.Status), i.Protected)
+				colorStatus("OK", "DOWN", i.Status), i.SSL, i.Password)
 		}
 
 	}
@@ -288,16 +296,28 @@ func checkPromTargetStatus(data, alias, job string) bool {
 
 // isPasswordProtected check if endpoint is password protected.
 func (a *Admin) isPasswordProtected(svcType string, port int) bool {
-	status := false
-
 	urlPath := "metrics"
 	if svcType == "mysql:metrics" {
 		urlPath = "metrics-hr"
 	}
-	url := a.qanAPI.URL(fmt.Sprintf("http://%s:%d", a.Config.BindAddress, port), urlPath)
+	scheme := "http"
+	if a.isSSLProtected(svcType, port) {
+		scheme = "https"
+	}
+	url := a.qanAPI.URL(fmt.Sprintf("%s://%s:%d", scheme, a.Config.BindAddress, port), urlPath)
 	if resp, _, err := a.qanAPI.Get(url); err == nil && resp.StatusCode == http.StatusUnauthorized {
-		status = true
+		return true
 	}
 
-	return status
+	return false
+}
+
+// isSSLProtected check if endpoint is https/tls protected.
+func (a *Admin) isSSLProtected(svcType string, port int) bool {
+	url := a.qanAPI.URL(fmt.Sprintf("http://%s:%d", a.Config.BindAddress, port))
+	if _, _, err := a.qanAPI.Get(url); err != nil && strings.Contains(err.Error(), "malformed HTTP response") {
+		return true
+	}
+
+	return false
 }

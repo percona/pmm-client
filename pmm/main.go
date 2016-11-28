@@ -18,10 +18,17 @@
 package pmm
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
+	"math/big"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -58,13 +65,16 @@ func (a *Admin) SetAPI() error {
 	}
 
 	scheme := "http"
+	helpText := ""
 	insecureTransport := &http.Transport{}
 	if a.Config.ServerInsecureSSL {
 		scheme = "https"
 		insecureTransport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+		helpText = "--server-insecure-ssl"
 	}
 	if a.Config.ServerSSL {
 		scheme = "https"
+		helpText = "--server-ssl"
 	}
 
 	// Consul API.
@@ -106,7 +116,7 @@ func (a *Admin) SetAPI() error {
 			return fmt.Errorf(`Unable to connect to PMM server by address: %s
 
 Looks like PMM server running with self-signed SSL certificate.
-Use 'pmm-admin config' with --server-insecure-ssl flag.`, a.Config.ServerAddress)
+Run 'pmm-admin config --server-insecure-ssl' to enable such configuration.`, a.Config.ServerAddress)
 		}
 		return fmt.Errorf(`Unable to connect to PMM server by address: %s
 
@@ -130,12 +140,26 @@ Looks like the server is password protected.
 Use 'pmm-admin config' to define server user and password.`, a.Config.ServerAddress)
 	}
 
-	// Finally, check Consul status.
+	// Check Consul status.
 	if leader, err := a.consulAPI.Status().Leader(); err != nil || leader != "127.0.0.1:8300" {
 		return fmt.Errorf(`Unable to connect to PMM server by address: %s
 
 Even though the server is reachable it does not look to be PMM server.
 Check if the configured address is correct.`, a.Config.ServerAddress)
+	}
+
+	// Check if server is not password protected but client is configured so.
+	if a.Config.ServerUser != "" {
+		url = fmt.Sprintf("%s://%s", scheme, a.Config.ServerAddress)
+		if resp, _, err := a.qanAPI.Get(url); err == nil && resp.StatusCode == http.StatusOK {
+			return fmt.Errorf(`This client is configured with HTTP basic authentication.
+However, PMM server is not.
+
+If you forgot to enable password protection on the server, you may want to do so.
+
+Otherwise, run the following command to reset the config and disable authentication:
+pmm-admin config --server %s %s`, a.Config.ServerAddress, helpText)
+		}
 	}
 
 	return nil
@@ -413,6 +437,16 @@ func (a *Admin) availablePort(port uint16) (bool, error) {
 	return true, nil
 }
 
+// checkSSLCertificate check if SSL cert and key files exist and generate them if not.
+func (a *Admin) checkSSLCertificate() error {
+	if FileExists(SSLCertFile) && FileExists(SSLKeyFile) {
+		return nil
+	}
+
+	// Generate SSL cert and key.
+	return generateSSLCertificate(a.Config.ClientAddress, SSLCertFile, SSLKeyFile)
+}
+
 // CheckInstallation check for broken installation.
 func (a *Admin) CheckInstallation() ([]string, []string) {
 	var (
@@ -577,11 +611,7 @@ func (a *Admin) ShowPasswords() {
 
 // FileExists check if file exists.
 func FileExists(file string) bool {
-	_, err := os.Stat(file)
-	if err == nil {
-		return true
-	}
-	if os.IsNotExist(err) {
+	if _, err := os.Stat(file); os.IsNotExist(err) {
 		return false
 	}
 	return true
@@ -634,4 +664,54 @@ func colorStatus(msgOK string, msgNotOK string, ok bool) string {
 	}
 
 	return c(msgNotOK)
+}
+
+// generateSSLCertificate generate SSL certificate and key and write them into the files.
+func generateSSLCertificate(host, certFile, keyFile string) error {
+	// Generate key.
+	privKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return fmt.Errorf("failed to generate private key: %s", err)
+	}
+
+	// Generate cert.
+	notBefore, _ := time.Parse("Jan 2 15:04:05 2006", "Nov 25 15:00:00 2016")
+	notAfter, _ := time.Parse("Jan 2 15:04:05 2006", "Nov 25 15:00:00 2026")
+	serialNumber, _ := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
+	cert := x509.Certificate{
+		Subject:               pkix.Name{Organization: []string{"PMM Client"}},
+		SerialNumber:          serialNumber,
+		NotBefore:             notBefore,
+		NotAfter:              notAfter,
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		cert.IPAddresses = append(cert.IPAddresses, ip)
+	} else {
+		cert.DNSNames = append(cert.DNSNames, host)
+	}
+
+	certBytes, err := x509.CreateCertificate(rand.Reader, &cert, &cert, &privKey.PublicKey, privKey)
+	if err != nil {
+		return fmt.Errorf("failed to generate certificate: %s", err)
+	}
+
+	// Write files.
+	out, err := os.OpenFile(certFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	if err != nil {
+		return fmt.Errorf("failed to write %s: %s", certFile, err)
+	}
+	pem.Encode(out, &pem.Block{Type: "CERTIFICATE", Bytes: certBytes})
+	out.Close()
+
+	out, err = os.OpenFile(keyFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	if err != nil {
+		return fmt.Errorf("failed to write %s: %s", keyFile, err)
+	}
+	pem.Encode(out, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(privKey)})
+	out.Close()
+
+	return nil
 }

@@ -76,7 +76,7 @@ func (a *Admin) AddMySQLMetrics(info map[string]string, mf MySQLFlags) error {
 	srv := consul.AgentService{
 		ID:      serviceID,
 		Service: "mysql:metrics",
-		Tags:    []string{fmt.Sprintf("alias_%s", a.ServiceName)},
+		Tags:    []string{fmt.Sprintf("alias_%s", a.ServiceName), "scheme_https"},
 		Port:    int(port),
 	}
 	reg := consul.CatalogRegistration{
@@ -110,8 +110,17 @@ func (a *Admin) AddMySQLMetrics(info map[string]string, mf MySQLFlags) error {
 		Value: []byte(info["safe_dsn"])}
 	a.consulAPI.KV().Put(d, nil)
 
-	args = append(args, fmt.Sprintf("-web.listen-address=%s:%d", a.Config.BindAddress, port),
-		fmt.Sprintf("-web.auth-file=%s", ConfigFile))
+	// Check and generate certificate if needed.
+	if err := a.checkSSLCertificate(); err != nil {
+		return err
+	}
+
+	args = append(args,
+		fmt.Sprintf("-web.listen-address=%s:%d", a.Config.BindAddress, port),
+		fmt.Sprintf("-web.auth-file=%s", ConfigFile),
+		fmt.Sprintf("-web.ssl-cert-file=%s", SSLCertFile),
+		fmt.Sprintf("-web.ssl-key-file=%s", SSLKeyFile),
+	)
 
 	// Install and start service via platform service manager.
 	svcConfig := &service.Config{

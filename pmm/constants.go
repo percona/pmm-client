@@ -33,8 +33,10 @@ const (
 )
 
 var (
-	Version    = "EXPERIMENTAL"
-	ConfigFile = fmt.Sprintf("%s/pmm.yml", PMMBaseDir)
+	Version     = "EXPERIMENTAL"
+	ConfigFile  = fmt.Sprintf("%s/pmm.yml", PMMBaseDir)
+	SSLCertFile = fmt.Sprintf("%s/server.crt", PMMBaseDir)
+	SSLKeyFile  = fmt.Sprintf("%s/server.key", PMMBaseDir)
 
 	ErrDuplicate  = errors.New("there is already one instance with this name under monitoring.")
 	ErrNoService  = errors.New("no service found.")
