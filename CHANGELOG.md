@@ -1,6 +1,6 @@
 Percona Monitoring and Management (PMM) Client
 
-v1.0.7 unreleased 2016-11-28
+v1.0.7 unreleased 2016-11-29
 
 * Automatically generate self-signed SSL certificate to protect metric services with HTTPS/TLS by default (requires re-adding services, see "check-network" output).
 * Enable http basic auth for metric services when defined on PMM server and configured on client to achieve client-side protection
@@ -8,9 +8,10 @@ v1.0.7 unreleased 2016-11-28
 * Added --bind-address flag to support running PMM server and client on the different networks.
   By default, this address is the same as client one. When running PMM on different networks, --client-address should be set to remote (public) address
   and --bind-address to local (private) address. This also assumes you configure NAT and port forwarding between those addresses.
-* "mysql:queries" service (percona-qan-agent process) does not need to listen a network port.
 * Added "show-passwords" command to display the current http auth credentials and password of the last created user on MySQL (useful for PMM installation on replication setup).
-* Do not pass MongoDB connection string in command-line arguments to hide password from the process list (requires re-adding mongodb:metrics service).
+* Do not pass MongoDB connection string in command-line arguments and hide password from the process list (requires re-adding mongodb:metrics service).
+* Do not listen a network port by mysql:queries service (percona-qan-agent process) as there is no need for it.
+* Fixed slow log rotation for mysql:queries service for MySQL 5.1.
 * Expose PXC/Galera gcache size as a metric.
 * Use terminal color instead of emoji on "check-network" output and also "list" one.
 * Amended output of systemv service status if run adhoc (requires re-adding services).

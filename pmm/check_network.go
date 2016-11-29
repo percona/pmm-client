@@ -80,14 +80,14 @@ func (a *Admin) CheckNetwork() error {
 	}
 
 	fmt.Println()
-	color.New(color.Bold).Println("* Client --> Server")
-	fmt.Printf("%-24s %-13s\n", strings.Repeat("-", 24), strings.Repeat("-", 7))
-	fmt.Printf("%-24s %-13s\n", "SERVER SERVICE", "STATUS")
-	fmt.Printf("%-24s %-13s\n", strings.Repeat("-", 24), strings.Repeat("-", 7))
+	color.New(color.Bold).Println("* Connection: Client --> Server")
+	fmt.Printf("%-20s %-13s\n", strings.Repeat("-", 20), strings.Repeat("-", 7))
+	fmt.Printf("%-20s %-13s\n", "SERVER SERVICE", "STATUS")
+	fmt.Printf("%-20s %-13s\n", strings.Repeat("-", 20), strings.Repeat("-", 7))
 	// Consul is always alive if we are at this point.
-	fmt.Printf("%-24s %-13s\n", "Consul API", colorStatus("OK", "", true))
-	fmt.Printf("%-24s %-13s\n", "Prometheus API", colorStatus("OK", "DOWN", promStatus))
-	fmt.Printf("%-24s %-13s\n\n", "QAN API (mysql:queries)", colorStatus("OK", "DOWN", qanStatus))
+	fmt.Printf("%-20s %-13s\n", "Consul API", colorStatus("OK", "", true))
+	fmt.Printf("%-20s %-13s\n", "Prometheus API", colorStatus("OK", "DOWN", promStatus))
+	fmt.Printf("%-20s %-13s\n\n", "Query Analytics API", colorStatus("OK", "DOWN", qanStatus))
 
 	a.testNetwork()
 	fmt.Println()
@@ -104,7 +104,7 @@ func (a *Admin) CheckNetwork() error {
 	}
 
 	fmt.Println()
-	color.New(color.Bold).Println("* Client <-- Server")
+	color.New(color.Bold).Println("* Connection: Client <-- Server")
 	if len(node.Services) == 0 {
 		fmt.Print("No metric endpoints registered.\n\n")
 		return nil
