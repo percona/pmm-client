@@ -3,16 +3,22 @@
 	"ignore": "",
 	"package": [
 		{
+			"checksumSHA1": "nX1W2xXs8wsF/UNlO+2fWXO2D60=",
+			"path": "github.com/fatih/color",
+			"revision": "bf82308e8c8546dc2b945157173eb8a959ae9505",
+			"revisionTime": "2016-10-25T12:05:01Z"
+		},
+		{
 			"checksumSHA1": "3xVanMXn/lblhNfZYORorpd8N6E=",
 			"path": "github.com/go-sql-driver/mysql",
 			"revision": "0b58b37b664c21f3010e836f1b931e1d0b0b0685",
 			"revisionTime": "2016-08-02T11:38:42Z"
 		},
 		{
-			"checksumSHA1": "XAz8heY73PGcIKk9P6+srTfBaGQ=",
+			"checksumSHA1": "FxAzgInYqGQICldocIuV3MrlCMo=",
 			"path": "github.com/hashicorp/consul/api",
-			"revision": "359541a67d46a81411070894a2287bef092aeebb",
-			"revisionTime": "2016-05-13T04:38:43Z"
+			"revision": "8ef76ec85131c9fdde6f6da26431fb40b68881f4",
+			"revisionTime": "2016-11-15T01:59:54Z"
 		},
 		{
 			"checksumSHA1": "fSe5y1UgTDeYlnFfUcDA1zzcw+U=",
@@ -53,10 +59,10 @@
 			"revisionTime": "2016-09-23T14:13:10Z"
 		},
 		{
-			"checksumSHA1": "ztWAjoHsEa1Z7ZB5UD6DXjeMXS0=",
+			"checksumSHA1": "vM4l4M951S4HDKI2159nB9uGRcM=",
 			"path": "github.com/percona/kardianos-service",
-			"revision": "c6df4fd2af62975c63dfafcc0efb93b806c0b831",
-			"revisionTime": "2016-08-04T10:41:11Z"
+			"revision": "feb3bb6021e7754467634ce2d5899a344bf180af",
+			"revisionTime": "2016-11-17T11:16:15Z"
 		},
 		{
 			"checksumSHA1": "77jNwmeWSRb4ohYnXMoF6sXXR64=",

@@ -2,19 +2,17 @@
 
 set -eu
 
-NODE_EXPORTER_VER=0.12.0
-
 SOURCE_DIR="$PWD"
-VER="$(awk '/var VERSION/ {print $4}' $SOURCE_DIR/pmm/constants.go | sed 's/"//g')"
+VERSION="$(cat VERSION)"
 
 # To distinguish dev and release builds, we append "-devDATE.REVISION" to dev builds.
 if [ "${DEV:-yes}" = "yes" ]; then
     REV="$(git log -n 1 --no-walk --pretty="%h")"
-    VER="$VER-dev$(TZ="UTC" date "+%Y%m%d").$REV"
+    VERSION="$VERSION-dev$(TZ="UTC" date "+%Y%m%d").$REV"
 fi
 
 # Make a dir for the package in distro/.
-PKG_NAME="pmm-client-$VER-x86_64"
+PKG_NAME="pmm-client-$VERSION-x86_64"
 PKG_DIR="distro/$PKG_NAME"
 
 rm -rf $PKG_DIR distro/bin
@@ -29,19 +27,30 @@ export GOOS=linux
 printf "Building pmm-admin...\t\t"
 echo $(git log -1 --format="%d %cd")
 govendor sync
-go build -ldflags "-X github.com/percona/pmm-client/pmm.VERSION=$VER" -o distro/bin/pmm-admin
+go build -ldflags "-X github.com/percona/pmm-client/pmm.Version=$VERSION" -o distro/bin/pmm-admin
 
 printf "Building percona-qan-agent...\t"
 cd $GOPATH/src/github.com/percona/qan-agent
 echo $(git log -1 --format="%d %cd")
 govendor sync
 cd $SOURCE_DIR
-go build -ldflags "-X github.com/percona/qan-agent/agent/release.VERSION=$VER" \
+go build -ldflags "-X github.com/percona/qan-agent/agent/release.VERSION=$VERSION" \
     -o distro/bin/percona-qan-agent github.com/percona/qan-agent/bin/percona-qan-agent
 
 echo "Building percona-qan-agent-installer..."
-go build -ldflags "-X github.com/percona/qan-agent/agent/release.VERSION=$VER" \
+go build -ldflags "-X github.com/percona/qan-agent/agent/release.VERSION=$VERSION" \
     -o distro/bin/percona-qan-agent-installer github.com/percona/qan-agent/bin/percona-qan-agent-installer
+
+printf "Building node_exporter...\t"
+cd $GOPATH/src/github.com/percona/node_exporter
+commit=$(git rev-parse HEAD)
+branch=$(git rev-parse --abbrev-ref HEAD)
+echo $(git log -1 --format="%d %cd")
+importpath=github.com/percona/node_exporter/vendor/github.com/prometheus/common
+govendor sync
+cd $SOURCE_DIR
+go build -ldflags "-X $importpath/version.Version=$VERSION -X $importpath/version.Branch=$branch -X $importpath/version.Revision=$commit" \
+    -o distro/bin/node_exporter github.com/percona/node_exporter
 
 printf "Building mysqld_exporter...\t"
 cd $GOPATH/src/github.com/percona/mysqld_exporter
@@ -51,7 +60,7 @@ echo $(git log -1 --format="%d %cd")
 importpath=github.com/percona/mysqld_exporter/vendor/github.com/prometheus/common
 govendor sync
 cd $SOURCE_DIR
-go build -ldflags "-X $importpath/version.Version=$VER -X $importpath/version.Branch=$branch -X $importpath/version.Revision=$commit" \
+go build -ldflags "-X $importpath/version.Version=$VERSION -X $importpath/version.Branch=$branch -X $importpath/version.Revision=$commit" \
     -o distro/bin/mysqld_exporter github.com/percona/mysqld_exporter
 
 printf "Building mongodb_exporter...\t"
@@ -60,7 +69,7 @@ commit=$(git rev-parse HEAD)
 echo $(git log -1 --format="%d %cd")
 govendor sync
 cd $SOURCE_DIR
-go build -ldflags "-X main.version=$VER -X main.versionGitCommit=$commit" \
+go build -ldflags "-X main.version=$VERSION -X main.versionGitCommit=$commit" \
     -o distro/bin/mongodb_exporter github.com/Percona-Lab/prometheus_mongodb_exporter
 
 printf "Building proxysql_exporter...\t"
@@ -68,21 +77,12 @@ cd $GOPATH/src/github.com/percona/proxysql_exporter
 echo $(git log -1 --format="%d %cd")
 govendor sync
 cd $SOURCE_DIR
-go build -ldflags "-X main.version=$VER" \
+go build -ldflags "-X main.version=$VERSION" \
     -o distro/bin/proxysql_exporter github.com/percona/proxysql_exporter
 
-printf "Fetching node_exporter...\t$NODE_EXPORTER_VER\n"
-cd distro
-file=node_exporter-${NODE_EXPORTER_VER}.linux-amd64.tar.gz
-if [ ! -e $file ]; then
-    curl -s -LO https://github.com/prometheus/node_exporter/releases/download/${NODE_EXPORTER_VER}/$file
-fi
-tar zxf $file --strip-components=1
-cp node_exporter bin
-
-# Copy the rest into the pkg dir.
+# Prepare tarball dir.
 cd $SOURCE_DIR
-cp CHANGELOG.md README.md LICENSE scripts/install scripts/uninstall $PKG_DIR
+cp CHANGELOG.md VERSION LICENSE scripts/install scripts/uninstall $PKG_DIR
 cp distro/bin/* $PKG_DIR/bin
 
 cd distro

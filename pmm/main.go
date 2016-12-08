@@ -18,218 +18,43 @@
 package pmm
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/json"
+	"encoding/pem"
+	"errors"
 	"fmt"
-	"io/ioutil"
+	"math/big"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
+	"runtime"
 	"strings"
 	"time"
 
+	"github.com/fatih/color"
 	consul "github.com/hashicorp/consul/api"
 	"github.com/percona/kardianos-service"
-	protocfg "github.com/percona/pmm/proto/config"
 	"github.com/prometheus/client_golang/api/prometheus"
 	//"golang.org/x/net/context"
-	"gopkg.in/yaml.v2"
 )
 
-// PMM client config structure.
-type Config struct {
-	ServerAddress     string `yaml:"server_address"`
-	ClientAddress     string `yaml:"client_address"`
-	ClientName        string `yaml:"client_name"`
-	MySQLPassword     string `yaml:"mysql_password,omitempty"`
-	ServerUser        string `yaml:"server_user,omitempty"`
-	ServerPassword    string `yaml:"server_password,omitempty"`
-	ServerSSL         bool   `yaml:"server_ssl,omitempty"`
-	ServerInsecureSSL bool   `yaml:"server_insecure_ssl,omitempty"`
-}
-
-// Service status description.
-type instanceStatus struct {
-	Type    string
-	Name    string
-	Port    string
-	Status  string
-	DSN     string
-	Options string
-}
-
-// Main class.
+// Admin main class.
 type Admin struct {
 	ServiceName  string
 	ServicePort  uint16
 	Config       *Config
-	filename     string
 	serverURL    string
 	apiTimeout   time.Duration
 	qanAPI       *API
 	consulAPI    *consul.Client
 	promQueryAPI prometheus.QueryAPI
 	//promSeriesAPI prometheus.SeriesAPI
-}
-
-// LoadConfig read PMM client config file.
-func (a *Admin) LoadConfig(filename string) error {
-	a.filename = filename
-	a.Config = &Config{}
-	if !FileExists(filename) {
-		return nil
-	}
-	bytes, err := ioutil.ReadFile(filename)
-	if err != nil {
-		return err
-	}
-	if err := yaml.Unmarshal(bytes, a.Config); err != nil {
-		return err
-	}
-	return nil
-}
-
-// SetConfig configure PMM client, check connectivity and write the config.
-func (a *Admin) SetConfig(cf Config, flagForce bool) error {
-	// Server options.
-	if cf.ServerSSL && cf.ServerInsecureSSL {
-		return fmt.Errorf("Flags --server-ssl and --server-insecure-ssl are mutually exclusive.")
-	}
-
-	if cf.ServerAddress != "" {
-		a.Config.ServerAddress = cf.ServerAddress
-		// Resetting server address clears up SSL and HTTP auth.
-		a.Config.ServerSSL = false
-		a.Config.ServerInsecureSSL = false
-		a.Config.ServerUser = ""
-		a.Config.ServerPassword = ""
-	}
-	if a.Config.ServerAddress == "" {
-		return fmt.Errorf("Server address is not set. Use --server flag to set it.")
-	}
-
-	if cf.ServerPassword != "" {
-		a.Config.ServerUser = cf.ServerUser
-		a.Config.ServerPassword = cf.ServerPassword
-	}
-	if cf.ServerSSL {
-		a.Config.ServerSSL = true
-		a.Config.ServerInsecureSSL = false
-	}
-	if cf.ServerInsecureSSL {
-		a.Config.ServerSSL = false
-		a.Config.ServerInsecureSSL = true
-	}
-
-	// Set APIs and check if server is alive.
-	if err := a.SetAPI(); err != nil {
-		return err
-	}
-
-	// Client options.
-
-	// Client name. Initial setup.
-	if a.Config.ClientName == "" {
-		if cf.ClientName != "" {
-			a.Config.ClientName = cf.ClientName
-		} else {
-			hostname, _ := os.Hostname()
-			a.Config.ClientName = hostname
-		}
-
-		node, _, err := a.consulAPI.Catalog().Node(a.Config.ClientName, nil)
-		if err != nil {
-			return fmt.Errorf("Unable to communicate with Consul: %s", err)
-		}
-		if node != nil && len(node.Services) > 0 {
-			if !flagForce {
-				return fmt.Errorf(`Another client with the same name '%s' detected, its address is %s.
-It has the active services so this name is not available.
-
-Specify the other one using --client-name flag.
-
-In case this is the correct client node that was previously uninstalled with unreachable PMM server,
-you can add --force flag to proceed further. Do not use this flag otherwise.
-The orphaned remote services will be removed automatically.`,
-					a.Config.ClientName, node.Node.Address)
-			}
-			// Allow to set client name and clean missing services.
-			a.RepairInstallation()
-		}
-	} else if cf.ClientName != "" && cf.ClientName != a.Config.ClientName {
-		// Attempt to change client name.
-		// Checking source name.
-		node, _, err := a.consulAPI.Catalog().Node(a.Config.ClientName, nil)
-		if err != nil {
-			return fmt.Errorf("Unable to communicate with Consul: %s", err)
-		}
-		if node != nil && len(node.Services) > 0 {
-			return fmt.Errorf("Changing of client name is allowed only if there are no services under monitoring.")
-		}
-
-		// Checking target name.
-		node, _, err = a.consulAPI.Catalog().Node(cf.ClientName, nil)
-		if err != nil {
-			return fmt.Errorf("Unable to communicate with Consul: %s", err)
-		}
-		if node != nil && len(node.Services) > 0 {
-			return fmt.Errorf(`Another client with the same name '%s' detected, its address is address %s.
-It has the active services so you cannot change client name as requested.`,
-				cf.ClientName, node.Node.Address)
-		}
-
-		a.Config.ClientName = cf.ClientName
-	}
-	if match, _ := regexp.MatchString(NameRegex, a.Config.ClientName); !match {
-		return fmt.Errorf(`Client name must be 2 to 60 characters long, contain only letters, numbers and symbols _ - . :
-Use --client-name flag to set the correct one.`)
-	}
-
-	// Client address. Initial setup.
-	if a.Config.ClientAddress == "" {
-		if cf.ClientAddress != "" {
-			a.Config.ClientAddress = cf.ClientAddress
-		} else {
-			// Detect remote address from nginx response header.
-			a.Config.ClientAddress = a.getNginxHeader("X-Remote-IP")
-		}
-
-		if a.Config.ClientAddress == "" {
-			return fmt.Errorf("Cannot detect client address. Use --client-address flag to set it.")
-		}
-	} else if cf.ClientAddress != "" && cf.ClientAddress != a.Config.ClientAddress {
-		// Attempt to change client address.
-		node, _, err := a.consulAPI.Catalog().Node(a.Config.ClientName, nil)
-		if err != nil {
-			return fmt.Errorf("Unable to communicate with Consul: %s", err)
-		}
-		if node != nil && len(node.Services) > 0 {
-			return fmt.Errorf("Changing of client address is allowed only if there are no services under monitoring.")
-		}
-
-		a.Config.ClientAddress = cf.ClientAddress
-	}
-
-	// If agent config exists, update the options like address, SSL, password etc.
-	agentConfigFile := fmt.Sprintf("%s/config/agent.conf", agentBaseDir)
-	if FileExists(agentConfigFile) {
-		if err := a.syncAgentConfig(agentConfigFile); err != nil {
-			return fmt.Errorf("Unable to update agent config %s: %s", agentConfigFile, err)
-		}
-		// Restart QAN agent.
-		if err := a.StartStopMonitoring("restart", "mysql:queries"); err != nil && err != ErrNoService {
-			return fmt.Errorf("Unable to restart queries service: %s", err)
-		}
-	}
-
-	// Write the config.
-	if err := a.writeConfig(); err != nil {
-		return fmt.Errorf("Unable to write config file %s: %s", a.filename, err)
-	}
-
-	return nil
 }
 
 // SetAPI setup Consul, QAN, Prometheus APIs and verify connection.
@@ -240,13 +65,16 @@ func (a *Admin) SetAPI() error {
 	}
 
 	scheme := "http"
+	helpText := ""
 	insecureTransport := &http.Transport{}
 	if a.Config.ServerInsecureSSL {
 		scheme = "https"
 		insecureTransport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+		helpText = "--server-insecure-ssl"
 	}
 	if a.Config.ServerSSL {
 		scheme = "https"
+		helpText = "--server-ssl"
 	}
 
 	// Consul API.
@@ -288,7 +116,7 @@ func (a *Admin) SetAPI() error {
 			return fmt.Errorf(`Unable to connect to PMM server by address: %s
 
 Looks like PMM server running with self-signed SSL certificate.
-Use 'pmm-admin config' with --server-insecure-ssl flag.`, a.Config.ServerAddress)
+Run 'pmm-admin config --server-insecure-ssl' to enable such configuration.`, a.Config.ServerAddress)
 		}
 		return fmt.Errorf(`Unable to connect to PMM server by address: %s
 
@@ -312,7 +140,7 @@ Looks like the server is password protected.
 Use 'pmm-admin config' to define server user and password.`, a.Config.ServerAddress)
 	}
 
-	// Finally, check Consul status.
+	// Check Consul status.
 	if leader, err := a.consulAPI.Status().Leader(); err != nil || leader != "127.0.0.1:8300" {
 		return fmt.Errorf(`Unable to connect to PMM server by address: %s
 
@@ -320,203 +148,31 @@ Even though the server is reachable it does not look to be PMM server.
 Check if the configured address is correct.`, a.Config.ServerAddress)
 	}
 
-	return nil
-}
+	// Check if server is not password protected but client is configured so.
+	if a.Config.ServerUser != "" {
+		url = fmt.Sprintf("%s://%s", scheme, a.Config.ServerAddress)
+		if resp, _, err := a.qanAPI.Get(url); err == nil && resp.StatusCode == http.StatusOK {
+			return fmt.Errorf(`This client is configured with HTTP basic authentication.
+However, PMM server is not.
 
-// getNginxHeader get header value from Nginx response.
-func (a *Admin) getNginxHeader(header string) string {
-	url := a.qanAPI.URL(a.serverURL, "v1/status/leader")
-	resp, _, err := a.qanAPI.Get(url)
-	if err != nil {
-		return ""
-	}
-	return resp.Header.Get(header)
-}
+If you forgot to enable password protection on the server, you may want to do so.
 
-// writeConfig write config to the file.
-func (a *Admin) writeConfig() error {
-	bytes, _ := yaml.Marshal(a.Config)
-	return ioutil.WriteFile(a.filename, bytes, 0600)
-}
-
-// syncAgentConfig sync agent config.
-func (a *Admin) syncAgentConfig(agentConfigFile string) error {
-	jsonData, err := ioutil.ReadFile(agentConfigFile)
-	if err != nil {
-		return err
-	}
-	agentConf := &protocfg.Agent{}
-	if err := json.Unmarshal(jsonData, &agentConf); err != nil {
-		return err
-	}
-	agentConf.ApiHostname = a.Config.ServerAddress
-	agentConf.ServerSSL = a.Config.ServerSSL
-	agentConf.ServerInsecureSSL = a.Config.ServerInsecureSSL
-	agentConf.ServerUser = a.Config.ServerUser
-	agentConf.ServerPassword = a.Config.ServerPassword
-
-	bytes, _ := json.Marshal(agentConf)
-	return ioutil.WriteFile(agentConfigFile, bytes, 0600)
-}
-
-// List get all services from Consul.
-func (a *Admin) List() error {
-	node, _, err := a.consulAPI.Catalog().Node(a.Config.ClientName, nil)
-	if err != nil || node == nil {
-		fmt.Printf("%s '%s'.\n\n", noMonitoring, a.Config.ClientName)
-		return nil
-	}
-
-	if len(node.Services) == 0 {
-		fmt.Print("No services under monitoring.\n\n")
-		return nil
-	}
-
-	// Parse all services except mysql:queries.
-	var queryService *consul.AgentService
-	var svcTable []instanceStatus
-	for _, svc := range node.Services {
-		svcType := svc.Service
-		// When server hostname == client name, we have to exclude consul.
-		if svcType == "consul" {
-			continue
-		}
-		if svcType == "mysql:queries" {
-			queryService = svc
-			continue
-		}
-
-		status := "NO"
-		if getServiceStatus(fmt.Sprintf("pmm-%s-%d", strings.Replace(svcType, ":", "-", 1), svc.Port)) {
-			status = "YES"
-		}
-		opts := []string{}
-		name := "-"
-		dsn := "-"
-		// Get values for service from Consul KV.
-		prefix := fmt.Sprintf("%s/%s/", a.Config.ClientName, svc.ID)
-		if data, _, err := a.consulAPI.KV().List(prefix, nil); err == nil {
-			for _, kvp := range data {
-				key := kvp.Key[len(prefix):]
-				switch key {
-				case "dsn":
-					dsn = string(kvp.Value)
-				default:
-					opts = append(opts, fmt.Sprintf("%s=%s", key, kvp.Value))
-				}
-			}
-		}
-		// Parse Consul service tags.
-		for _, tag := range svc.Tags {
-			if strings.HasPrefix(tag, "alias_") {
-				name = tag[6:]
-				continue
-			}
-			tag := strings.Replace(tag, "_", "=", 1)
-			opts = append(opts, tag)
-		}
-		row := instanceStatus{
-			Type:    svcType,
-			Name:    name,
-			Port:    fmt.Sprintf("%d", svc.Port),
-			Status:  status,
-			DSN:     dsn,
-			Options: strings.Join(opts, ", "),
-		}
-		svcTable = append(svcTable, row)
-	}
-
-	// Parse queries service.
-	if queryService != nil {
-		status := "NO"
-		if getServiceStatus(fmt.Sprintf("pmm-mysql-queries-%d", queryService.Port)) {
-			status = "YES"
-		}
-
-		// Get names from Consul tags.
-		names := []string{}
-		for _, tag := range queryService.Tags {
-			if strings.HasPrefix(tag, "alias_") {
-				names = append(names, tag[6:])
-			}
-		}
-
-		for _, name := range names {
-			dsn := "-"
-			opts := []string{}
-			// Get values for service from Consul KV.
-			prefix := fmt.Sprintf("%s/%s/%s/", a.Config.ClientName, queryService.ID, name)
-			if data, _, err := a.consulAPI.KV().List(prefix, nil); err == nil {
-				for _, kvp := range data {
-					key := kvp.Key[len(prefix):]
-					switch key {
-					case "dsn":
-						dsn = string(kvp.Value)
-					case "qan_mysql_uuid":
-						f := fmt.Sprintf("%s/config/qan-%s.conf", agentBaseDir, kvp.Value)
-						querySource, _ := getQuerySource(f)
-						opts = append(opts, fmt.Sprintf("query_source=%s", querySource))
-					}
-				}
-			}
-			row := instanceStatus{
-				Type:    queryService.Service,
-				Name:    name,
-				Port:    fmt.Sprintf("%d", queryService.Port),
-				Status:  status,
-				DSN:     dsn,
-				Options: strings.Join(opts, ", "),
-			}
-			svcTable = append(svcTable, row)
+Otherwise, run the following command to reset the config and disable authentication:
+pmm-admin config --server %s %s`, a.Config.ServerAddress, helpText)
 		}
 	}
-
-	// Print table.
-	// Info header.
-	maxTypeLen := len("SERVICE TYPE")
-	maxNameLen := len("NAME")
-	maxDSNlen := len("DATA SOURCE")
-	maxOptsLen := len("OPTIONS")
-	for _, in := range svcTable {
-		if len(in.Type) > maxTypeLen {
-			maxTypeLen = len(in.Type)
-		}
-		if len(in.Name) > maxNameLen {
-			maxNameLen = len(in.Name)
-		}
-		if len(in.DSN) > maxDSNlen {
-			maxDSNlen = len(in.DSN)
-		}
-		if len(in.Options) > maxOptsLen {
-			maxOptsLen = len(in.Options)
-		}
-	}
-	maxTypeLen++
-	maxNameLen++
-	maxDSNlen++
-	maxOptsLen++
-	linefmt := "%-" + fmt.Sprintf("%d", maxTypeLen) + "s %-" + fmt.Sprintf("%d", maxNameLen) + "s %-12s %-8s %-" +
-		fmt.Sprintf("%d", maxDSNlen) + "s %-" + fmt.Sprintf("%d", maxOptsLen) + "s\n"
-	fmt.Printf(linefmt, strings.Repeat("-", maxTypeLen), strings.Repeat("-", maxNameLen), strings.Repeat("-", 12),
-		strings.Repeat("-", 8), strings.Repeat("-", maxDSNlen), strings.Repeat("-", maxOptsLen))
-	fmt.Printf(linefmt, "SERVICE TYPE", "NAME", "CLIENT PORT", "RUNNING", "DATA SOURCE", "OPTIONS")
-	fmt.Printf(linefmt, strings.Repeat("-", maxTypeLen), strings.Repeat("-", maxNameLen), strings.Repeat("-", 12),
-		strings.Repeat("-", 8), strings.Repeat("-", maxDSNlen), strings.Repeat("-", maxOptsLen))
-	// Data table.
-	sort.Sort(sortOutput(svcTable))
-	for _, i := range svcTable {
-		fmt.Printf(linefmt, i.Type, i.Name, i.Port, i.Status, i.DSN, i.Options)
-	}
-	fmt.Println()
 
 	return nil
 }
 
-// GetInfo print PMM client info.
+// PrintInfo print PMM client info.
 func (a *Admin) PrintInfo() {
-	fmt.Printf("pmm-admin %s\n\n", VERSION)
+	fmt.Printf("pmm-admin %s\n\n", Version)
 	a.ServerInfo()
-	fmt.Printf("%-15s | %s\n\n", "Service manager", service.Platform())
+	fmt.Printf("%-15s | %s\n\n", "Service Manager", service.Platform())
+
+	fmt.Printf("%-15s | %s\n", "Go Version", strings.Replace(runtime.Version(), "go", "", 1))
+	fmt.Printf("%-15s | %s/%s\n\n", "Runtime Info", runtime.GOOS, runtime.GOARCH)
 }
 
 // ServerInfo print server info.
@@ -530,19 +186,25 @@ func (a *Admin) ServerInfo() {
 	if a.Config.ServerUser != "" {
 		labels = append(labels, "password-protected")
 	}
-	info := ""
+	securityInfo := ""
 	if len(labels) > 0 {
-		info = fmt.Sprintf("(%s)", strings.Join(labels, ", "))
+		securityInfo = fmt.Sprintf("(%s)", strings.Join(labels, ", "))
 	}
-	fmt.Printf("%-15s | %s %s\n", "PMM Server", a.Config.ServerAddress, info)
+
+	bindAddress := ""
+	if a.Config.ClientAddress != a.Config.BindAddress {
+		bindAddress = fmt.Sprintf("(%s)", a.Config.BindAddress)
+	}
+
+	fmt.Printf("%-15s | %s %s\n", "PMM Server", a.Config.ServerAddress, securityInfo)
 	fmt.Printf("%-15s | %s\n", "Client Name", a.Config.ClientName)
-	fmt.Printf("%-15s | %s\n", "Client Address", a.Config.ClientAddress)
+	fmt.Printf("%-15s | %s %s\n", "Client Address", a.Config.ClientAddress, bindAddress)
 }
 
 // StartStopMonitoring start/stop system service by its metric type and name.
 func (a *Admin) StartStopMonitoring(action, svcType string) error {
 	if svcType != "linux:metrics" && svcType != "mysql:metrics" && svcType != "mysql:queries" && svcType != "mongodb:metrics" && svcType != "proxysql:metrics" {
-		return fmt.Errorf(`bad service type.
+		return errors.New(`bad service type.
 
 Service type takes the following values: linux:metrics, mysql:metrics, mysql:queries, mongodb:metrics, proxysql:metrics.`)
 	}
@@ -655,7 +317,7 @@ func (a *Admin) RemoveAllMonitoring(ignoreErrors bool) (uint16, error) {
 // PurgeMetrics purge metrics data on the server by its metric type and name.
 func (a *Admin) PurgeMetrics(svcType string) (uint, error) {
 	if svcType != "linux:metrics" && svcType != "mysql:metrics" && svcType != "mongodb:metrics" && svcType != "proxysql:metrics" {
-		return 0, fmt.Errorf(`bad service type.
+		return 0, errors.New(`bad service type.
 
 Service type takes the following values: linux:metrics, mysql:metrics, mongodb:metrics, proxysql:metrics.`)
 	}
@@ -775,6 +437,16 @@ func (a *Admin) availablePort(port uint16) (bool, error) {
 	return true, nil
 }
 
+// checkSSLCertificate check if SSL cert and key files exist and generate them if not.
+func (a *Admin) checkSSLCertificate() error {
+	if FileExists(SSLCertFile) && FileExists(SSLKeyFile) {
+		return nil
+	}
+
+	// Generate SSL cert and key.
+	return generateSSLCertificate(a.Config.ClientAddress, SSLCertFile, SSLKeyFile)
+}
+
 // CheckInstallation check for broken installation.
 func (a *Admin) CheckInstallation() ([]string, []string) {
 	var (
@@ -884,10 +556,10 @@ func (a *Admin) RepairInstallation() error {
 }
 
 // Uninstall remove all monitoring services with the best effort.
-func (a *Admin) Uninstall(flagConfigFile string) uint16 {
+func (a *Admin) Uninstall() uint16 {
 	var count uint16
-	if FileExists(flagConfigFile) {
-		err := a.LoadConfig(flagConfigFile)
+	if FileExists(ConfigFile) {
+		err := a.LoadConfig()
 		if err == nil {
 			a.apiTimeout = 5 * time.Second
 			if err := a.SetAPI(); err == nil {
@@ -926,13 +598,20 @@ func (a *Admin) Uninstall(flagConfigFile string) uint16 {
 	return count
 }
 
+// ShowPasswords display passwords from config file.
+func (a *Admin) ShowPasswords() {
+	fmt.Println("HTTP basic authentication")
+	fmt.Printf("%-8s | %s\n", "User", a.Config.ServerUser)
+	fmt.Printf("%-8s | %s\n\n", "Password", a.Config.ServerPassword)
+
+	fmt.Println("MySQL new user creation")
+	fmt.Printf("%-8s | %s\n", "Password", a.Config.MySQLPassword)
+	fmt.Println()
+}
+
 // FileExists check if file exists.
 func FileExists(file string) bool {
-	_, err := os.Stat(file)
-	if err == nil {
-		return true
-	}
-	if os.IsNotExist(err) {
+	if _, err := os.Stat(file); os.IsNotExist(err) {
 		return false
 	}
 	return true
@@ -976,20 +655,63 @@ func CheckBinaries() string {
 	return ""
 }
 
-// Sort rows of formatted table output (list, check-networks commands).
-type sortOutput []instanceStatus
-
-func (s sortOutput) Len() int {
-	return len(s)
-}
-
-func (s sortOutput) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
-}
-
-func (s sortOutput) Less(i, j int) bool {
-	if strings.Compare(s[i].Port, s[j].Port) == -1 {
-		return true
+// Output colored text.
+func colorStatus(msgOK string, msgNotOK string, ok bool) string {
+	c := color.New(color.FgRed, color.Bold).SprintFunc()
+	if ok {
+		c = color.New(color.FgGreen, color.Bold).SprintFunc()
+		return c(msgOK)
 	}
-	return false
+
+	return c(msgNotOK)
+}
+
+// generateSSLCertificate generate SSL certificate and key and write them into the files.
+func generateSSLCertificate(host, certFile, keyFile string) error {
+	// Generate key.
+	privKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return fmt.Errorf("failed to generate private key: %s", err)
+	}
+
+	// Generate cert.
+	notBefore, _ := time.Parse("Jan 2 15:04:05 2006", "Nov 25 15:00:00 2016")
+	notAfter, _ := time.Parse("Jan 2 15:04:05 2006", "Nov 25 15:00:00 2026")
+	serialNumber, _ := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
+	cert := x509.Certificate{
+		Subject:               pkix.Name{Organization: []string{"PMM Client"}},
+		SerialNumber:          serialNumber,
+		NotBefore:             notBefore,
+		NotAfter:              notAfter,
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		cert.IPAddresses = append(cert.IPAddresses, ip)
+	} else {
+		cert.DNSNames = append(cert.DNSNames, host)
+	}
+
+	certBytes, err := x509.CreateCertificate(rand.Reader, &cert, &cert, &privKey.PublicKey, privKey)
+	if err != nil {
+		return fmt.Errorf("failed to generate certificate: %s", err)
+	}
+
+	// Write files.
+	out, err := os.OpenFile(certFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	if err != nil {
+		return fmt.Errorf("failed to write %s: %s", certFile, err)
+	}
+	pem.Encode(out, &pem.Block{Type: "CERTIFICATE", Bytes: certBytes})
+	out.Close()
+
+	out, err = os.OpenFile(keyFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	if err != nil {
+		return fmt.Errorf("failed to write %s: %s", keyFile, err)
+	}
+	pem.Encode(out, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(privKey)})
+	out.Close()
+
+	return nil
 }

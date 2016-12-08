@@ -54,7 +54,7 @@ func (a *Admin) AddMongoDBMetrics(uri, cluster string) error {
 		return err
 	}
 
-	tags := []string{fmt.Sprintf("alias_%s", a.ServiceName)}
+	tags := []string{fmt.Sprintf("alias_%s", a.ServiceName), "scheme_https"}
 	if cluster != "" {
 		tags = append(tags, fmt.Sprintf("cluster_%s", cluster))
 	}
@@ -80,14 +80,26 @@ func (a *Admin) AddMongoDBMetrics(uri, cluster string) error {
 		Value: []byte(SanitizeDSN(uri))}
 	a.consulAPI.KV().Put(d, nil)
 
+	// Check and generate certificate if needed.
+	if err := a.checkSSLCertificate(); err != nil {
+		return err
+	}
+
+	args := []string{
+		fmt.Sprintf("-web.listen-address=%s:%d", a.Config.BindAddress, port),
+		fmt.Sprintf("-web.auth-file=%s", ConfigFile),
+		fmt.Sprintf("-web.ssl-cert-file=%s", SSLCertFile),
+		fmt.Sprintf("-web.ssl-key-file=%s", SSLKeyFile),
+	}
+
 	// Install and start service via platform service manager.
 	svcConfig := &service.Config{
 		Name:        fmt.Sprintf("pmm-mongodb-metrics-%d", port),
 		DisplayName: fmt.Sprintf("PMM Prometheus mongodb_exporter %d", port),
 		Description: fmt.Sprintf("PMM Prometheus mongodb_exporter %d", port),
 		Executable:  fmt.Sprintf("%s/mongodb_exporter", PMMBaseDir),
-		Arguments: []string{fmt.Sprintf("-web.listen-address=%s:%d", a.Config.ClientAddress, port),
-			fmt.Sprintf("-mongodb.uri=%s", uri)},
+		Arguments:   args,
+		Environment: []string{fmt.Sprintf("MONGODB_URI=%s", uri)},
 	}
 	if err := installService(svcConfig); err != nil {
 		return err

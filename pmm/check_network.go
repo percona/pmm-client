@@ -29,11 +29,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fatih/color"
 	"golang.org/x/net/context"
 )
 
 // CheckNetwork check connectivity between client and server.
-func (a *Admin) CheckNetwork(noEmoji bool) error {
+func (a *Admin) CheckNetwork() error {
 	// Check QAN API health.
 	qanStatus := false
 	url := a.qanAPI.URL(a.serverURL, qanAPIBasePath, "ping")
@@ -50,13 +51,18 @@ func (a *Admin) CheckNetwork(noEmoji bool) error {
 		promStatus = false
 	}
 
+	bindAddress := ""
+	if a.Config.ClientAddress != a.Config.BindAddress {
+		bindAddress = fmt.Sprintf("(%s)", a.Config.BindAddress)
+	}
+
 	fmt.Print("PMM Network Status\n\n")
 	fmt.Printf("%-14s | %s\n", "Server Address", a.Config.ServerAddress)
-	fmt.Printf("%-14s | %s\n\n", "Client Address", a.Config.ClientAddress)
+	fmt.Printf("%-14s | %s %s\n\n", "Client Address", a.Config.ClientAddress, bindAddress)
 
 	t := a.getNginxHeader("X-Server-Time")
 	if t != "" {
-		fmt.Println("* System Time")
+		color.New(color.Bold).Println("* System Time")
 		var serverTime time.Time
 		if s, err := strconv.ParseInt(t, 10, 64); err == nil {
 			serverTime = time.Unix(s, 0)
@@ -67,22 +73,21 @@ func (a *Admin) CheckNetwork(noEmoji bool) error {
 		fmt.Printf("%-10s | %s\n", "Server", serverTime.Format("2006-01-02 15:04:05 -0700 MST"))
 		fmt.Printf("%-10s | %s\n", "Client", clientTime.Format("2006-01-02 15:04:05 -0700 MST"))
 		drift := math.Abs(float64(serverTime.Unix()) - float64(clientTime.Unix()))
-		driftText := emojiStatus(noEmoji, true)
+		fmt.Printf("%-10s | %s\n\n", "Time Drift", colorStatus("OK", fmt.Sprintf("%.0fs", drift), drift <= 120))
 		if drift > 120 {
-			driftText = fmt.Sprintf("%s  %.0fs", emojiStatus(noEmoji, false), drift)
-			driftText += "\n\nTime is out of sync. Please make sure the server time is correct to see the metrics."
+			fmt.Print("Time is out of sync. Please make sure the server time is correct to see the metrics.\n\n")
 		}
-		fmt.Printf("%-10s | %s\n\n\n", "Time Drift", driftText)
 	}
 
-	fmt.Println("* Client --> Server")
-	fmt.Printf("%-15s %-13s\n", strings.Repeat("-", 15), strings.Repeat("-", 8))
-	fmt.Printf("%-15s %-13s\n", "SERVER SERVICE", "STATUS")
-	fmt.Printf("%-15s %-13s\n", strings.Repeat("-", 15), strings.Repeat("-", 8))
+	fmt.Println()
+	color.New(color.Bold).Println("* Connection: Client --> Server")
+	fmt.Printf("%-20s %-13s\n", strings.Repeat("-", 20), strings.Repeat("-", 7))
+	fmt.Printf("%-20s %-13s\n", "SERVER SERVICE", "STATUS")
+	fmt.Printf("%-20s %-13s\n", strings.Repeat("-", 20), strings.Repeat("-", 7))
 	// Consul is always alive if we are at this point.
-	fmt.Printf("%-15s %-13s\n", "Consul API", emojiStatus(noEmoji, true))
-	fmt.Printf("%-15s %-13s\n", "QAN API", emojiStatus(noEmoji, qanStatus))
-	fmt.Printf("%-15s %-13s\n\n", "Prometheus API", emojiStatus(noEmoji, promStatus))
+	fmt.Printf("%-20s %-13s\n", "Consul API", colorStatus("OK", "", true))
+	fmt.Printf("%-20s %-13s\n", "Prometheus API", colorStatus("OK", "DOWN", promStatus))
+	fmt.Printf("%-20s %-13s\n\n", "Query Analytics API", colorStatus("OK", "DOWN", qanStatus))
 
 	a.testNetwork()
 	fmt.Println()
@@ -99,7 +104,7 @@ func (a *Admin) CheckNetwork(noEmoji bool) error {
 	}
 
 	fmt.Println()
-	fmt.Println("* Client <-- Server")
+	color.New(color.Bold).Println("* Connection: Client <-- Server")
 	if len(node.Services) == 0 {
 		fmt.Print("No metric endpoints registered.\n\n")
 		return nil
@@ -126,11 +131,25 @@ func (a *Admin) CheckNetwork(noEmoji bool) error {
 		if !status {
 			errStatus = true
 		}
+
+		// Check protection status.
+		localStatus := getServiceStatus(fmt.Sprintf("pmm-%s-%d", strings.Replace(svc.Service, ":", "-", 1), svc.Port))
+		sslVal := "-"
+		protectedVal := "-"
+		if localStatus {
+			sslVal = colorStatus("YES", "NO", a.isSSLProtected(svc.Service, svc.Port))
+			if a.Config.ServerUser != "" {
+				protectedVal = colorStatus("YES", "NO", a.isPasswordProtected(svc.Service, svc.Port))
+			}
+		}
+
 		row := instanceStatus{
-			Type:   svc.Service,
-			Name:   name,
-			Port:   fmt.Sprintf("%d", svc.Port),
-			Status: emojiStatus(noEmoji, status),
+			Type:     svc.Service,
+			Name:     name,
+			Port:     fmt.Sprintf("%d", svc.Port),
+			Status:   status,
+			SSL:      sslVal,
+			Password: protectedVal,
 		}
 		svcTable = append(svcTable, row)
 	}
@@ -147,24 +166,59 @@ func (a *Admin) CheckNetwork(noEmoji bool) error {
 	}
 	maxTypeLen++
 	maxNameLen++
-	linefmt := "%-" + fmt.Sprintf("%d", maxTypeLen) + "s %-" + fmt.Sprintf("%d", maxNameLen) + "s %-22s %-8s\n"
-	fmt.Printf(linefmt, strings.Repeat("-", maxTypeLen), strings.Repeat("-", maxNameLen), strings.Repeat("-", 22),
-		strings.Repeat("-", 8))
-	fmt.Printf(linefmt, "SERVICE TYPE", "NAME", "REMOTE ENDPOINT", "STATUS")
-	fmt.Printf(linefmt, strings.Repeat("-", maxTypeLen), strings.Repeat("-", maxNameLen), strings.Repeat("-", 22),
-		strings.Repeat("-", 8))
+	maxAddrLen := len(a.Config.ClientAddress) + 7
+	maxStatusLen := 7
+	maxProtectedLen := 9
+	maxSSLLen := 10
+	if a.Config.ClientAddress != a.Config.BindAddress {
+		maxAddrLen = len(a.Config.ClientAddress) + len(a.Config.BindAddress) + 10
+	}
+
+	fmtPattern := "%%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds\n"
+	linefmt := fmt.Sprintf(fmtPattern, maxTypeLen, maxNameLen, maxAddrLen, maxStatusLen, maxSSLLen, maxProtectedLen)
+
+	fmt.Printf(linefmt, strings.Repeat("-", maxTypeLen), strings.Repeat("-", maxNameLen), strings.Repeat("-", maxAddrLen),
+		strings.Repeat("-", maxStatusLen), strings.Repeat("-", maxSSLLen), strings.Repeat("-", maxProtectedLen))
+	fmt.Printf(linefmt, "SERVICE TYPE", "NAME", "REMOTE ENDPOINT", "STATUS", "HTTPS/TLS", "PASSWORD")
+	fmt.Printf(linefmt, strings.Repeat("-", maxTypeLen), strings.Repeat("-", maxNameLen), strings.Repeat("-", maxAddrLen),
+		strings.Repeat("-", maxStatusLen), strings.Repeat("-", maxSSLLen), strings.Repeat("-", maxProtectedLen))
+
 	sort.Sort(sortOutput(svcTable))
+	maxStatusLen += 11
+	linefmt = fmt.Sprintf(fmtPattern, maxTypeLen, maxNameLen, maxAddrLen, maxStatusLen, maxSSLLen, maxProtectedLen)
 	for _, i := range svcTable {
-		fmt.Printf(linefmt, i.Type, i.Name, a.Config.ClientAddress+":"+i.Port, i.Status)
+		if i.SSL != "-" {
+			linefmt = fmt.Sprintf(fmtPattern, maxTypeLen, maxNameLen, maxAddrLen, maxStatusLen, maxSSLLen+11, maxProtectedLen)
+		}
+		if a.Config.ClientAddress != a.Config.BindAddress {
+			fmt.Printf(linefmt, i.Type, i.Name, a.Config.ClientAddress+"-->"+a.Config.BindAddress+":"+i.Port,
+				colorStatus("OK", "DOWN", i.Status), i.SSL, i.Password)
+		} else {
+			fmt.Printf(linefmt, i.Type, i.Name, a.Config.ClientAddress+":"+i.Port,
+				colorStatus("OK", "DOWN", i.Status), i.SSL, i.Password)
+		}
+
 	}
 
 	if errStatus {
-		fmt.Println(`
+		scheme := "http"
+		if a.Config.ServerInsecureSSL || a.Config.ServerSSL {
+			scheme = "https"
+		}
+		url := fmt.Sprintf("%s://%s/prometheus/targets", scheme, a.Config.ServerAddress)
+		fmt.Printf(`
 When an endpoint is down it may indicate that the corresponding service is stopped (run 'pmm-admin list' to verify).
 If it's running, check out the logs /var/log/pmm-*.log
 
 When all endpoints are down but 'pmm-admin list' shows they are up and no errors in the logs,
-check the firewall settings whether this system allows incoming connections from server to address:port in question.`)
+check the firewall settings whether this system allows incoming connections from server to address:port in question.
+
+Also you can check the endpoint status by the URL: %s
+			`, url)
+		if a.Config.ClientAddress != a.Config.BindAddress {
+			fmt.Println(`
+IMPORTANT: client and bind addresses are not the same which means you need to configure NAT/port forwarding to map them.`)
+		}
 	}
 	fmt.Println()
 	return nil
@@ -236,17 +290,30 @@ func checkPromTargetStatus(data, alias, job string) bool {
 	return false
 }
 
-// Map status to emoji or text.
-func emojiStatus(noEmoji, status bool) string {
-	switch true {
-	case noEmoji && status:
-		return "OK"
-	case noEmoji && !status:
-		return "PROBLEM"
-	case !noEmoji && status:
-		return emojiHappy
-	case !noEmoji && !status:
-		return emojiUnhappy
+// isPasswordProtected check if endpoint is password protected.
+func (a *Admin) isPasswordProtected(svcType string, port int) bool {
+	urlPath := "metrics"
+	if svcType == "mysql:metrics" {
+		urlPath = "metrics-hr"
 	}
-	return "N/A"
+	scheme := "http"
+	if a.isSSLProtected(svcType, port) {
+		scheme = "https"
+	}
+	url := a.qanAPI.URL(fmt.Sprintf("%s://%s:%d", scheme, a.Config.BindAddress, port), urlPath)
+	if resp, _, err := a.qanAPI.Get(url); err == nil && resp.StatusCode == http.StatusUnauthorized {
+		return true
+	}
+
+	return false
+}
+
+// isSSLProtected check if endpoint is https/tls protected.
+func (a *Admin) isSSLProtected(svcType string, port int) bool {
+	url := a.qanAPI.URL(fmt.Sprintf("http://%s:%d", a.Config.BindAddress, port))
+	if _, _, err := a.qanAPI.Get(url); err != nil && strings.Contains(err.Error(), "malformed HTTP response") {
+		return true
+	}
+
+	return false
 }

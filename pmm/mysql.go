@@ -19,6 +19,7 @@ package pmm
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"math/rand"
 	"os"
@@ -28,7 +29,7 @@ import (
 	"github.com/percona/go-mysql/dsn"
 )
 
-// MySQL specific options.
+// MySQLFlags MySQL specific flags.
 type MySQLFlags struct {
 	DefaultsFile string
 	User         string
@@ -55,13 +56,13 @@ type MySQLFlags struct {
 func (a *Admin) DetectMySQL(mf MySQLFlags) (map[string]string, error) {
 	// Check for invalid mix of flags.
 	if mf.Socket != "" && mf.Host != "" {
-		return nil, fmt.Errorf("Flags --socket and --host are mutually exclusive.")
+		return nil, errors.New("Flags --socket and --host are mutually exclusive.")
 	}
 	if mf.Socket != "" && mf.Port != "" {
-		return nil, fmt.Errorf("Flags --socket and --port are mutually exclusive.")
+		return nil, errors.New("Flags --socket and --port are mutually exclusive.")
 	}
 	if !mf.CreateUser && mf.CreateUserPassword != "" {
-		return nil, fmt.Errorf("Flag --create-user-password should be used along with --create-user.")
+		return nil, errors.New("Flag --create-user-password should be used along with --create-user.")
 	}
 
 	userDSN := dsn.DSN{
@@ -189,19 +190,19 @@ func createMySQLUser(db *sql.DB, userDSN dsn.DSN, mf MySQLFlags) (dsn.DSN, error
 
 func mysqlCheck(db *sql.DB, hosts []string) error {
 	var (
-		errors []string
+		errMsg []string
 		varVal string
 	)
 
 	// Check for read_only.
 	if db.QueryRow("SELECT @@read_only").Scan(&varVal); varVal == "1" {
-		errors = append(errors, "* You are trying to write on read-only MySQL host.")
+		errMsg = append(errMsg, "* You are trying to write on read-only MySQL host.")
 	}
 
 	// Check for slave.
 	if slaveStatusRows, err := db.Query("SHOW SLAVE STATUS"); err == nil {
 		if slaveStatusRows.Next() {
-			errors = append(errors, "* You are trying to write on MySQL replication slave.")
+			errMsg = append(errMsg, "* You are trying to write on MySQL replication slave.")
 		}
 	}
 
@@ -215,16 +216,16 @@ func mysqlCheck(db *sql.DB, hosts []string) error {
 			if host == "%" {
 				host = "%%"
 			}
-			errors = append(errors, fmt.Sprintf("* MySQL user pmm@%s already exists. %s", host,
+			errMsg = append(errMsg, fmt.Sprintf("* MySQL user pmm@%s already exists. %s", host,
 				"Try without --create-user flag using the default credentials or specify the existing `pmm` user ones."))
 			break
 		}
 	}
 
-	if len(errors) > 0 {
-		errors = append([]string{"Problem creating a new MySQL user:", ""}, errors...)
-		errors = append(errors, "", "If you think the above is okay to proceed, you can use --force flag.")
-		return fmt.Errorf(strings.Join(errors, "\n"))
+	if len(errMsg) > 0 {
+		errMsg = append([]string{"Problem creating a new MySQL user:", ""}, errMsg...)
+		errMsg = append(errMsg, "", "If you think the above is okay to proceed, you can use --force flag.")
+		return errors.New(strings.Join(errMsg, "\n"))
 	}
 
 	return nil

@@ -39,7 +39,7 @@ var (
 			// The version flag will not run anywhere else than on rootCmd as this flag is not persistent
 			// and we want it only here without any additional checks.
 			if flagVersion {
-				fmt.Println(pmm.VERSION)
+				fmt.Println(pmm.Version)
 				os.Exit(0)
 			}
 
@@ -49,17 +49,17 @@ var (
 			}
 
 			// Read config file.
-			if !pmm.FileExists(flagConfigFile) {
+			if !pmm.FileExists(pmm.ConfigFile) {
 				fmt.Println("PMM client is not configured, missing config file. Please make sure you have run 'pmm-admin config'.")
 				os.Exit(1)
 			}
 
-			if err := admin.LoadConfig(flagConfigFile); err != nil {
-				fmt.Printf("Error reading config file %s: %s\n", flagConfigFile, err)
+			if err := admin.LoadConfig(); err != nil {
+				fmt.Printf("Error reading config file %s: %s\n", pmm.ConfigFile, err)
 				os.Exit(1)
 			}
 
-			if admin.Config.ServerAddress == "" || admin.Config.ClientName == "" || admin.Config.ClientAddress == "" {
+			if admin.Config.ServerAddress == "" || admin.Config.ClientName == "" || admin.Config.ClientAddress == "" || admin.Config.BindAddress == "" {
 				fmt.Println("PMM client is not configured properly. Please make sure you have run 'pmm-admin config'.")
 				os.Exit(1)
 			}
@@ -142,7 +142,8 @@ Table statistics is automatically disabled when there are more than 10000 tables
 [name] is an optional argument, by default it is set to the client name of this PMM client.
 		`,
 		Example: `  pmm-admin add mysql --password abc123
-  pmm-admin add mysql --password abc123 --create-user`,
+  pmm-admin add mysql --password abc123 --create-user
+  pmm-admin add mysql --password abc123 --port 3307 instance3307`,
 		Run: func(cmd *cobra.Command, args []string) {
 			// Check --query-source flag.
 			if flagM.QuerySource != "auto" && flagM.QuerySource != "slowlog" && flagM.QuerySource != "perfschema" {
@@ -221,7 +222,8 @@ Table statistics is automatically disabled when there are more than 10000 tables
 [name] is an optional argument, by default it is set to the client name of this PMM client.
 		`,
 		Example: `  pmm-admin add mysql:metrics --password abc123
-  pmm-admin add mysql:metrics --password abc123 --host 192.168.1.2 --create-user
+  pmm-admin add mysql:metrics --password abc123 --create-user
+  pmm-admin add mysql:metrics --password abc123 --port 3307 instance3307
   pmm-admin add mysql:metrics --user rdsuser --password abc123 --host my-rds.1234567890.us-east-1.rds.amazonaws.com my-rds`,
 		Run: func(cmd *cobra.Command, args []string) {
 			info, err := admin.DetectMySQL(flagM)
@@ -248,7 +250,8 @@ a new user 'pmm@' automatically using the given (auto-detected) MySQL credential
 [name] is an optional argument, by default it is set to the client name of this PMM client.
 		`,
 		Example: `  pmm-admin add mysql:queries --password abc123
-  pmm-admin add mysql:queries --password abc123 --host 192.168.1.2 --create-user
+  pmm-admin add mysql:queries --password abc123 --create-user
+  pmm-admin add mysql:metrics --password abc123 --port 3307 instance3307
   pmm-admin add mysql:queries --user rdsuser --password abc123 --host my-rds.1234567890.us-east-1.rds.amazonaws.com my-rds`,
 		Run: func(cmd *cobra.Command, args []string) {
 			// Check --query-source flag.
@@ -524,7 +527,6 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 		Short:   "List monitoring services for this system.",
 		Long:    "This command displays the list of monitoring services and their details.",
 		Run: func(cmd *cobra.Command, args []string) {
-			admin.PrintInfo()
 			err := admin.List()
 			if err != nil {
 				fmt.Println("Error listing instances:", err)
@@ -547,18 +549,19 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 		Short: "Configure PMM Client.",
 		Long: `This command configures pmm-admin to communicate with PMM server.
 
-You can enable SSL or setup HTTP basic authentication.
-When HTTP password and no user is given, the default username will be "pmm".
+You can enable SSL (including self-signed certificates) and HTTP basic authentication with the server.
+If HTTP authentication is enabled with the server, the same credendials will be used for all metric services
+automatically to protect them.
 
-Note, resetting server address clears up SSL and HTTP authentication if no corresponding flags are provided.`,
+Note, resetting of server address clears up SSL and HTTP auth options if no corresponding flags are provided.`,
 		Example: `  pmm-admin config --server 192.168.56.100
   pmm-admin config --server 192.168.56.100:8000
   pmm-admin config --server 192.168.56.100 --server-password abc123`,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			// Cancel root's PersistentPreRun as we do not require config file to exist here.
 			// If the config does not exist, we will init an empty and write on Run.
-			if err := admin.LoadConfig(flagConfigFile); err != nil {
-				fmt.Printf("Cannot read config file %s: %s\n", flagConfigFile, err)
+			if err := admin.LoadConfig(); err != nil {
+				fmt.Printf("Cannot read config file %s: %s\n", pmm.ConfigFile, err)
 				os.Exit(1)
 			}
 		},
@@ -567,7 +570,7 @@ Note, resetting server address clears up SSL and HTTP authentication if no corre
 				fmt.Printf("%s\n", err)
 				os.Exit(1)
 			}
-			fmt.Println("OK, PMM server is alive.\n")
+			fmt.Print("OK, PMM server is alive.\n\n")
 			admin.ServerInfo()
 		},
 	}
@@ -589,7 +592,7 @@ In case, some of the endpoints are in problem state, please check if the corresp
 If all endpoints are down here and 'pmm-admin list' shows all services are up,
 please check the firewall settings whether this system allows incoming connections by address:port in question.`,
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := admin.CheckNetwork(flagNoEmoji); err != nil {
+			if err := admin.CheckNetwork(); err != nil {
 				fmt.Println("Error checking network status:", err)
 				os.Exit(1)
 			}
@@ -602,8 +605,17 @@ please check the firewall settings whether this system allows incoming connectio
 		Long:  "This command verifies the connectivity with PMM server.",
 		Run: func(cmd *cobra.Command, args []string) {
 			// It's all good if PersistentPreRun didn't fail.
-			fmt.Println("OK, PMM server is alive.\n")
+			fmt.Print("OK, PMM server is alive.\n\n")
 			admin.ServerInfo()
+		},
+	}
+
+	cmdShowPass = &cobra.Command{
+		Use:   "show-passwords",
+		Short: "Show PMM Client password information (works offline).",
+		Long:  "This command shows passwords stored in the config file.",
+		Run: func(cmd *cobra.Command, args []string) {
+			admin.ShowPasswords()
 		},
 	}
 
@@ -634,7 +646,7 @@ please check the firewall settings whether this system allows incoming connectio
 
 			// Check args.
 			if len(args) == 0 {
-				fmt.Println("No service type specified.\n")
+				fmt.Print("No service type specified.\n\n")
 				cmd.Usage()
 				os.Exit(1)
 			}
@@ -678,7 +690,7 @@ please check the firewall settings whether this system allows incoming connectio
 
 			// Check args.
 			if len(args) == 0 {
-				fmt.Println("No service type specified.\n")
+				fmt.Print("No service type specified.\n\n")
 				cmd.Usage()
 				os.Exit(1)
 			}
@@ -722,7 +734,7 @@ please check the firewall settings whether this system allows incoming connectio
 
 			// Check args.
 			if len(args) == 0 {
-				fmt.Println("No service type specified.\n")
+				fmt.Print("No service type specified.\n\n")
 				cmd.Usage()
 				os.Exit(1)
 			}
@@ -753,7 +765,7 @@ It is not required that metric service or name exists.
 		Run: func(cmd *cobra.Command, args []string) {
 			// Check args.
 			if len(args) == 0 {
-				fmt.Println("No service type specified.\n")
+				fmt.Print("No service type specified.\n\n")
 				cmd.Usage()
 				os.Exit(1)
 			}
@@ -803,7 +815,7 @@ despite PMM server is alive or not.
 			// Cancel root's PersistentPreRun as we do not require server to be alive.
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			count := admin.Uninstall(flagConfigFile)
+			count := admin.Uninstall()
 			if count == 0 {
 				fmt.Println("OK, no services found.")
 			} else {
@@ -813,32 +825,34 @@ despite PMM server is alive or not.
 		},
 	}
 
-	flagConfigFile, flagMongoURI, flagCluster, flagDSN string
+	flagMongoURI, flagCluster, flagDSN string
 
-	flagVersion, flagNoEmoji, flagAll, flagForce bool
+	flagVersion, flagAll, flagForce bool
 
 	flagServicePort uint16
-	flagM           pmm.MySQLFlags
-	flagC           pmm.Config
+
+	flagM pmm.MySQLFlags
+	flagC pmm.Config
 )
 
 func main() {
 	// Commands.
 	cobra.EnableCommandSorting = false
 	rootCmd.AddCommand(cmdConfig, cmdAdd, cmdRemove, cmdList, cmdInfo, cmdCheckNet, cmdPing, cmdStart, cmdStop,
-		cmdRestart, cmdPurge, cmdRepair, cmdUninstall)
+		cmdRestart, cmdShowPass, cmdPurge, cmdRepair, cmdUninstall)
 	cmdAdd.AddCommand(cmdAddMySQL, cmdAddLinuxMetrics, cmdAddMySQLMetrics, cmdAddMySQLQueries,
 		cmdAddMongoDB, cmdAddMongoDBMetrics, cmdAddProxySQLMetrics)
 	cmdRemove.AddCommand(cmdRemoveMySQL, cmdRemoveLinuxMetrics, cmdRemoveMySQLMetrics, cmdRemoveMySQLQueries,
 		cmdRemoveMongoDB, cmdRemoveMongoDBMetrics, cmdRemoveProxySQLMetrics)
 
 	// Flags.
-	rootCmd.PersistentFlags().StringVarP(&flagConfigFile, "config-file", "c", pmm.ConfigFile, "PMM config file")
+	rootCmd.PersistentFlags().StringVarP(&pmm.ConfigFile, "config-file", "c", pmm.ConfigFile, "PMM config file")
 	rootCmd.Flags().BoolVarP(&flagVersion, "version", "v", false, "show version")
 
 	cmdConfig.Flags().StringVar(&flagC.ServerAddress, "server", "", "PMM server address, optionally following with the :port (default port 80 or 443 if using SSL)")
-	cmdConfig.Flags().StringVar(&flagC.ClientAddress, "client-address", "", "client address (if unset it will be automatically detected)")
-	cmdConfig.Flags().StringVar(&flagC.ClientName, "client-name", "", "client name (if unset it will be set to the current hostname)")
+	cmdConfig.Flags().StringVar(&flagC.ClientAddress, "client-address", "", "client address, also remote/public address for this system (if omitted it will be automatically detected by asking server)")
+	cmdConfig.Flags().StringVar(&flagC.BindAddress, "bind-address", "", "bind address, also local/private address that is mapped from client address via NAT/port forwarding (defaults to the client address)")
+	cmdConfig.Flags().StringVar(&flagC.ClientName, "client-name", "", "client name (defaults to the system hostname)")
 	cmdConfig.Flags().StringVar(&flagC.ServerUser, "server-user", "pmm", "define HTTP user configured on PMM Server")
 	cmdConfig.Flags().StringVar(&flagC.ServerPassword, "server-password", "", "define HTTP password configured on PMM Server")
 	cmdConfig.Flags().BoolVar(&flagC.ServerSSL, "server-ssl", false, "enable SSL to communicate with PMM Server")
@@ -903,8 +917,6 @@ func main() {
 	cmdAddProxySQLMetrics.Flags().StringVar(&flagDSN, "dsn", "stats:stats@tcp(localhost:6032)/", "ProxySQL connection DSN")
 
 	cmdRemove.Flags().BoolVar(&flagAll, "all", false, "remove all monitoring services")
-
-	cmdCheckNet.Flags().BoolVar(&flagNoEmoji, "no-emoji", false, "avoid emoji in the output")
 
 	cmdStart.Flags().BoolVar(&flagAll, "all", false, "start all monitoring services")
 	cmdStop.Flags().BoolVar(&flagAll, "all", false, "stop all monitoring services")
