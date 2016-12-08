@@ -297,11 +297,14 @@ func (a *Admin) isPasswordProtected(svcType string, port int) bool {
 		urlPath = "metrics-hr"
 	}
 	scheme := "http"
+	api := a.qanAPI
 	if a.isSSLProtected(svcType, port) {
 		scheme = "https"
+		// Enforce InsecureSkipVerify true to bypass err and check http code.
+		api = NewAPI(true, apiTimeout)
 	}
-	url := a.qanAPI.URL(fmt.Sprintf("%s://%s:%d", scheme, a.Config.BindAddress, port), urlPath)
-	if resp, _, err := a.qanAPI.Get(url); err == nil && resp.StatusCode == http.StatusUnauthorized {
+	url := api.URL(fmt.Sprintf("%s://%s:%d", scheme, a.Config.BindAddress, port), urlPath)
+	if resp, _, err := api.Get(url); err == nil && resp.StatusCode == http.StatusUnauthorized {
 		return true
 	}
 
