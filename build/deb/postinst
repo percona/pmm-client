@@ -1,4 +1,9 @@
 #!/bin/bash
+if [ -z "$2" ]; then
+    echo "Installation finished"
+else
+    echo "NOTE:  This upgrade requires that the PMM monitoring services be re-added to provide credentials."
+fi
 pmm-admin ping > /dev/null
 if [ $? = 0 ]; then
     pmm-admin restart --all
