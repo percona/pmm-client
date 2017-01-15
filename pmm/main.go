@@ -29,6 +29,7 @@ import (
 	"fmt"
 	"math/big"
 	"net"
+	"net/url"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -89,7 +90,7 @@ func (a *Admin) SetAPI() error {
 	var authStr string
 	if a.Config.ServerUser != "" {
 		config.HttpAuth = &consul.HttpBasicAuth{Username: a.Config.ServerUser, Password: a.Config.ServerPassword}
-		authStr = fmt.Sprintf("%s:%s@", a.Config.ServerUser, a.Config.ServerPassword)
+		authStr = fmt.Sprintf("%s:%s@", url.QueryEscape(a.Config.ServerUser), url.QueryEscape(a.Config.ServerPassword))
 	}
 	a.consulAPI, _ = consul.NewClient(&config)
 
