@@ -29,6 +29,7 @@ import (
 	"fmt"
 	"math/big"
 	"net"
+	"net/url"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -89,7 +90,7 @@ func (a *Admin) SetAPI() error {
 	var authStr string
 	if a.Config.ServerUser != "" {
 		config.HttpAuth = &consul.HttpBasicAuth{Username: a.Config.ServerUser, Password: a.Config.ServerPassword}
-		authStr = fmt.Sprintf("%s:%s@", a.Config.ServerUser, a.Config.ServerPassword)
+		authStr = fmt.Sprintf("%s:%s@", url.QueryEscape(a.Config.ServerUser), url.QueryEscape(a.Config.ServerPassword))
 	}
 	a.consulAPI, _ = consul.NewClient(&config)
 
@@ -119,11 +120,12 @@ Looks like PMM server running with self-signed SSL certificate.
 Run 'pmm-admin config --server-insecure-ssl' to enable such configuration.`, a.Config.ServerAddress)
 		}
 		return fmt.Errorf(`Unable to connect to PMM server by address: %s
+%s
 
 * Check if the configured address is correct.
 * If server is running on non-default port, ensure it was specified along with the address.
 * If server is enabled for SSL or self-signed SSL, enable the corresponding option.
-* You may also check the firewall settings.`, a.Config.ServerAddress)
+* You may also check the firewall settings.`, a.Config.ServerAddress, err.Error())
 	}
 
 	// Try to detect 400 (SSL) and 401 (HTTP auth).
