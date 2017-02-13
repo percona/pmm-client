@@ -64,13 +64,13 @@ go build -ldflags "-X $importpath/version.Version=$VERSION -X $importpath/versio
     -o distro/bin/mysqld_exporter github.com/percona/mysqld_exporter
 
 printf "Building mongodb_exporter...\t"
-cd $GOPATH/src/github.com/Percona-Lab/prometheus_mongodb_exporter
+cd $GOPATH/src/github.com/percona/mongodb_exporter
 commit=$(git rev-parse HEAD)
 echo $(git log -1 --format="%d %cd")
 govendor sync
 cd $SOURCE_DIR
 go build -ldflags "-X main.version=$VERSION -X main.versionGitCommit=$commit" \
-    -o distro/bin/mongodb_exporter github.com/Percona-Lab/prometheus_mongodb_exporter
+    -o distro/bin/mongodb_exporter github.com/percona/mongodb_exporter
 
 printf "Building proxysql_exporter...\t"
 cd $GOPATH/src/github.com/percona/proxysql_exporter
