@@ -155,6 +155,8 @@ func (a *Admin) List() error {
 						f := fmt.Sprintf("%s/config/qan-%s.conf", agentBaseDir, kvp.Value)
 						querySource, _ := getQuerySource(f)
 						opts = append(opts, fmt.Sprintf("query_source=%s", querySource))
+						queryExamples, _ := getQueryExamples(f)
+						opts = append(opts, fmt.Sprintf("query_examples=%s", queryExamples))
 					}
 				}
 			}

@@ -25,6 +25,7 @@ import (
 	"os"
 	"strings"
 	"time"
+	"strconv"
 
 	"github.com/percona/go-mysql/dsn"
 )
@@ -50,6 +51,7 @@ type MySQLFlags struct {
 	DisableUserStats       bool
 	DisableBinlogStats     bool
 	DisableProcesslist     bool
+	DisableQueryExamples   bool
 }
 
 // DetectMySQL detect MySQL, create user if needed, return DSN and MySQL info strings.
@@ -141,6 +143,7 @@ func (a *Admin) DetectMySQL(mf MySQLFlags) (map[string]string, error) {
 	}
 
 	info["query_source"] = mf.QuerySource
+	info["query_examples"] = strconv.FormatBool(!mf.DisableQueryExamples)
 	info["dsn"] = userDSN.String()
 	info["safe_dsn"] = SanitizeDSN(userDSN.String())
 
