@@ -8,7 +8,12 @@ go:
 notifications:
   email: false
 
-install: true
+install:
+  - go get github.com/kardianos/govendor
+  - rm -rf vendor/
+  - git checkout vendor/vendor.json
+  - govendor sync
 
 script:
+  - git diff --exit-code
   - go test -v ./pmm
