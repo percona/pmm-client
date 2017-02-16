@@ -27,6 +27,7 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+	"strconv"
 
 	consul "github.com/hashicorp/consul/api"
 	"github.com/percona/kardianos-service"
@@ -131,11 +132,12 @@ func (a *Admin) AddMySQLQueries(info map[string]string) error {
 	}
 
 	// Start QAN by associating MySQL instance with agent.
+	query_examples, _ := strconv.ParseBool(info["query_examples"])
 	qanConfig := map[string]interface{}{
 		"UUID":           mysqlInstance.UUID,
 		"CollectFrom":    info["query_source"],
 		"Interval":       60,
-		"ExampleQueries": true,
+		"ExampleQueries": query_examples,
 	}
 	if err := a.manageQAN(agentID, "StartTool", "", qanConfig); err != nil {
 		return err
@@ -486,4 +488,19 @@ func getQuerySource(configFile string) (string, error) {
 	}
 
 	return config.CollectFrom, nil
+}
+
+// getQueryExamples read ExampleQueries from mysql instance QAN config file.
+func getQueryExamples(configFile string) (string, error) {
+	jsonData, err := ioutil.ReadFile(configFile)
+	if err != nil {
+		return "", err
+	}
+
+	config := &protocfg.QAN{}
+	if err := json.Unmarshal(jsonData, &config); err != nil {
+		return "", err
+	}
+
+	return strconv.FormatBool(config.ExampleQueries), nil
 }

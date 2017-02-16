@@ -2,12 +2,18 @@ sudo: false
 language: go
 
 go:
-  - 1.7.4
+  - 1.7.x
+  - 1.8.x
 
 notifications:
   email: false
 
-script:
+install:
   - go get github.com/kardianos/govendor
+  - rm -rf vendor/
+  - git checkout vendor/vendor.json
   - govendor sync
+
+script:
+  - git diff --exit-code
   - go test -v ./pmm

@@ -4,5 +4,3 @@
 distro/
 pmm-admin
 pmm.yml
-vendor
-!vendor/vendor.json
