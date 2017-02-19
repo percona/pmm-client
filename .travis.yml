@@ -15,5 +15,6 @@ notifications:
 script:
   - go get -u github.com/Masterminds/glide
   - glide install
-  - go test -v ./pmm
+  - pkgs=$(go list ./... | grep -v /vendor/)
+  - go test -v $pkgs
   - go build -o bin/pmm-admin
