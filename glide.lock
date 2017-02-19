@@ -1,0 +1,106 @@
+hash: 6ebb17811a84c64f6cedbcd4e18056a9975f484919b8e64ff4e5607752461cfc
+updated: 2017-02-19T17:42:29.831644534+01:00
+imports:
+- name: github.com/fatih/color
+  version: 7824417a424b65227be8ac9b14d545a7f3e6c3f0
+- name: github.com/go-sql-driver/mysql
+  version: 2e00b5cd70399450106cec6431c2e2ce3cae5034
+- name: github.com/hashicorp/consul
+  version: 65b7ed462cc574d57dc6dcc9bca74676089f7fee
+  subpackages:
+  - api
+- name: github.com/hashicorp/go-cleanhttp
+  version: 3573b8b52aa7b37b9358d966a898feb387f62437
+- name: github.com/hashicorp/serf
+  version: 050c56d31a1ff2ebc50e3f4810fdff7e7563f6c8
+  subpackages:
+  - coordinate
+- name: github.com/inconshreveable/mousetrap
+  version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
+- name: github.com/kardianos/osext
+  version: 9b883c5eb462dd5cb1b0a7a104fe86bc6b9bd391
+- name: github.com/mattn/go-colorable
+  version: 5411d3eea5978e6cdc258b30de592b60df6aba96
+  repo: https://github.com/mattn/go-colorable
+- name: github.com/mattn/go-isatty
+  version: dda3de49cbfcec471bd7a70e6cc01fcc3ff90109
+  repo: https://github.com/mattn/go-isatty
+- name: github.com/percona/go-mysql
+  version: 2a6037d7d809b18ebd6d735b397f2321879af611
+  subpackages:
+  - dsn
+- name: github.com/percona/kardianos-service
+  version: feb3bb6021e7754467634ce2d5899a344bf180af
+- name: github.com/percona/pmm
+  version: f5d2aa2c4005f78d83b91b907fac6da04a852fd3
+  subpackages:
+  - proto
+  - proto/config
+- name: github.com/prometheus/client_golang
+  version: 6ab3432d241cbe3cb7543da7e7e9a934c7e9fe76
+  subpackages:
+  - api/prometheus
+- name: github.com/prometheus/common
+  version: 3007b6072c17c8d985734e6e19b1dea9174e13d3
+  subpackages:
+  - model
+- name: github.com/spf13/cobra
+  version: ee4055870c2d5f7ce112642377e32c9929c3bbaf
+- name: github.com/spf13/pflag
+  version: 9ff6c6923cfffbcd502984b8e0c80539a94968b7
+- name: golang.org/x/net
+  version: 6b27048ae5e6ad1ef927e72e437531493de612fe
+  subpackages:
+  - context
+  - context/ctxhttp
+- name: golang.org/x/sys
+  version: e24f485414aeafb646f6fca458b0bf869c0880a1
+  repo: https://go.googlesource.com/sys
+  subpackages:
+  - unix
+  - windows/registry
+  - windows/svc
+  - windows/svc/eventlog
+  - windows/svc/mgr
+  - windows
+- name: gopkg.in/mgo.v2
+  version: 3f83fa5005286a7fe593b055f0d7771a7dce4655
+  subpackages:
+  - bson
+  - internal/sasl
+  - internal/scram
+  - internal/json
+- name: gopkg.in/yaml.v2
+  version: a3f3340b5840cee44f372bddb5880fcbc419b46a
+testImports:
+- name: github.com/davecgh/go-spew
+  version: 04cdfd42973bb9c8589fd6a731800cf222fde1a9
+  subpackages:
+  - spew
+- name: github.com/gopherjs/gopherjs
+  version: b9bcb1da229a59cc1e1d168401662cb6450aae08
+  subpackages:
+  - js
+- name: github.com/jtolds/gls
+  version: bb0351aa7eb6f322f32667d51375f26a2bca6628
+- name: github.com/pmezard/go-difflib
+  version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
+  subpackages:
+  - difflib
+- name: github.com/smartystreets/assertions
+  version: c9ee7d9e9a2aeec0bee7c4a516f3e0ad7cb7e558
+  subpackages:
+  - internal/go-render/render
+  - internal/oglematchers
+- name: github.com/smartystreets/goconvey
+  version: 3bd662eac601ad6436e64776af2e112069eb2edc
+  subpackages:
+  - convey
+  - convey/reporting
+  - convey/gotest
+- name: github.com/stretchr/testify
+  version: 4d4bfba8f1d1027c4fdbe371823030df51419987
+  subpackages:
+  - assert
+- name: gopkg.in/DATA-DOG/go-sqlmock.v1
+  version: d4cd2ca2ad1cc2130bba385aab072218f131f636
