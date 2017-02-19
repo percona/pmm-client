@@ -24,8 +24,6 @@ import (
 )
 
 const (
-	PMMBaseDir     = "/usr/local/percona/pmm-client"
-	agentBaseDir   = "/usr/local/percona/qan-agent" // This is also hardcoded in mysql_queries.go
 	qanAPIBasePath = "qan-api"
 	noMonitoring   = "No monitoring registered for this node identified as"
 	apiTimeout     = 30 * time.Second
@@ -33,7 +31,11 @@ const (
 )
 
 var (
-	Version     = "EXPERIMENTAL"
+	Version = "EXPERIMENTAL"
+
+	PMMBaseDir   = "/usr/local/percona/pmm-client"
+	AgentBaseDir = "/usr/local/percona/qan-agent"
+
 	ConfigFile  = fmt.Sprintf("%s/pmm.yml", PMMBaseDir)
 	SSLCertFile = fmt.Sprintf("%s/server.crt", PMMBaseDir)
 	SSLKeyFile  = fmt.Sprintf("%s/server.key", PMMBaseDir)

@@ -28,8 +28,10 @@ import (
 
 // AddMongoDBMetrics add mongodb metrics service to monitoring.
 func (a *Admin) AddMongoDBMetrics(uri, cluster string) error {
+	serviceType := "mongodb:metrics"
+
 	// Check if we have already this service on Consul.
-	consulSvc, err := a.getConsulService("mongodb:metrics", a.ServiceName)
+	consulSvc, err := a.getConsulService(serviceType, a.ServiceName)
 	if err != nil {
 		return err
 	}
@@ -37,12 +39,12 @@ func (a *Admin) AddMongoDBMetrics(uri, cluster string) error {
 		return ErrDuplicate
 	}
 
-	if err := a.checkGlobalDuplicateService("mongodb:metrics", a.ServiceName); err != nil {
+	if err := a.checkGlobalDuplicateService(serviceType, a.ServiceName); err != nil {
 		return err
 	}
 
 	// Choose port.
-	var port uint16
+	port := 0
 	if a.ServicePort > 0 {
 		// The port is user defined.
 		port, err = a.choosePort(a.ServicePort, true)
@@ -60,11 +62,12 @@ func (a *Admin) AddMongoDBMetrics(uri, cluster string) error {
 	}
 
 	// Add service to Consul.
+	serviceID := fmt.Sprintf("%s-%d", serviceType, port)
 	srv := consul.AgentService{
-		ID:      fmt.Sprintf("mongodb:metrics-%d", port),
-		Service: "mongodb:metrics",
+		ID:      serviceID,
+		Service: serviceType,
 		Tags:    tags,
-		Port:    int(port),
+		Port:    port,
 	}
 	reg := consul.CatalogRegistration{
 		Node:    a.Config.ClientName,
@@ -76,7 +79,7 @@ func (a *Admin) AddMongoDBMetrics(uri, cluster string) error {
 	}
 
 	// Add info to Consul KV.
-	d := &consul.KVPair{Key: fmt.Sprintf("%s/mongodb:metrics-%d/dsn", a.Config.ClientName, port),
+	d := &consul.KVPair{Key: fmt.Sprintf("%s/%s/dsn", a.Config.ClientName, serviceID),
 		Value: []byte(SanitizeDSN(uri))}
 	a.consulAPI.KV().Put(d, nil)
 
@@ -110,8 +113,10 @@ func (a *Admin) AddMongoDBMetrics(uri, cluster string) error {
 
 // RemoveMongoDBMetrics remove mongodb metrics service from monitoring.
 func (a *Admin) RemoveMongoDBMetrics() error {
+	serviceType := "mongodb:metrics"
+
 	// Check if we have this service on Consul.
-	consulSvc, err := a.getConsulService("mongodb:metrics", a.ServiceName)
+	consulSvc, err := a.getConsulService(serviceType, a.ServiceName)
 	if err != nil {
 		return err
 	}

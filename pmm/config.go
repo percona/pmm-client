@@ -235,7 +235,7 @@ What ports to map you can find from "pmm-admin check-network" output once you ad
 	}
 
 	// If agent config exists, update the options like address, SSL, password etc.
-	agentConfigFile := fmt.Sprintf("%s/config/agent.conf", agentBaseDir)
+	agentConfigFile := fmt.Sprintf("%s/config/agent.conf", AgentBaseDir)
 	if FileExists(agentConfigFile) {
 		if err := a.syncAgentConfig(agentConfigFile); err != nil {
 			return fmt.Errorf("Unable to update agent config %s: %s", agentConfigFile, err)

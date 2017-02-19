@@ -18,8 +18,39 @@
 package pmm
 
 import (
-	"github.com/percona/kardianos-service"
+	service "github.com/percona/kardianos-service"
 )
+
+var (
+	NewService func(i service.Interface, c *service.Config) (service.Service, error) = service.New
+)
+
+// @todo this is ugly but works for now
+func init() {
+	if Version == "gotest" {
+		NewService = func(i service.Interface, c *service.Config) (service.Service, error) {
+			return &dummyService{}, nil
+		}
+	}
+}
+
+type dummyService struct {
+}
+
+func (*dummyService) Run() error       { return nil }
+func (*dummyService) Start() error     { return nil }
+func (*dummyService) Stop() error      { return nil }
+func (*dummyService) Restart() error   { return nil }
+func (*dummyService) Install() error   { return nil }
+func (*dummyService) Uninstall() error { return nil }
+func (*dummyService) Status() error    { return nil }
+func (*dummyService) Logger(errs chan<- error) (service.Logger, error) {
+	return service.ConsoleLogger, nil
+}
+func (*dummyService) SystemLogger(errs chan<- error) (service.Logger, error) {
+	return service.ConsoleLogger, nil
+}
+func (*dummyService) String() string { return "" }
 
 // Platform service manager handlers.
 type program struct{}
@@ -38,7 +69,7 @@ func (p *program) run() error {
 
 func installService(svcConfig *service.Config) error {
 	prg := &program{}
-	svc, err := service.New(prg, svcConfig)
+	svc, err := NewService(prg, svcConfig)
 	if err != nil {
 		return err
 	}
@@ -54,7 +85,7 @@ func installService(svcConfig *service.Config) error {
 func uninstallService(name string) error {
 	prg := &program{}
 	svcConfig := &service.Config{Name: name}
-	svc, err := service.New(prg, svcConfig)
+	svc, err := NewService(prg, svcConfig)
 	if err != nil {
 		return err
 	}
@@ -72,7 +103,7 @@ func uninstallService(name string) error {
 func startService(name string) error {
 	prg := &program{}
 	svcConfig := &service.Config{Name: name}
-	svc, err := service.New(prg, svcConfig)
+	svc, err := NewService(prg, svcConfig)
 	if err != nil {
 		return err
 	}
@@ -87,7 +118,7 @@ func startService(name string) error {
 func stopService(name string) error {
 	prg := &program{}
 	svcConfig := &service.Config{Name: name}
-	svc, err := service.New(prg, svcConfig)
+	svc, err := NewService(prg, svcConfig)
 	if err != nil {
 		return err
 	}
@@ -102,7 +133,7 @@ func stopService(name string) error {
 func getServiceStatus(name string) bool {
 	prg := &program{}
 	svcConfig := &service.Config{Name: name}
-	svc, err := service.New(prg, svcConfig)
+	svc, err := NewService(prg, svcConfig)
 	if err != nil {
 		return false
 	}
