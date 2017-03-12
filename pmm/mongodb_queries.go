@@ -283,7 +283,7 @@ func (a *Admin) RemoveMongoDBQueries() error {
 func (a *Admin) getMongoDBInstance(name, parentUUID string) (proto.Instance, error) {
 	var in proto.Instance
 	url := a.qanAPI.URL(a.serverURL, qanAPIBasePath, "instances",
-		fmt.Sprintf("?type=mongodb&name=%s&parent_uuid=%s", name, parentUUID))
+		fmt.Sprintf("?type=mongo&name=%s&parent_uuid=%s", name, parentUUID))
 	resp, bytes, err := a.qanAPI.Get(url)
 	if err != nil {
 		return in, err
@@ -342,7 +342,7 @@ func (a *Admin) getMongoDBInstance(name, parentUUID string) (proto.Instance, err
 // createMongoDBInstance create mongodb instance on QAN API and return it.
 func (a *Admin) createMongoDBInstance(safeDSN, parentUUID string) (proto.Instance, error) {
 	in := proto.Instance{
-		Subsystem:  "mongodb",
+		Subsystem:  "mongo",
 		ParentUUID: parentUUID,
 		Name:       a.ServiceName,
 		DSN:        safeDSN,
