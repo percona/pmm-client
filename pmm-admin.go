@@ -924,6 +924,7 @@ func main() {
 		cmdAddMySQLQueries,
 		cmdAddMongoDB,
 		cmdAddMongoDBMetrics,
+		cmdAddMongoDBQueries,
 		cmdAddProxySQLMetrics,
 	)
 	cmdRemove.AddCommand(
