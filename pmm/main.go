@@ -216,7 +216,7 @@ func (a *Admin) StartStopMonitoring(action, svcType string) error {
 	valid := false
 	for _, v := range svcTypes {
 		if v == svcType {
-			valid == true
+			valid = true
 			break
 		}
 	}
