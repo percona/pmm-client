@@ -74,7 +74,7 @@ func (a *Admin) List() error {
 	}
 
 	// Parse all services except mysql:queries.
-	var queryService *consul.AgentService
+	var queryServices []*consul.AgentService
 	var svcTable []instanceStatus
 	for _, svc := range node.Services {
 		// When server hostname == client name, we have to exclude consul.
@@ -83,7 +83,7 @@ func (a *Admin) List() error {
 		}
 		switch svc.Service {
 		case "mysql:queries", "mongodb:queries":
-			queryService = svc
+			queryServices = append(queryServices, svc)
 			continue
 		}
 
@@ -130,7 +130,7 @@ func (a *Admin) List() error {
 	}
 
 	// Parse queries service.
-	if queryService != nil {
+	for _, queryService := range queryServices {
 		status := getServiceStatus(fmt.Sprintf("pmm-%s-%d", strings.Replace(queryService.Service, ":", "-", 1), queryService.Port))
 
 		// Get names from Consul tags.
