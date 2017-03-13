@@ -205,10 +205,25 @@ func (a *Admin) ServerInfo() {
 
 // StartStopMonitoring start/stop system service by its metric type and name.
 func (a *Admin) StartStopMonitoring(action, svcType string) error {
-	if svcType != "linux:metrics" && svcType != "mysql:metrics" && svcType != "mysql:queries" && svcType != "mongodb:metrics" && svcType != "proxysql:metrics" {
-		return errors.New(`bad service type.
+	svcTypes := []string{
+		"linux:metrics",
+		"mysql:metrics",
+		"mysql:queries",
+		"mongodb:metrics",
+		"mongodb:queries",
+		"proxysql:metrics",
+	}
+	valid := false
+	for _, v := range svcTypes {
+		if v == svcType {
+			valid == true
+			break
+		}
+	}
+	if !valid {
+		return fmt.Errorf(`bad service type.
 
-Service type takes the following values: linux:metrics, mysql:metrics, mysql:queries, mongodb:metrics, proxysql:metrics.`)
+Service type takes the following values: %s.`, strings.Join(svcTypes, ", "))
 	}
 
 	// Check if we have this service on Consul.
@@ -302,6 +317,10 @@ func (a *Admin) RemoveAllMonitoring(ignoreErrors bool) (uint16, error) {
 				}
 			case "mongodb:metrics":
 				if err := a.RemoveMongoDBMetrics(); err != nil && !ignoreErrors {
+					return count, err
+				}
+			case "mongodb:queries":
+				if err := a.RemoveMongoDBQueries(); err != nil && !ignoreErrors {
 					return count, err
 				}
 			case "proxysql:metrics":
