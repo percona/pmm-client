@@ -155,7 +155,9 @@ func (a *Admin) List() error {
 					case "qan_mysql_uuid", "qan_mongodb_uuid":
 						f := fmt.Sprintf("%s/config/qan-%s.conf", AgentBaseDir, kvp.Value)
 						querySource, _ := getQuerySource(f)
-						opts = append(opts, fmt.Sprintf("query_source=%s", querySource))
+						if querySource != "" {
+							opts = append(opts, fmt.Sprintf("query_source=%s", querySource))
+						}
 					}
 				}
 			}
