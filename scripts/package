@@ -1,7 +1,7 @@
 #!/bin/bash
 # Requirements: yum install rpm-build dpkg dpkg-devel fakeroot
 
-set -eu
+set -eux
 
 WORK_DIR=/tmp/pkgbuild-`date +%s`
 WORKSPACE=$PWD
@@ -19,6 +19,7 @@ if [ "${DEV:-yes}" = "yes" ]; then
 fi
 
 build_rpm() {
+    echo "build rpm"
     NAME=$PROJECT-$VERSION
 
     mkdir -p $WORK_DIR/{BUILD,BUILDROOT,RPMS,SOURCES,SRPMS} $TARGET
@@ -29,6 +30,7 @@ build_rpm() {
     cd ..
 
     rpmbuild -ba $WORKSPACE/build/rpm.spec \
+             --target $ARCH \
              --define "_topdir $WORK_DIR" \
              --define "version $VERSION" \
              --define "release $RELEASE"
@@ -44,12 +46,13 @@ build_rpm() {
 }
 
 build_deb() {
+    echo "build deb"
     NAME=${PROJECT}_$VERSION
 
     mkdir -p $WORK_DIR/$NAME/DEBIAN $TARGET
     cd $WORK_DIR
     cp $WORKSPACE/build/deb/* $WORK_DIR/$NAME/DEBIAN/
-    sed -i "s/%{version}/$VERSION-$RELEASE/; /^\s*$/d" $WORK_DIR/$NAME/DEBIAN/control
+    sed -i'.bak' "s/%{version}/$VERSION-$RELEASE/; /^\s*$/d" $WORK_DIR/$NAME/DEBIAN/control
     sh -e $WORKSPACE/build/deb/files $SOURCE $WORK_DIR/$NAME
 
     case $ARCH in
