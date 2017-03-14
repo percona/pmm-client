@@ -133,6 +133,7 @@ func (a *Admin) AddMySQLQueries(info map[string]string) error {
 	}
 
 	// Start QAN by associating instance with agent.
+	// @todo struct instead of map[]interface{}
 	qanConfig := map[string]interface{}{
 		"UUID":           instance.UUID,
 		"CollectFrom":    info["query_source"],

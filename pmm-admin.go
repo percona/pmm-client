@@ -301,7 +301,8 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 				fmt.Println("[linux:metrics]   OK, now monitoring this system.")
 			}
 
-			if err := admin.DetectMongoDB(flagMongoURI); err != nil {
+			buildInfo, err := admin.DetectMongoDB(flagMongoURI)
+			if err != nil {
 				fmt.Printf("[mongodb:metrics] %s\n", err)
 				os.Exit(1)
 			}
@@ -314,7 +315,7 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 			} else {
 				fmt.Println("[mongodb:metrics] OK, now monitoring MongoDB metrics using URI", pmm.SanitizeDSN(flagMongoURI))
 			}
-			err = admin.AddMongoDBQueries(flagMongoURI, flagCluster)
+			err = admin.AddMongoDBQueries(buildInfo, flagMongoURI, flagCluster)
 			if err == pmm.ErrDuplicate {
 				fmt.Println("[mongodb:queries] OK, already monitoring MongoDB queries.")
 			} else if err != nil {
@@ -337,7 +338,7 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 		Example: `  pmm-admin add mongodb:metrics
   pmm-admin add mongodb:metrics --cluster bare-metal`,
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := admin.DetectMongoDB(flagMongoURI); err != nil {
+			if _, err := admin.DetectMongoDB(flagMongoURI); err != nil {
 				fmt.Println(err)
 				os.Exit(1)
 			}
@@ -360,11 +361,12 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 		Example: `  pmm-admin add mongodb:queries
   pmm-admin add mongodb:queries --cluster bare-metal`,
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := admin.DetectMongoDB(flagMongoURI); err != nil {
+			buildInfo, err := admin.DetectMongoDB(flagMongoURI)
+			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
 			}
-			if err := admin.AddMongoDBQueries(flagMongoURI, flagCluster); err != nil {
+			if err := admin.AddMongoDBQueries(buildInfo, flagMongoURI, flagCluster); err != nil {
 				fmt.Println("Error adding MongoDB queries:", err)
 				os.Exit(1)
 			}

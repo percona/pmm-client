@@ -19,11 +19,9 @@ package pmm
 
 import (
 	"fmt"
-	"time"
 
 	consul "github.com/hashicorp/consul/api"
 	"github.com/percona/kardianos-service"
-	"gopkg.in/mgo.v2"
 )
 
 // AddMongoDBMetrics add mongodb metrics service to monitoring.
@@ -140,24 +138,6 @@ func (a *Admin) RemoveMongoDBMetrics() error {
 	if err := uninstallService(fmt.Sprintf("pmm-mongodb-metrics-%d", consulSvc.Port)); err != nil {
 		return err
 	}
-
-	return nil
-}
-
-// DetectMongoDB verify MongoDB connection.
-func (a *Admin) DetectMongoDB(uri string) error {
-	dialInfo, err := mgo.ParseURL(uri)
-	if err != nil {
-		return fmt.Errorf("Bad MongoDB uri %s: %s", uri, err)
-	}
-
-	dialInfo.Direct = true
-	dialInfo.Timeout = 10 * time.Second
-	session, err := mgo.DialWithInfo(dialInfo)
-	if err != nil {
-		return fmt.Errorf("Cannot connect to MongoDB using uri %s: %s", uri, err)
-	}
-	defer session.Close()
 
 	return nil
 }

@@ -25,13 +25,14 @@ import (
 	consul "github.com/hashicorp/consul/api"
 	"github.com/percona/kardianos-service"
 	"github.com/percona/pmm/proto"
+	"gopkg.in/mgo.v2"
 	"io/ioutil"
 	"net/http"
 	"strings"
 )
 
 // AddMongoDBQueries add mongodb instance to Query Analytics.
-func (a *Admin) AddMongoDBQueries(uri, cluster string) error {
+func (a *Admin) AddMongoDBQueries(buildInfo mgo.BuildInfo, uri, cluster string) error {
 	serviceType := "mongodb:queries"
 	dsn := uri
 	safeDSN := SanitizeDSN(uri)
@@ -92,7 +93,7 @@ func (a *Admin) AddMongoDBQueries(uri, cluster string) error {
 	instance, err := a.getMongoDBInstance(a.ServiceName, parentUUID)
 	if err == errNoInstance {
 		// Create new instance on QAN.
-		instance, err = a.createMongoDBInstance(safeDSN, parentUUID)
+		instance, err = a.createMongoDBInstance(buildInfo, safeDSN, parentUUID)
 		if err != nil {
 			return err
 		}
@@ -340,12 +341,14 @@ func (a *Admin) getMongoDBInstance(name, parentUUID string) (proto.Instance, err
 }
 
 // createMongoDBInstance create mongodb instance on QAN API and return it.
-func (a *Admin) createMongoDBInstance(safeDSN, parentUUID string) (proto.Instance, error) {
+func (a *Admin) createMongoDBInstance(buildInfo mgo.BuildInfo, safeDSN, parentUUID string) (proto.Instance, error) {
 	in := proto.Instance{
 		Subsystem:  "mongo",
 		ParentUUID: parentUUID,
 		Name:       a.ServiceName,
 		DSN:        safeDSN,
+		Distro:     "MongoDB",
+		Version:    buildInfo.Version,
 	}
 	inBytes, _ := json.Marshal(in)
 	url := a.qanAPI.URL(a.serverURL, qanAPIBasePath, "instances")
