@@ -53,6 +53,18 @@
 			"revisionTime": "2015-12-22T15:32:29Z"
 		},
 		{
+			"checksumSHA1": "1w738Z9jibsY3pySmdHZHML0pqI=",
+			"path": "github.com/mattn/go-colorable",
+			"revision": "a392f450ea64cee2b268dfaacdc2502b50a22b18",
+			"revisionTime": "2017-03-12T23:57:56Z"
+		},
+		{
+			"checksumSHA1": "xiboM3aeTebmyD7j6tl1psCJ+6o=",
+			"path": "github.com/mattn/go-isatty",
+			"revision": "57fdcb988a5c543893cc61bce354a6e24ab70022",
+			"revisionTime": "2017-03-07T16:30:44Z"
+		},
+		{
 			"checksumSHA1": "NfM8QiaK07ErHiN/2Vwv/zwMJ7U=",
 			"path": "github.com/percona/go-mysql/dsn",
 			"revision": "8b6b6a205b05133beec85fb695d17f9074ca79ea",
