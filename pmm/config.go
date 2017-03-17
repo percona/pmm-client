@@ -162,9 +162,17 @@ It has the active services so you cannot change client name as requested.`,
 				return errors.New("This client has active services. Some data might be lost, you can add --force flag to proceed further.")
 			}
 
-			errs := a.renameClientInServices(node, oldName, newName)
+			// At the time of writing there is no easy way to rename node.
+			// To do this all services needs to be de-registered and registered again with new name
+			errs := a.renameClientNameInServices(node, oldName, newName)
 			if errs != nil {
 				log.Printf(`WARNING: there were some errors, renaming partially failed: %s\n`, errs)
+			}
+
+			// deregister old node
+			err := a.deregisterNode(oldName)
+			if err != nil {
+				log.Printf(`Unable to deregister old node: %s\n`, err)
 			}
 		}
 
@@ -323,7 +331,8 @@ func isAddressLocal(myAddress string) bool {
 	return false
 }
 
-func (a *Admin) renameClientInServices(node *consul.CatalogNode, oldName, newName string) (errs Errors) {
+// renameClientNameInServices changes a clientName in all services
+func (a *Admin) renameClientNameInServices(node *consul.CatalogNode, oldName, newName string) (errs Errors) {
 	for _, svc := range node.Services {
 		for k, v := range svc.Tags {
 			if v == fmt.Sprintf("alias_%s", oldName) {
@@ -404,6 +413,18 @@ func (a *Admin) renameClientInServices(node *consul.CatalogNode, oldName, newNam
 	return errs
 }
 
+// deregisterNode removes node from consul
+func (a *Admin) deregisterNode(name string) error {
+	dereg := consul.CatalogDeregistration{
+		Node: name,
+	}
+	if _, err := a.consulAPI.Catalog().Deregister(&dereg, nil); err != nil {
+		return err
+	}
+	return nil
+}
+
+// renameInstance renames instance with given uuid
 func (a *Admin) renameInstance(instanceUUID, oldName, newName string) error {
 	bytes, err := ioutil.ReadFile(fmt.Sprintf("%s/instance/%s.json", agentBaseDir, instanceUUID))
 	if err != nil {
