@@ -977,6 +977,7 @@ func main() {
 	cmdAddMySQL.Flags().BoolVar(&flagM.DisableUserStats, "disable-userstats", false, "disable user statistics")
 	cmdAddMySQL.Flags().BoolVar(&flagM.DisableBinlogStats, "disable-binlogstats", false, "disable binlog statistics")
 	cmdAddMySQL.Flags().BoolVar(&flagM.DisableProcesslist, "disable-processlist", false, "disable process state metrics")
+	cmdAddMySQL.Flags().BoolVar(&flagM.DisableQueryExamples, "disable-queryexamples", false, "disable collection of query examples")
 	cmdAddMySQL.Flags().StringVar(&flagM.QuerySource, "query-source", "auto", "source of SQL queries: auto, slowlog, perfschema")
 
 	addCommonMySQLFlags(cmdAddMySQLMetrics)
@@ -986,6 +987,7 @@ func main() {
 	cmdAddMySQLMetrics.Flags().BoolVar(&flagM.DisableBinlogStats, "disable-binlogstats", false, "disable binlog statistics")
 	cmdAddMySQLMetrics.Flags().BoolVar(&flagM.DisableProcesslist, "disable-processlist", false, "disable process state metrics")
 	addCommonMySQLFlags(cmdAddMySQLQueries)
+	cmdAddMySQLQueries.Flags().BoolVar(&flagM.DisableQueryExamples, "disable-queryexamples", false, "disable collection of query examples")
 	cmdAddMySQLQueries.Flags().StringVar(&flagM.QuerySource, "query-source", "auto", "source of SQL queries: auto, slowlog, perfschema")
 
 	addCommonMongoDBFlags := func(cmd *cobra.Command) {

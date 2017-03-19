@@ -158,6 +158,8 @@ func (a *Admin) List() error {
 						if querySource != "" {
 							opts = append(opts, fmt.Sprintf("query_source=%s", querySource))
 						}
+						queryExamples, _ := getQueryExamples(f)
+						opts = append(opts, fmt.Sprintf("query_examples=%t", queryExamples))
 					}
 				}
 			}
