@@ -18,21 +18,21 @@
 package pmm
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/http"
+	"strings"
 	"time"
 
-	"encoding/json"
 	consul "github.com/hashicorp/consul/api"
 	"github.com/percona/kardianos-service"
 	"github.com/percona/pmm/proto"
 	"gopkg.in/mgo.v2"
-	"io/ioutil"
-	"net/http"
-	"strings"
 )
 
 // AddMongoDBQueries add mongodb instance to Query Analytics.
-func (a *Admin) AddMongoDBQueries(buildInfo mgo.BuildInfo, uri, cluster string) error {
+func (a *Admin) AddMongoDBQueries(buildInfo mgo.BuildInfo, uri string) error {
 	serviceType := "mongodb:queries"
 	dsn := uri
 	safeDSN := SanitizeDSN(uri)
@@ -110,17 +110,6 @@ func (a *Admin) AddMongoDBQueries(buildInfo mgo.BuildInfo, uri, cluster string) 
 
 	// Choose port.
 	port := 0
-	if a.ServicePort > 0 {
-		// The port is user defined.
-		port, err = a.choosePort(a.ServicePort, true)
-	} else {
-		// Choose first port available starting the given default one.
-		port, err = a.choosePort(42003, false)
-	}
-	if err != nil {
-		return err
-	}
-
 	// Don't install service if we have already another one.
 	// 1 agent handles multiple instances for QAN.
 	if consulSvc == nil {
@@ -156,9 +145,6 @@ func (a *Admin) AddMongoDBQueries(buildInfo mgo.BuildInfo, uri, cluster string) 
 	tags := []string{
 		fmt.Sprintf("alias_%s", a.ServiceName),
 		"scheme_https", // What this do?
-	}
-	if cluster != "" {
-		tags = append(tags, fmt.Sprintf("cluster_%s", cluster))
 	}
 	// For existing service, we append a new alias_ tag.
 	if consulSvc != nil {

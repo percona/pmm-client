@@ -310,7 +310,7 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 			} else {
 				fmt.Println("[mongodb:metrics] OK, now monitoring MongoDB metrics using URI", pmm.SanitizeDSN(flagMongoURI))
 			}
-			err = admin.AddMongoDBQueries(buildInfo, flagMongoURI, flagCluster)
+			err = admin.AddMongoDBQueries(buildInfo, flagMongoURI)
 			if err == pmm.ErrDuplicate {
 				fmt.Println("[mongodb:queries] OK, already monitoring MongoDB queries.")
 			} else if err != nil {
@@ -354,14 +354,14 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 [name] is an optional argument, by default it is set to the client name of this PMM client.
 		`,
 		Example: `  pmm-admin add mongodb:queries
-  pmm-admin add mongodb:queries --cluster bare-metal`,
+  pmm-admin add mongodb:queries`,
 		Run: func(cmd *cobra.Command, args []string) {
 			buildInfo, err := admin.DetectMongoDB(flagMongoURI)
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
 			}
-			if err := admin.AddMongoDBQueries(buildInfo, flagMongoURI, flagCluster); err != nil {
+			if err := admin.AddMongoDBQueries(buildInfo, flagMongoURI); err != nil {
 				fmt.Println("Error adding MongoDB queries:", err)
 				os.Exit(1)
 			}
@@ -987,10 +987,11 @@ func main() {
 
 	addCommonMongoDBFlags := func(cmd *cobra.Command) {
 		cmd.Flags().StringVar(&flagMongoURI, "uri", "localhost:27017", "MongoDB URI, format: [mongodb://][user:pass@]host[:port][/database][?options]")
-		cmd.Flags().StringVar(&flagCluster, "cluster", "", "cluster name")
 	}
 	addCommonMongoDBFlags(cmdAddMongoDB)
+	cmdAddMongoDB.Flags().StringVar(&flagCluster, "cluster", "", "cluster name")
 	addCommonMongoDBFlags(cmdAddMongoDBMetrics)
+	cmdAddMongoDBMetrics.Flags().StringVar(&flagCluster, "cluster", "", "cluster name")
 	addCommonMongoDBFlags(cmdAddMongoDBQueries)
 
 	cmdAddProxySQLMetrics.Flags().StringVar(&flagDSN, "dsn", "stats:stats@tcp(localhost:6032)/", "ProxySQL connection DSN")
