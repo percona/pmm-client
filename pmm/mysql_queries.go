@@ -22,9 +22,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
-	"strconv"
 
 	consul "github.com/hashicorp/consul/api"
 	"github.com/percona/kardianos-service"

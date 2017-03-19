@@ -25,7 +25,6 @@ import (
 
 	"github.com/percona/pmm-client/pmm"
 	"github.com/spf13/cobra"
-	"reflect"
 )
 
 var (
@@ -62,13 +61,9 @@ var (
 
 			// Check for required settings in config file
 			// optional settings are marked with "omitempty"
-			v := reflect.ValueOf(admin.Config).Elem()
-			for i := 0; i < v.Type().NumField(); i++ {
-				tag := v.Type().Field(i).Tag.Get("yaml")
-				if !strings.Contains(tag, "omitempty") && v.Field(i).String() == "" {
-					fmt.Printf("PMM client is not configured properly. Missing value for %s. Please make sure you have run 'pmm-admin config'.\n", tag)
-					os.Exit(1)
-				}
+			if admin.Config.ServerAddress == "" || admin.Config.ClientName == "" || admin.Config.ClientAddress == "" || admin.Config.BindAddress == "" {
+				fmt.Println("PMM client is not configured properly. Please make sure you have run 'pmm-admin config'.")
+				os.Exit(1)
 			}
 
 			// "pmm-admin info" should display info w/o connectivity.
