@@ -25,8 +25,9 @@ var (
 	NewService func(i service.Interface, c *service.Config) (service.Service, error) = service.New
 )
 
-// @todo this is ugly but works for now
+// @todo don't use singleton init, use dependency injection
 func init() {
+	// if we build app in tests then let's mock service installer
 	if Version == "gotest" {
 		NewService = func(i service.Interface, c *service.Config) (service.Service, error) {
 			return &dummyService{}, nil

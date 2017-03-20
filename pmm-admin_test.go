@@ -37,8 +37,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// --------------------------------------------------------------------------
-
 type pmmAdminData struct {
 	bin     string
 	basedir string
