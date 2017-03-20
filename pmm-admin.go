@@ -1002,7 +1002,7 @@ func main() {
 	cmdStop.Flags().BoolVar(&flagAll, "all", false, "stop all monitoring services")
 	cmdRestart.Flags().BoolVar(&flagAll, "all", false, "restart all monitoring services")
 
-	if os.Getuid() != 0  {
+	if os.Getuid() != 0 {
 		// skip root check if binary was build in tests
 		if pmm.Version != "gotest" {
 			fmt.Println("pmm-admin requires superuser privileges to manage system services.")
