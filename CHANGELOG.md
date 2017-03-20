@@ -67,7 +67,7 @@ v1.0.4 released 2016-09-13
 * Do not require a name on service remove, using the client name by default.
 * Added check for MongoDB connectivity when adding mongodb:metrics instance.
 * Do not modify linux:metrics instance when adding mongodb:metrics one.
-* Allowed to add more than one linux:metrics instance for testing purpose.
+* Allowed to add more than one linux:metrics instance for testing purposes.
 * Added consistency checks to avoid duplicate services across clients.
 * Detect client address automatically.
 * Disable table stats automatically with 10000+ tables.
