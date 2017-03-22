@@ -81,6 +81,10 @@ func getAgentID(configFile string) (string, error) {
 		return "", err
 	}
 
+	if config.UUID == "" {
+		return "", fmt.Errorf("missing agent UUID in config file %s", configFile)
+	}
+
 	return config.UUID, nil
 }
 
