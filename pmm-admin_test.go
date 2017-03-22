@@ -214,14 +214,14 @@ func testMongoDB(t *testing.T, data pmmAdminData) {
 		api.AppendConsulV1CatalogRegister()
 		mongodbInstance := &proto.Instance{
 			Subsystem: "mongodb",
-			Id:        13,
+			UUID:      "13",
 		}
 		agentInstance := &proto.Instance{
 			Subsystem: "agent",
-			Id:        42,
+			UUID:      "42",
 		}
-		api.AppendQanAPIInstancesId(agentInstance.Id, agentInstance)
-		api.AppendQanAPIAgents(agentInstance.Id)
+		api.AppendQanAPIInstancesId(agentInstance.UUID, agentInstance)
+		api.AppendQanAPIAgents(agentInstance.UUID)
 		api.AppendQanAPIInstances([]*proto.Instance{
 			mongodbInstance,
 		})
@@ -296,14 +296,14 @@ func testMongoDBQueries(t *testing.T, data pmmAdminData) {
 		api.AppendConsulV1CatalogRegister()
 		mongodbInstance := &proto.Instance{
 			Subsystem: "mongodb",
-			Id:        13,
+			UUID:      "13",
 		}
 		agentInstance := &proto.Instance{
 			Subsystem: "agent",
-			Id:        42,
+			UUID:      "42",
 		}
-		api.AppendQanAPIInstancesId(agentInstance.Id, agentInstance)
-		api.AppendQanAPIAgents(agentInstance.Id)
+		api.AppendQanAPIInstancesId(agentInstance.UUID, agentInstance)
+		api.AppendQanAPIAgents(agentInstance.UUID)
 		api.AppendQanAPIInstances([]*proto.Instance{
 			mongodbInstance,
 		})

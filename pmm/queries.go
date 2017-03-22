@@ -88,14 +88,27 @@ func getAgentID(configFile string) (string, error) {
 	return config.UUID, nil
 }
 
-// manageQAN enable/disable QAN on agent through QAN API.
-func (a *Admin) manageQAN(agentID, cmdName, UUID string, config map[string]interface{}) error {
-	var data []byte
-	if cmdName == "StartTool" {
-		data, _ = json.Marshal(config)
-	} else if cmdName == "StopTool" {
-		data = []byte(UUID)
+// startQan enable QAN on agent through QAN API.
+func (a *Admin) startQAN(agentID string, config map[string]interface{}) error {
+	cmdName := "StartTool"
+	data, err := json.Marshal(config)
+	if err != nil {
+		return err
 	}
+
+	return a.sendQANCmd(agentID, cmdName, data)
+}
+
+// stopQAN disable QAN on agent through QAN API.
+func (a *Admin) stopQAN(agentID, UUID string) error {
+	cmdName := "StopTool"
+	data := []byte(UUID)
+
+	return a.sendQANCmd(agentID, cmdName, data)
+}
+
+// sendQANCmd sends cmd to agent throughq QAN API.
+func (a *Admin) sendQANCmd(agentID, cmdName string, data []byte) error {
 	cmd := proto.Cmd{
 		User:    fmt.Sprintf("pmm-admin@%s", a.qanAPI.Hostname()),
 		Service: "qan",

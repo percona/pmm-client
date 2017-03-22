@@ -142,7 +142,7 @@ func (a *Admin) AddMySQLQueries(info map[string]string) error {
 		"Interval":       60,
 		"ExampleQueries": query_examples,
 	}
-	if err := a.manageQAN(agentID, "StartTool", "", qanConfig); err != nil {
+	if err := a.startQAN(agentID, qanConfig); err != nil {
 		return err
 	}
 
@@ -218,7 +218,7 @@ func (a *Admin) RemoveMySQLQueries() error {
 	if err != nil {
 		return err
 	}
-	if err := a.manageQAN(agentID, "StopTool", uuid, nil); err != nil {
+	if err := a.stopQAN(agentID, uuid); err != nil {
 		return err
 	}
 

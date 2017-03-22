@@ -48,8 +48,8 @@ func (f *FakeApi) AppendPing() {
 	})
 }
 
-func (f *FakeApi) AppendQanAPIInstancesId(id uint, protoInstance *proto.Instance) {
-	f.Append(fmt.Sprintf("/qan-api/instances/%d", id), func(w http.ResponseWriter, r *http.Request) {
+func (f *FakeApi) AppendQanAPIInstancesId(id string, protoInstance *proto.Instance) {
+	f.Append(fmt.Sprintf("/qan-api/instances/%s", id), func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		data, _ := json.Marshal(&protoInstance)
 		w.Write(data)
@@ -116,8 +116,8 @@ func (f *FakeApi) AppendQanAPIInstances(protoInstances []*proto.Instance) {
 	})
 }
 
-func (f *FakeApi) AppendQanAPIAgents(id uint) {
-	f.Append(fmt.Sprintf("/qan-api/agents/%d/cmd", id), func(w http.ResponseWriter, r *http.Request) {
+func (f *FakeApi) AppendQanAPIAgents(id string) {
+	f.Append(fmt.Sprintf("/qan-api/agents/%s/cmd", id), func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case "PUT":
 			w.WriteHeader(http.StatusOK)
