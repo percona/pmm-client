@@ -93,13 +93,14 @@ func (c *CmdTest) Write(data string) {
 
 func (c *CmdTest) Output() []string {
 	lines := []string{}
-OUTPUT_LINES:
+
 	for {
-		if line := c.ReadLine(); line != "" {
-			lines = append(lines, line)
-		} else {
-			break OUTPUT_LINES
+		line := c.ReadLine()
+		if line == "" {
+			break
 		}
+		lines = append(lines, line)
 	}
+
 	return lines
 }
