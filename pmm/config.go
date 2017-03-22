@@ -166,13 +166,13 @@ It has the active services so you cannot change client name as requested.`,
 			// To do this all services needs to be de-registered and registered again with new name
 			errs := a.renameClientNameInServices(node, oldName, newName)
 			if errs != nil {
-				log.Printf(`WARNING: there were some errors, renaming partially failed: %s\n`, errs)
+				log.Printf("WARNING: there were some errors, renaming partially failed: %s\n", errs)
 			}
 
 			// deregister old node
 			err := a.deregisterNode(oldName)
 			if err != nil {
-				log.Printf(`Unable to deregister old node: %s\n`, err)
+				log.Printf("Unable to deregister old node: %s\n", err)
 			}
 		}
 
