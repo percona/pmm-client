@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/smartystreets/goconvey/convey"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestSanitizeDSN(t *testing.T) {
@@ -27,4 +28,14 @@ func TestSanitizeDSN(t *testing.T) {
 			convey.So(SanitizeDSN(uri), convey.ShouldEqual, expect)
 		}
 	})
+}
+
+func TestIsValidSvcType(t *testing.T) {
+	// check valid types
+	for _, v := range svcTypes {
+		assert.Nil(t, isValidSvcType(v))
+	}
+
+	// check invalid type
+	assert.Error(t, isValidSvcType("invalid type"))
 }

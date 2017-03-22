@@ -205,25 +205,9 @@ func (a *Admin) ServerInfo() {
 
 // StartStopMonitoring start/stop system service by its metric type and name.
 func (a *Admin) StartStopMonitoring(action, svcType string) error {
-	svcTypes := []string{
-		"linux:metrics",
-		"mysql:metrics",
-		"mysql:queries",
-		"mongodb:metrics",
-		"mongodb:queries",
-		"proxysql:metrics",
-	}
-	valid := false
-	for _, v := range svcTypes {
-		if v == svcType {
-			valid = true
-			break
-		}
-	}
-	if !valid {
-		return fmt.Errorf(`bad service type.
-
-Service type takes the following values: %s.`, strings.Join(svcTypes, ", "))
+	err := isValidSvcType(svcType)
+	if err != nil {
+		return err
 	}
 
 	// Check if we have this service on Consul.
@@ -737,4 +721,25 @@ func generateSSLCertificate(host, certFile, keyFile string) error {
 	out.Close()
 
 	return nil
+}
+
+var svcTypes = []string{
+	"linux:metrics",
+	"mysql:metrics",
+	"mysql:queries",
+	"mongodb:metrics",
+	"mongodb:queries",
+	"proxysql:metrics",
+}
+
+func isValidSvcType(svcType string) error {
+	for _, v := range svcTypes {
+		if v == svcType {
+			return nil
+		}
+	}
+
+	return fmt.Errorf(`bad service type.
+
+Service type takes the following values: %s.`, strings.Join(svcTypes, ", "))
 }
