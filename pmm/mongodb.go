@@ -21,19 +21,21 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/percona/pmgo"
 	"gopkg.in/mgo.v2"
 )
 
-// DetectMongoDB verify MongoDB connection.
+// DetectMongoDB verifies MongoDB connection.
 func (a *Admin) DetectMongoDB(uri string) (mgo.BuildInfo, error) {
-	dialInfo, err := mgo.ParseURL(uri)
+	dialInfo, err := pmgo.ParseURL(uri)
 	if err != nil {
 		return mgo.BuildInfo{}, fmt.Errorf("Bad MongoDB uri %s: %s", uri, err)
 	}
 
 	dialInfo.Direct = true
 	dialInfo.Timeout = 10 * time.Second
-	session, err := mgo.DialWithInfo(dialInfo)
+	dialer := pmgo.NewDialer()
+	session, err := dialer.DialWithInfo(dialInfo)
 	if err != nil {
 		return mgo.BuildInfo{}, fmt.Errorf("Cannot connect to MongoDB using uri %s: %s", uri, err)
 	}

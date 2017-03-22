@@ -1,5 +1,5 @@
-hash: 6ebb17811a84c64f6cedbcd4e18056a9975f484919b8e64ff4e5607752461cfc
-updated: 2017-02-19T17:42:29.831644534+01:00
+hash: 19569e6a7075a59ac3d8ef5c24e5467b60635af8faab8e6e4030dfecc5349f28
+updated: 2017-03-22T18:10:08.021688831+01:00
 imports:
 - name: github.com/fatih/color
   version: 7824417a424b65227be8ac9b14d545a7f3e6c3f0
@@ -31,6 +31,8 @@ imports:
   - dsn
 - name: github.com/percona/kardianos-service
   version: feb3bb6021e7754467634ce2d5899a344bf180af
+- name: github.com/percona/pmgo
+  version: 717c9ce3810f3744d303a8ad418f84d517fde597
 - name: github.com/percona/pmm
   version: f5d2aa2c4005f78d83b91b907fac6da04a852fd3
   subpackages:
@@ -58,18 +60,21 @@ imports:
   repo: https://go.googlesource.com/sys
   subpackages:
   - unix
+  - windows
   - windows/registry
   - windows/svc
   - windows/svc/eventlog
   - windows/svc/mgr
-  - windows
 - name: gopkg.in/mgo.v2
   version: 3f83fa5005286a7fe593b055f0d7771a7dce4655
   subpackages:
   - bson
+  - dbtest
+  - internal/json
   - internal/sasl
   - internal/scram
-  - internal/json
+- name: gopkg.in/tomb.v2
+  version: d5d1b5820637886def9eef33e03a27a9f166942c
 - name: gopkg.in/yaml.v2
   version: a3f3340b5840cee44f372bddb5880fcbc419b46a
 testImports:
@@ -96,8 +101,8 @@ testImports:
   version: 3bd662eac601ad6436e64776af2e112069eb2edc
   subpackages:
   - convey
-  - convey/reporting
   - convey/gotest
+  - convey/reporting
 - name: github.com/stretchr/testify
   version: 4d4bfba8f1d1027c4fdbe371823030df51419987
   subpackages:
