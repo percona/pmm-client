@@ -732,6 +732,7 @@ var svcTypes = []string{
 	"proxysql:metrics",
 }
 
+// isValidSvcType checks if given service type is allowed
 func isValidSvcType(svcType string) error {
 	for _, v := range svcTypes {
 		if v == svcType {
