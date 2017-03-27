@@ -53,16 +53,16 @@
 			"revisionTime": "2015-12-22T15:32:29Z"
 		},
 		{
-			"checksumSHA1": "YSVlM7pRo/q4ONj1Pg99iHZP8h8=",
+			"checksumSHA1": "1w738Z9jibsY3pySmdHZHML0pqI=",
 			"path": "github.com/mattn/go-colorable",
-			"revision": "5411d3eea5978e6cdc258b30de592b60df6aba96",
-			"revisionTime": "2017-02-10T17:28:01Z"
+			"revision": "a392f450ea64cee2b268dfaacdc2502b50a22b18",
+			"revisionTime": "2017-03-12T23:57:56Z"
 		},
 		{
-			"checksumSHA1": "oHNHTWqqPXjD8QSgWQ4nzMgOPJs=",
+			"checksumSHA1": "xiboM3aeTebmyD7j6tl1psCJ+6o=",
 			"path": "github.com/mattn/go-isatty",
-			"revision": "281032e84ae07510239465db46bf442aa44b953a",
-			"revisionTime": "2017-02-09T17:56:15Z"
+			"revision": "57fdcb988a5c543893cc61bce354a6e24ab70022",
+			"revisionTime": "2017-03-07T16:30:44Z"
 		},
 		{
 			"checksumSHA1": "NfM8QiaK07ErHiN/2Vwv/zwMJ7U=",
