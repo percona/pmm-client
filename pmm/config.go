@@ -430,7 +430,7 @@ func (a *Admin) deregisterNode(name string) error {
 
 // renameInstance renames instance with given uuid
 func (a *Admin) renameInstance(instanceUUID, oldName, newName string) error {
-	bytes, err := ioutil.ReadFile(fmt.Sprintf("%s/instance/%s.json", agentBaseDir, instanceUUID))
+	bytes, err := ioutil.ReadFile(fmt.Sprintf("%s/instance/%s.json", AgentBaseDir, instanceUUID))
 	if err != nil {
 		return err
 	}
@@ -456,7 +456,7 @@ func (a *Admin) renameInstance(instanceUUID, oldName, newName string) error {
 	if err != nil {
 		return err
 	}
-	if err := ioutil.WriteFile(fmt.Sprintf("%s/instance/%s.json", agentBaseDir, instanceUUID), newBytes, 0600); err != nil {
+	if err := ioutil.WriteFile(fmt.Sprintf("%s/instance/%s.json", AgentBaseDir, instanceUUID), newBytes, 0600); err != nil {
 		return err
 	}
 
