@@ -316,6 +316,10 @@ func (a *Admin) RemoveAllMonitoring(ignoreErrors bool) (uint16, error) {
 		}
 	}
 
+	// PMM-606: Remove generated password.
+	a.Config.MySQLPassword = ""
+	a.writeConfig()
+
 	return count, nil
 }
 

@@ -198,7 +198,7 @@ Table statistics is automatically disabled when there are more than 10000 tables
 
 You cannot monitor linux metrics from remote machines because the metric exporter requires an access to the local filesystem.
 It is supposed there could be only one instance of linux metrics being monitored for this system.
-However, you can add another one with the different name just for testing purpose using --force flag.
+However, you can add another one with the different name just for testing purposes using --force flag.
 
 [name] is an optional argument, by default it is set to the client name of this PMM client.
 		`,
@@ -951,7 +951,7 @@ func main() {
 
 	cmdAdd.PersistentFlags().IntVar(&flagServicePort, "service-port", 0, "service port")
 
-	cmdAddLinuxMetrics.Flags().BoolVar(&flagForce, "force", false, "force to add another linux:metrics instance with different name for testing purpose")
+	cmdAddLinuxMetrics.Flags().BoolVar(&flagForce, "force", false, "force to add another linux:metrics instance with different name for testing purposes")
 
 	addCommonMySQLFlags := func(cmd *cobra.Command) {
 		cmd.Flags().StringVar(&flagM.DefaultsFile, "defaults-file", "", "path to my.cnf")

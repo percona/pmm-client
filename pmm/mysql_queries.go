@@ -210,6 +210,9 @@ func (a *Admin) RemoveMySQLQueries() error {
 	if err != nil {
 		return err
 	}
+	if data == nil {
+		return fmt.Errorf("can't get key %s", key)
+	}
 	uuid := string(data.Value)
 
 	// Stop QAN for this instance on the local agent.
@@ -369,6 +372,20 @@ func (a *Admin) createMySQLInstance(info map[string]string, parentUUID string) (
 	return in, err
 }
 
+	return nil
+}
+
+// updateInstance updates instance on QAN API.
+func (a *Admin) updateInstance(inUUID string, bytes []byte) error {
+	url := a.qanAPI.URL(a.serverURL, qanAPIBasePath, "instances", inUUID)
+	resp, content, err := a.qanAPI.Put(url, bytes)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != http.StatusNoContent {
+		return a.qanAPI.Error("PUT", url, resp.StatusCode, http.StatusNoContent, content)
+
+	}
 // getQuerySource read CollectFrom from mysql instance QAN config file.
 func getQuerySource(configFile string) (string, error) {
 	jsonData, err := ioutil.ReadFile(configFile)

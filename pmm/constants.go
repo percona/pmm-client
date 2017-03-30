@@ -86,3 +86,41 @@ var mysqldExporterDisableArgs = map[string][]string{
 	"binlogstats": {"-collect.binlog_size="},
 	"processlist": {"-collect.info_schema.processlist="},
 }
+
+type Errors []error
+
+func (e Errors) Error() string {
+	return join(e, ", ")
+}
+
+// join concatenates the elements of a to create a single string. The separator string
+// sep is placed between elements in the resulting string.
+func join(a []error, sep string) string {
+	if len(a) == 0 {
+		return ""
+	}
+	if len(a) == 1 {
+		return a[0].Error()
+	}
+	nilErr := fmt.Sprintf("%v", error(nil))
+	n := len(sep) * (len(a) - 1)
+	for i := 0; i < len(a); i++ {
+		if a[i] == nil {
+			n += len(nilErr)
+		} else {
+			n += len(a[i].Error())
+		}
+	}
+
+	b := make([]byte, n)
+	bp := copy(b, a[0].Error())
+	for _, s := range a[1:] {
+		bp += copy(b[bp:], sep)
+		if s == nil {
+			bp += copy(b[bp:], nilErr)
+		} else {
+			bp += copy(b[bp:], s.Error())
+		}
+	}
+	return string(b)
+}

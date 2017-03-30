@@ -44,7 +44,7 @@ func (a *Admin) CheckNetwork() error {
 		}
 	}
 
-	// Check Prometheus API by retriving all "up" time series.
+	// Check Prometheus API by retrieving all "up" time series.
 	promStatus := true
 	promData, err := a.promQueryAPI.Query(context.Background(), "up", time.Now())
 	if err != nil {

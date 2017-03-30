@@ -53,6 +53,7 @@ build_deb() {
     cd $WORK_DIR
     cp $WORKSPACE/build/deb/* $WORK_DIR/$NAME/DEBIAN/
     sed -i'.bak' "s/%{version}/$VERSION-$RELEASE/; /^\s*$/d" $WORK_DIR/$NAME/DEBIAN/control
+    rm $WORK_DIR/$NAME/DEBIAN/control.bak
     sh -e $WORKSPACE/build/deb/files $SOURCE $WORK_DIR/$NAME
 
     case $ARCH in
