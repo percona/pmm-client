@@ -152,7 +152,7 @@ func (a *Admin) List() error {
 					case "dsn":
 						dsn = string(kvp.Value)
 					case "qan_mysql_uuid":
-						f := fmt.Sprintf("%s/config/qan-%s.conf", agentBaseDir, kvp.Value)
+						f := fmt.Sprintf("%s/config/qan-%s.conf", AgentBaseDir, kvp.Value)
 						querySource, _ := getQuerySource(f)
 						opts = append(opts, fmt.Sprintf("query_source=%s", querySource))
 						queryExamples, _ := getQueryExamples(f)

@@ -25,9 +25,9 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
-	"strconv"
 
 	consul "github.com/hashicorp/consul/api"
 	"github.com/percona/kardianos-service"
@@ -57,7 +57,7 @@ func (a *Admin) AddMySQLQueries(info map[string]string) error {
 	}
 
 	// Register agent if config file does not exist.
-	agentConfigFile := fmt.Sprintf("%s/config/agent.conf", agentBaseDir)
+	agentConfigFile := fmt.Sprintf("%s/config/agent.conf", AgentBaseDir)
 	if !FileExists(agentConfigFile) {
 		if err := a.registerAgent(); err != nil {
 			return err
@@ -104,7 +104,7 @@ func (a *Admin) AddMySQLQueries(info map[string]string) error {
 	// Write mysql instance config for qan-agent with real DSN.
 	mysqlInstance.DSN = info["dsn"]
 	bytes, _ := json.MarshalIndent(mysqlInstance, "", "    ")
-	if err := ioutil.WriteFile(fmt.Sprintf("%s/instance/%s.json", agentBaseDir, mysqlInstance.UUID), bytes, 0600); err != nil {
+	if err := ioutil.WriteFile(fmt.Sprintf("%s/instance/%s.json", AgentBaseDir, mysqlInstance.UUID), bytes, 0600); err != nil {
 		return err
 	}
 
@@ -118,7 +118,7 @@ func (a *Admin) AddMySQLQueries(info map[string]string) error {
 			Name:        fmt.Sprintf("pmm-mysql-queries-%d", port),
 			DisplayName: "PMM Query Analytics agent",
 			Description: "PMM Query Analytics agent",
-			Executable:  fmt.Sprintf("%s/bin/percona-qan-agent", agentBaseDir),
+			Executable:  fmt.Sprintf("%s/bin/percona-qan-agent", AgentBaseDir),
 		}
 		if err := installService(svcConfig); err != nil {
 			return err
@@ -205,7 +205,7 @@ func (a *Admin) RemoveMySQLQueries() error {
 	mysqlUUID := string(data.Value)
 
 	// Stop QAN for this MySQL instance on the local agent.
-	agentConfigFile := fmt.Sprintf("%s/config/agent.conf", agentBaseDir)
+	agentConfigFile := fmt.Sprintf("%s/config/agent.conf", AgentBaseDir)
 	agentID, err := getAgentID(agentConfigFile)
 	if err != nil {
 		return err
@@ -429,8 +429,8 @@ func (a *Admin) registerAgent() error {
 	os.RemoveAll("/usr/local/percona/qan-agent/data")
 	os.RemoveAll("/usr/local/percona/qan-agent/instance")
 
-	path := fmt.Sprintf("%s/bin/percona-qan-agent-installer", agentBaseDir)
-	args := []string{"-basedir", agentBaseDir, "-mysql=false"}
+	path := fmt.Sprintf("%s/bin/percona-qan-agent-installer", AgentBaseDir)
+	args := []string{"-basedir", AgentBaseDir, "-mysql=false"}
 	if a.Config.ServerSSL {
 		args = append(args, "-use-ssl")
 	}
