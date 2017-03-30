@@ -372,9 +372,6 @@ func (a *Admin) createMySQLInstance(info map[string]string, parentUUID string) (
 	return in, err
 }
 
-	return nil
-}
-
 // updateInstance updates instance on QAN API.
 func (a *Admin) updateInstance(inUUID string, bytes []byte) error {
 	url := a.qanAPI.URL(a.serverURL, qanAPIBasePath, "instances", inUUID)
@@ -386,6 +383,9 @@ func (a *Admin) updateInstance(inUUID string, bytes []byte) error {
 		return a.qanAPI.Error("PUT", url, resp.StatusCode, http.StatusNoContent, content)
 
 	}
+	return nil
+}
+
 // getQuerySource read CollectFrom from mysql instance QAN config file.
 func getQuerySource(configFile string) (string, error) {
 	jsonData, err := ioutil.ReadFile(configFile)
