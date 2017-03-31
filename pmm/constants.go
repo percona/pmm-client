@@ -31,10 +31,16 @@ const (
 )
 
 var (
+	// you can use `-ldflags -X github.com/percona/pmm-client/pmm.Version=`
+	// to set build version number
 	Version = "EXPERIMENTAL"
 
-	PMMBaseDir   = "/usr/local/percona/pmm-client"
-	AgentBaseDir = "/usr/local/percona/qan-agent"
+	// you can use `-ldflags -X github.com/percona/pmm-client/pmm.RootDir=`
+	// to set root filesystem for pmm-admin
+	RootDir = ""
+
+	PMMBaseDir   = RootDir + "/usr/local/percona/pmm-client"
+	AgentBaseDir = RootDir + "/usr/local/percona/qan-agent"
 
 	ConfigFile  = fmt.Sprintf("%s/pmm.yml", PMMBaseDir)
 	SSLCertFile = fmt.Sprintf("%s/server.crt", PMMBaseDir)

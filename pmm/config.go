@@ -275,7 +275,7 @@ What ports to map you can find from "pmm-admin check-network" output once you ad
 
 	// Restart all services when resetting server address (wiping password) or changing password.
 	if cf.ServerAddress != "" || cf.ServerPassword != "" {
-		_, err := a.StartStopAllMonitoring("restart")
+		_, _, err := a.StartStopAllMonitoring("restart")
 		if err != nil {
 			return fmt.Errorf("Error restarting one of the services: %s", err)
 		}
