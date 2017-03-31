@@ -281,7 +281,11 @@ func testStartStopRestartAllWithServices(t *testing.T, data pmmAdminData) {
 	dir, extension := pmm.GetServiceDirAndExtension()
 	numOfServices := 3
 	for i := 0; i < numOfServices; i++ {
-		os.Create(data.rootDir + dir + fmt.Sprintf("/pmm-service-%d.%s", i, extension))
+		if extension == "" {
+			os.Create(data.rootDir + dir + fmt.Sprintf("/pmm-service-%d", i))
+		} else {
+			os.Create(data.rootDir + dir + fmt.Sprintf("/pmm-service-%d.%s", i, extension))
+		}
 	}
 
 	t.Run("start", func(t *testing.T) {
