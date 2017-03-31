@@ -278,13 +278,18 @@ func testStartStopRestartAllWithServices(t *testing.T, data pmmAdminData) {
 	bytes, _ := yaml.Marshal(pmmConfig)
 	ioutil.WriteFile(data.rootDir+pmm.PMMBaseDir+"/pmm.yml", bytes, 0600)
 
-	dir, extension := pmm.GetServiceDirAndExtension()
+	// create fake system services
 	numOfServices := 3
-	for i := 0; i < numOfServices; i++ {
-		if extension == "" {
-			os.Create(data.rootDir + dir + fmt.Sprintf("/pmm-service-%d", i))
-		} else {
-			os.Create(data.rootDir + dir + fmt.Sprintf("/pmm-service-%d.%s", i, extension))
+	{
+		dir, extension := pmm.GetServiceDirAndExtension()
+		os.MkdirAll(data.rootDir+dir, 0777)
+		for i := 0; i < numOfServices; i++ {
+			name := fmt.Sprintf("pmm-service-%d.%s", i, extension)
+			if extension == "" {
+				name = fmt.Sprintf("pmm-service-%d", i)
+			}
+
+			os.Create(data.rootDir + dir + "/" + name)
 		}
 	}
 
