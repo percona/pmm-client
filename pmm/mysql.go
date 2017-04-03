@@ -23,9 +23,9 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"strconv"
 	"strings"
 	"time"
-	"strconv"
 
 	"github.com/percona/go-mysql/dsn"
 )

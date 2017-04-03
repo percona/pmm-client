@@ -257,7 +257,7 @@ What ports to map you can find from "pmm-admin check-network" output once you ad
 	}
 
 	// If agent config exists, update the options like address, SSL, password etc.
-	agentConfigFile := fmt.Sprintf("%s/config/agent.conf", agentBaseDir)
+	agentConfigFile := fmt.Sprintf("%s/config/agent.conf", AgentBaseDir)
 	if FileExists(agentConfigFile) {
 		if err := a.syncAgentConfig(agentConfigFile); err != nil {
 			return fmt.Errorf("Unable to update agent config %s: %s", agentConfigFile, err)
@@ -426,7 +426,7 @@ func (a *Admin) deregisterNode(name string) error {
 
 // renameInstance renames instance with given uuid
 func (a *Admin) renameInstance(instanceUUID, oldName, newName string) error {
-	bytes, err := ioutil.ReadFile(fmt.Sprintf("%s/instance/%s.json", agentBaseDir, instanceUUID))
+	bytes, err := ioutil.ReadFile(fmt.Sprintf("%s/instance/%s.json", AgentBaseDir, instanceUUID))
 	if err != nil {
 		return err
 	}
@@ -452,7 +452,7 @@ func (a *Admin) renameInstance(instanceUUID, oldName, newName string) error {
 	if err != nil {
 		return err
 	}
-	if err := ioutil.WriteFile(fmt.Sprintf("%s/instance/%s.json", agentBaseDir, instanceUUID), newBytes, 0600); err != nil {
+	if err := ioutil.WriteFile(fmt.Sprintf("%s/instance/%s.json", AgentBaseDir, instanceUUID), newBytes, 0600); err != nil {
 		return err
 	}
 

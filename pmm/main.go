@@ -650,8 +650,8 @@ func CheckBinaries() string {
 		fmt.Sprintf("%s/mysqld_exporter", PMMBaseDir),
 		fmt.Sprintf("%s/mongodb_exporter", PMMBaseDir),
 		fmt.Sprintf("%s/proxysql_exporter", PMMBaseDir),
-		fmt.Sprintf("%s/bin/percona-qan-agent", agentBaseDir),
-		fmt.Sprintf("%s/bin/percona-qan-agent-installer", agentBaseDir),
+		fmt.Sprintf("%s/bin/percona-qan-agent", AgentBaseDir),
+		fmt.Sprintf("%s/bin/percona-qan-agent-installer", AgentBaseDir),
 	}
 	for _, p := range paths {
 		if !FileExists(p) {
