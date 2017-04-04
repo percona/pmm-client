@@ -64,8 +64,14 @@ var (
 				os.Exit(1)
 			}
 
-			// "pmm-admin info" should display info w/o connectivity.
-			if cmd.Name() == "info" {
+			switch cmd.Name() {
+			case
+				"info",
+				"start",
+				"stop",
+				"restart",
+				"show-passwords":
+				// above cmds should work w/o connectivity, so we return before admin.SetAPI()
 				return
 			}
 
@@ -631,15 +637,17 @@ please check the firewall settings whether this system allows incoming connectio
   pmm-admin start --all`,
 		Run: func(cmd *cobra.Command, args []string) {
 			if flagAll {
-				count, err := admin.StartStopAllMonitoring("start")
+				numOfAffected, numOfAll, err := admin.StartStopAllMonitoring("start")
 				if err != nil {
 					fmt.Printf("Error starting one of the services: %s\n", err)
 					os.Exit(1)
 				}
-				if count == 0 {
+				if numOfAll == 0 {
 					fmt.Println("OK, no services found.")
+				} else if numOfAffected == 0 {
+					fmt.Println("OK, all services already started. Run 'pmm-admin list' to see monitoring services.")
 				} else {
-					fmt.Printf("OK, %d services are started.\n", count)
+					fmt.Printf("OK, started %d services.\n", numOfAffected)
 				}
 				os.Exit(0)
 			}
@@ -675,15 +683,17 @@ please check the firewall settings whether this system allows incoming connectio
   pmm-admin stop --all`,
 		Run: func(cmd *cobra.Command, args []string) {
 			if flagAll {
-				count, err := admin.StartStopAllMonitoring("stop")
+				numOfAffected, numOfAll, err := admin.StartStopAllMonitoring("stop")
 				if err != nil {
 					fmt.Printf("Error stopping one of the services: %s\n", err)
 					os.Exit(1)
 				}
-				if count == 0 {
+				if numOfAll == 0 {
 					fmt.Println("OK, no services found.")
+				} else if numOfAffected == 0 {
+					fmt.Println("OK, all services already stopped. Run 'pmm-admin list' to see monitoring services.")
 				} else {
-					fmt.Printf("OK, %d services are stopped.\n", count)
+					fmt.Printf("OK, stopped %d services.\n", numOfAffected)
 				}
 				os.Exit(0)
 			}
@@ -719,15 +729,15 @@ please check the firewall settings whether this system allows incoming connectio
   pmm-admin restart --all`,
 		Run: func(cmd *cobra.Command, args []string) {
 			if flagAll {
-				count, err := admin.StartStopAllMonitoring("restart")
+				numOfAffected, numOfAll, err := admin.StartStopAllMonitoring("restart")
 				if err != nil {
 					fmt.Printf("Error restarting one of the services: %s\n", err)
 					os.Exit(1)
 				}
-				if count == 0 {
+				if numOfAll == 0 {
 					fmt.Println("OK, no services found.")
 				} else {
-					fmt.Printf("OK, %d services are restarted.\n", count)
+					fmt.Printf("OK, restarted %d services.\n", numOfAffected)
 				}
 				os.Exit(0)
 			}

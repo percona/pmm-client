@@ -248,34 +248,50 @@ Service type takes the following values: linux:metrics, mysql:metrics, mysql:que
 }
 
 // StartStopAllMonitoring start/stop all metric services.
-func (a *Admin) StartStopAllMonitoring(action string) (int, error) {
-	node, _, err := a.consulAPI.Catalog().Node(a.Config.ClientName, nil)
-	if err != nil || node == nil || len(node.Services) == 0 {
-		return 0, nil
-	}
+func (a *Admin) StartStopAllMonitoring(action string) (numOfAffected, numOfAll int, err error) {
+	var errs Errors
 
-	for _, svc := range node.Services {
-		svcName := fmt.Sprintf("pmm-%s-%d", strings.Replace(svc.Service, ":", "-", 1), svc.Port)
+	localServices := GetLocalServices()
+	numOfAll = len(localServices)
+
+	for _, svcName := range localServices {
 		switch action {
 		case "start":
+			if getServiceStatus(svcName) {
+				// if it's already started then continue
+				continue
+			}
 			if err := startService(svcName); err != nil {
-				return 0, err
+				errs = append(errs, err)
+				continue
 			}
 		case "stop":
+			if !getServiceStatus(svcName) {
+				// if it's already stopped then continue
+				continue
+			}
 			if err := stopService(svcName); err != nil {
-				return 0, err
+				errs = append(errs, err)
+				continue
 			}
 		case "restart":
 			if err := stopService(svcName); err != nil {
-				return 0, err
+				errs = append(errs, err)
+				continue
 			}
 			if err := startService(svcName); err != nil {
-				return 0, err
+				errs = append(errs, err)
+				continue
 			}
 		}
+		numOfAffected++
 	}
 
-	return len(node.Services), nil
+	if len(errs) > 0 {
+		return numOfAffected, numOfAll, errs
+	}
+
+	return numOfAffected, numOfAll, nil
 }
 
 // RemoveAllMonitoring remove all the monitoring services.
@@ -459,42 +475,17 @@ func (a *Admin) checkSSLCertificate() error {
 }
 
 // CheckInstallation check for broken installation.
-func (a *Admin) CheckInstallation() ([]string, []string) {
-	var (
-		dir              string
-		extension        string
-		services         []string
-		orphanedServices []string
-		missingServices  []string
-	)
-	switch service.Platform() {
-	case "linux-systemd":
-		dir = "/etc/systemd/system"
-		extension = ".service"
-	case "linux-upstart":
-		dir = "/etc/init"
-		extension = ".conf"
-	case "unix-systemv":
-		dir = "/etc/init.d"
-		extension = ""
-	}
-
-	filesFound, _ := filepath.Glob(fmt.Sprintf("%s/pmm-*%s", dir, extension))
-	rService, _ := regexp.Compile(fmt.Sprintf("%s/(pmm-.+)%s", dir, extension))
-	for _, f := range filesFound {
-		if data := rService.FindStringSubmatch(f); data != nil {
-			services = append(services, data[1])
-		}
-	}
+func (a *Admin) CheckInstallation() (orphanedServices, missingServices []string) {
+	localServices := GetLocalServices()
 
 	node, _, err := a.consulAPI.Catalog().Node(a.Config.ClientName, nil)
 	if err != nil || node == nil || len(node.Services) == 0 {
-		return services, []string{}
+		return localServices, []string{}
 	}
 
 	// Find orphaned services: local system services that are not associated with Consul services.
 ForLoop1:
-	for _, s := range services {
+	for _, s := range localServices {
 		for _, svc := range node.Services {
 			svcName := fmt.Sprintf("pmm-%s-%d", strings.Replace(svc.Service, ":", "-", 1), svc.Port)
 			if s == svcName {
@@ -508,7 +499,7 @@ ForLoop1:
 ForLoop2:
 	for _, svc := range node.Services {
 		svcName := fmt.Sprintf("pmm-%s-%d", strings.Replace(svc.Service, ":", "-", 1), svc.Port)
-		for _, s := range services {
+		for _, s := range localServices {
 			if s == svcName {
 				continue ForLoop2
 			}
@@ -580,7 +571,35 @@ func (a *Admin) Uninstall() uint16 {
 		}
 	}
 
-	var dir, extension string
+	// Find any local PMM services and try to uninstall ignoring the errors.
+	localServices := GetLocalServices()
+
+	for _, service := range localServices {
+		if err := uninstallService(service); err == nil {
+			count++
+		}
+	}
+
+	return count
+}
+
+// GetLocalServices finds any local PMM services
+func GetLocalServices() (services []string) {
+	dir, extension := GetServiceDirAndExtension()
+
+	filesFound, _ := filepath.Glob(fmt.Sprintf("%s/pmm-*%s", dir, extension))
+	rService, _ := regexp.Compile(fmt.Sprintf("%s/(pmm-.+)%s", dir, extension))
+	for _, f := range filesFound {
+		if data := rService.FindStringSubmatch(f); data != nil {
+			services = append(services, data[1])
+		}
+	}
+
+	return services
+}
+
+// GetServiceDirAndExtension returns dir and extension used to create system service
+func GetServiceDirAndExtension() (dir, extension string) {
 	switch service.Platform() {
 	case "linux-systemd":
 		dir = "/etc/systemd/system"
@@ -593,20 +612,7 @@ func (a *Admin) Uninstall() uint16 {
 		extension = ""
 	}
 
-	// Find any local PMM services and try to uninstall ignoring the errors.
-	filesFound, _ := filepath.Glob(fmt.Sprintf("%s/pmm-*%s", dir, extension))
-	rService, _ := regexp.Compile(fmt.Sprintf("%s/(pmm-.+)%s", dir, extension))
-	for _, f := range filesFound {
-		data := rService.FindStringSubmatch(f)
-		if data == nil {
-			continue
-		}
-		if err := uninstallService(data[1]); err == nil {
-			count++
-		}
-	}
-
-	return count
+	return RootDir + dir, extension
 }
 
 // ShowPasswords display passwords from config file.
