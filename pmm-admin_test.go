@@ -267,7 +267,7 @@ func testConfigVerbose(t *testing.T, data pmmAdminData) {
 	assert.Equal(t, "< \n", cmdTest.ReadLine())
 	assert.Equal(t, "< \"127.0.0.1:8300\"\n", cmdTest.ReadLine())
 	assert.Regexp(t, ".+ request:\n", cmdTest.ReadLine())
-	assert.Equal(t, "> GET /v1/catalog/node/kdz-mbp.local HTTP/1.1\n", cmdTest.ReadLine())
+	assert.Regexp(t, "> GET /v1/catalog/node/.+ HTTP/1.1\n", cmdTest.ReadLine())
 	assert.Regexp(t, "> Host: .+\n", cmdTest.ReadLine())
 	assert.Equal(t, "> User-Agent: Go-http-client/1.1\n", cmdTest.ReadLine())
 	assert.Equal(t, "> Accept-Encoding: gzip\n", cmdTest.ReadLine())
