@@ -79,18 +79,22 @@ func (a *Admin) SetAPI() error {
 		helpText = "--server-ssl"
 	}
 
+	// QAN API.
+	a.qanAPI = NewAPI(a.Config.ServerInsecureSSL, a.apiTimeout, a.Verbose)
+	httpClient := a.qanAPI.NewClient()
+
 	// Consul API.
 	config := consul.Config{
 		Address:    a.Config.ServerAddress,
-		HttpClient: &http.Client{Timeout: a.apiTimeout},
+		HttpClient: httpClient,
 		Scheme:     scheme,
-	}
-	if a.Config.ServerInsecureSSL {
-		config.HttpClient.Transport = insecureTransport
 	}
 	var authStr string
 	if a.Config.ServerUser != "" {
-		config.HttpAuth = &consul.HttpBasicAuth{Username: a.Config.ServerUser, Password: a.Config.ServerPassword}
+		config.HttpAuth = &consul.HttpBasicAuth{
+			Username: a.Config.ServerUser,
+			Password: a.Config.ServerPassword,
+		}
 		authStr = fmt.Sprintf("%s:%s@", url.QueryEscape(a.Config.ServerUser), url.QueryEscape(a.Config.ServerPassword))
 	}
 	a.consulAPI, _ = consul.NewClient(&config)
@@ -98,11 +102,11 @@ func (a *Admin) SetAPI() error {
 	// Full URL.
 	a.serverURL = fmt.Sprintf("%s://%s%s", scheme, authStr, a.Config.ServerAddress)
 
-	// QAN API.
-	a.qanAPI = NewAPI(a.Config.ServerInsecureSSL, a.apiTimeout, a.Verbose)
-
 	// Prometheus API.
 	cfg := prometheus.Config{Address: fmt.Sprintf("%s/prometheus", a.serverURL)}
+	// cfg.Transport = httpClient.Transport
+	// above should be used instead below but
+	// https://github.com/prometheus/client_golang/issues/292
 	if a.Config.ServerInsecureSSL {
 		cfg.Transport = insecureTransport
 	}

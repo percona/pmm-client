@@ -70,7 +70,7 @@ func (a *API) Ping(url string) error {
 		}
 	}
 
-	client := a.newClient()
+	client := a.NewClient()
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
@@ -101,7 +101,7 @@ func (a *API) Get(url string) (*http.Response, []byte, error) {
 		}
 	}
 
-	client := a.newClient()
+	client := a.NewClient()
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, nil, err
@@ -155,12 +155,13 @@ func (a *API) Error(method, url string, gotStatusCode, expectedStatusCode int, c
 	return fmt.Errorf(errMsg)
 }
 
-// --------------------------------------------------------------------------
-
-func (a *API) newClient() *http.Client {
+// NewClient creates new *http.Client tailored for this API
+func (a *API) NewClient() *http.Client {
 	transport := &http.Transport{}
 	if a.insecureSSL {
-		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+		transport.TLSClientConfig = &tls.Config{
+			InsecureSkipVerify: true,
+		}
 	}
 	client := &http.Client{
 		Timeout:   a.apiTimeout,
@@ -172,6 +173,8 @@ func (a *API) newClient() *http.Client {
 	}
 	return client
 }
+
+// --------------------------------------------------------------------------
 
 func (a *API) send(method, url string, data []byte) (*http.Response, []byte, error) {
 	var req *http.Request
@@ -192,7 +195,7 @@ func (a *API) send(method, url string, data []byte) (*http.Response, []byte, err
 		}
 	}
 
-	client := a.newClient()
+	client := a.NewClient()
 	resp, err := client.Do(req)
 	if err != nil {
 		return resp, nil, err
