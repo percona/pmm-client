@@ -36,19 +36,21 @@ type API struct {
 	hostname    string
 	insecureSSL bool
 	apiTimeout  time.Duration
+	debug       bool // turns on logging requests with std logger
 }
 
 type apiError struct {
 	Error string
 }
 
-func NewAPI(insecureFlag bool, timeout time.Duration) *API {
+func NewAPI(insecureFlag bool, timeout time.Duration, debug bool) *API {
 	hostname, _ := os.Hostname()
 	a := &API{
 		headers:     nil,
 		hostname:    hostname,
 		insecureSSL: insecureFlag,
 		apiTimeout:  timeout,
+		debug:       debug,
 	}
 	return a
 }
@@ -68,7 +70,7 @@ func (a *API) Ping(url string) error {
 		}
 	}
 
-	client := a.newClient()
+	client := a.NewClient()
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
@@ -99,7 +101,7 @@ func (a *API) Get(url string) (*http.Response, []byte, error) {
 		}
 	}
 
-	client := a.newClient()
+	client := a.NewClient()
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, nil, err
@@ -153,26 +155,37 @@ func (a *API) Error(method, url string, gotStatusCode, expectedStatusCode int, c
 	return fmt.Errorf(errMsg)
 }
 
-// --------------------------------------------------------------------------
-
-func (a *API) newClient() *http.Client {
-	client := &http.Client{Timeout: a.apiTimeout}
+// NewClient creates new *http.Client tailored for this API
+func (a *API) NewClient() *http.Client {
+	transport := &http.Transport{}
 	if a.insecureSSL {
-		client.Transport = &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		transport.TLSClientConfig = &tls.Config{
+			InsecureSkipVerify: true,
 		}
+	}
+	client := &http.Client{
+		Timeout:   a.apiTimeout,
+		Transport: transport,
+	}
+	if a.debug {
+		// if api is in debug mode we should log every request and response
+		client.Transport = NewDebugRoundTripper(client.Transport)
 	}
 	return client
 }
 
+// --------------------------------------------------------------------------
+
 func (a *API) send(method, url string, data []byte) (*http.Response, []byte, error) {
 	var req *http.Request
 	var err error
+	var body io.Reader
+
 	if data != nil {
-		req, err = http.NewRequest(method, url, bytes.NewReader(data))
-	} else {
-		req, err = http.NewRequest(method, url, nil)
+		body = bytes.NewReader(data)
 	}
+
+	req, err = http.NewRequest(method, url, body)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -182,7 +195,7 @@ func (a *API) send(method, url string, data []byte) (*http.Response, []byte, err
 		}
 	}
 
-	client := a.newClient()
+	client := a.NewClient()
 	resp, err := client.Do(req)
 	if err != nil {
 		return resp, nil, err

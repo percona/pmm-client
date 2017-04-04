@@ -50,6 +50,7 @@ type Admin struct {
 	ServiceName  string
 	ServicePort  uint16
 	Config       *Config
+	Verbose      bool
 	serverURL    string
 	apiTimeout   time.Duration
 	qanAPI       *API
@@ -78,18 +79,22 @@ func (a *Admin) SetAPI() error {
 		helpText = "--server-ssl"
 	}
 
+	// QAN API.
+	a.qanAPI = NewAPI(a.Config.ServerInsecureSSL, a.apiTimeout, a.Verbose)
+	httpClient := a.qanAPI.NewClient()
+
 	// Consul API.
 	config := consul.Config{
 		Address:    a.Config.ServerAddress,
-		HttpClient: &http.Client{Timeout: a.apiTimeout},
+		HttpClient: httpClient,
 		Scheme:     scheme,
-	}
-	if a.Config.ServerInsecureSSL {
-		config.HttpClient.Transport = insecureTransport
 	}
 	var authStr string
 	if a.Config.ServerUser != "" {
-		config.HttpAuth = &consul.HttpBasicAuth{Username: a.Config.ServerUser, Password: a.Config.ServerPassword}
+		config.HttpAuth = &consul.HttpBasicAuth{
+			Username: a.Config.ServerUser,
+			Password: a.Config.ServerPassword,
+		}
 		authStr = fmt.Sprintf("%s:%s@", url.QueryEscape(a.Config.ServerUser), url.QueryEscape(a.Config.ServerPassword))
 	}
 	a.consulAPI, _ = consul.NewClient(&config)
@@ -97,11 +102,11 @@ func (a *Admin) SetAPI() error {
 	// Full URL.
 	a.serverURL = fmt.Sprintf("%s://%s%s", scheme, authStr, a.Config.ServerAddress)
 
-	// QAN API.
-	a.qanAPI = NewAPI(a.Config.ServerInsecureSSL, a.apiTimeout)
-
 	// Prometheus API.
 	cfg := prometheus.Config{Address: fmt.Sprintf("%s/prometheus", a.serverURL)}
+	// cfg.Transport = httpClient.Transport
+	// above should be used instead below but
+	// https://github.com/prometheus/client_golang/issues/292
 	if a.Config.ServerInsecureSSL {
 		cfg.Transport = insecureTransport
 	}
@@ -125,17 +130,17 @@ Run 'pmm-admin config --server-insecure-ssl' to enable such configuration.`, a.C
 * Check if the configured address is correct.
 * If server is running on non-default port, ensure it was specified along with the address.
 * If server is enabled for SSL or self-signed SSL, enable the corresponding option.
-* You may also check the firewall settings.`, a.Config.ServerAddress, err.Error())
+* You may also check the firewall settings.`, a.Config.ServerAddress, err)
 	}
 
 	// Try to detect 400 (SSL) and 401 (HTTP auth).
-	if err == nil && resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest {
 		return fmt.Errorf(`Unable to connect to PMM server by address: %s
 
 Looks like the server is enabled for SSL or self-signed SSL.
 Use 'pmm-admin config' to enable the corresponding SSL option.`, a.Config.ServerAddress)
 	}
-	if err == nil && resp.StatusCode == http.StatusUnauthorized {
+	if resp.StatusCode == http.StatusUnauthorized {
 		return fmt.Errorf(`Unable to connect to PMM server by address: %s
 
 Looks like the server is password protected.

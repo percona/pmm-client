@@ -90,6 +90,7 @@ func TestPmmAdmin(t *testing.T) {
 	tests := []func(*testing.T, pmmAdminData){
 		testVersion,
 		testConfig,
+    testConfigVerbose,
 		testStartStopRestartAllWithNoServices,
 		testStartStopRestartAllWithServices,
 	}
@@ -168,7 +169,126 @@ func testConfig(t *testing.T, data pmmAdminData) {
 	assert.Equal(t, fmt.Sprintf("%-15s | %s\n", "Client Name", clientName), cmdTest.ReadLine())
 	assert.Equal(t, fmt.Sprintf("%-15s | %s \n", "Client Address", clientAddress), cmdTest.ReadLine())
 
-	assert.Equal(t, "", cmdTest.ReadLine()) // No more data
+	assert.Equal(t, []string{}, cmdTest.Output()) // No more data
+}
+
+func testConfigVerbose(t *testing.T, data pmmAdminData) {
+	defer func() {
+		err := os.RemoveAll(data.basedir)
+		assert.Nil(t, err)
+	}()
+
+	os.MkdirAll(data.basedir+"/pmm-client", 0777)
+
+	// Create fake api server
+	api := fakeapi.New()
+	u, _ := url.Parse(api.URL())
+	clientAddress, _, _ := net.SplitHostPort(u.Host)
+	clientName, _ := os.Hostname()
+	api.AppendRoot()
+	api.AppendConsulV1StatusLeader(clientAddress)
+	api.AppendConsulV1CatalogNode()
+
+	cmd := exec.Command(
+		data.bin,
+		"config",
+		"--verbose",
+		"--server",
+		u.Host,
+	)
+
+	cmdTest := cmdtest.New(cmd)
+	if err := cmd.Start(); err != nil {
+		log.Fatal(err)
+	}
+	err := cmd.Wait()
+	assert.Nil(t, err)
+
+	// with --verbose flag we should have bunch of http requests to server
+	// api
+	assert.Regexp(t, ".+ request:\n", cmdTest.ReadLine())
+	assert.Equal(t, "> GET / HTTP/1.1\n", cmdTest.ReadLine())
+	assert.Regexp(t, "> Host: .+\n", cmdTest.ReadLine())
+	assert.Equal(t, "> User-Agent: Go-http-client/1.1\n", cmdTest.ReadLine())
+	assert.Equal(t, "> Accept-Encoding: gzip\n", cmdTest.ReadLine())
+	assert.Equal(t, "> \n", cmdTest.ReadLine())
+	assert.Equal(t, "> \n", cmdTest.ReadLine())
+	assert.Regexp(t, ".+ response:\n", cmdTest.ReadLine())
+	assert.Equal(t, "< HTTP/1.1 200 OK\n", cmdTest.ReadLine())
+	assert.Equal(t, "< Content-Type: text/plain; charset=utf-8\n", cmdTest.ReadLine())
+	assert.Regexp(t, "< Date: .+\n", cmdTest.ReadLine())
+	assert.Equal(t, "< Content-Length: 0\n", cmdTest.ReadLine())
+	assert.Equal(t, "< \n", cmdTest.ReadLine())
+	assert.Equal(t, "< \n", cmdTest.ReadLine())
+	assert.Regexp(t, ".+ request:\n", cmdTest.ReadLine())
+	assert.Equal(t, "> GET /v1/status/leader HTTP/1.1\n", cmdTest.ReadLine())
+	assert.Regexp(t, "> Host: .+\n", cmdTest.ReadLine())
+	assert.Equal(t, "> User-Agent: Go-http-client/1.1\n", cmdTest.ReadLine())
+	assert.Equal(t, "> Accept-Encoding: gzip\n", cmdTest.ReadLine())
+	assert.Equal(t, "> \n", cmdTest.ReadLine())
+	assert.Equal(t, "> \n", cmdTest.ReadLine())
+	assert.Regexp(t, ".+ response:\n", cmdTest.ReadLine())
+	assert.Equal(t, "< HTTP/1.1 200 OK\n", cmdTest.ReadLine())
+	assert.Equal(t, "< Content-Length: 16\n", cmdTest.ReadLine())
+	assert.Equal(t, "< Content-Type: text/plain; charset=utf-8\n", cmdTest.ReadLine())
+	assert.Regexp(t, "< Date: .+\n", cmdTest.ReadLine())
+	assert.Equal(t, "< X-Remote-Ip: 127.0.0.1\n", cmdTest.ReadLine())
+	assert.Equal(t, "< \n", cmdTest.ReadLine())
+	assert.Equal(t, "< \"127.0.0.1:8300\"\n", cmdTest.ReadLine())
+
+	// consul
+	assert.Regexp(t, ".+ request:\n", cmdTest.ReadLine())
+	assert.Regexp(t, "> GET /v1/catalog/node/.+ HTTP/1.1\n", cmdTest.ReadLine())
+	assert.Regexp(t, "> Host: .+\n", cmdTest.ReadLine())
+	assert.Equal(t, "> User-Agent: Go-http-client/1.1\n", cmdTest.ReadLine())
+	assert.Equal(t, "> Accept-Encoding: gzip\n", cmdTest.ReadLine())
+	assert.Equal(t, "> \n", cmdTest.ReadLine())
+	assert.Equal(t, "> \n", cmdTest.ReadLine())
+	assert.Regexp(t, ".+ response:\n", cmdTest.ReadLine())
+	assert.Equal(t, "< HTTP/1.1 200 OK\n", cmdTest.ReadLine())
+	assert.Equal(t, "< Content-Length: 92\n", cmdTest.ReadLine())
+	assert.Equal(t, "< Content-Type: text/plain; charset=utf-8\n", cmdTest.ReadLine())
+	assert.Regexp(t, "< Date: .+\n", cmdTest.ReadLine())
+	assert.Equal(t, "< \n", cmdTest.ReadLine())
+	assert.Equal(t, "< {\"Node\":{\"ID\":\"\",\"Node\":\"\",\"Address\":\"\",\"TaggedAddresses\":null,\"Meta\":null},\"Services\":null}\n", cmdTest.ReadLine())
+	assert.Regexp(t, ".+ request:\n", cmdTest.ReadLine())
+	assert.Equal(t, "> GET /v1/status/leader HTTP/1.1\n", cmdTest.ReadLine())
+	assert.Regexp(t, "> Host: .+\n", cmdTest.ReadLine())
+	assert.Equal(t, "> User-Agent: Go-http-client/1.1\n", cmdTest.ReadLine())
+	assert.Equal(t, "> Accept-Encoding: gzip\n", cmdTest.ReadLine())
+	assert.Equal(t, "> \n", cmdTest.ReadLine())
+	assert.Equal(t, "> \n", cmdTest.ReadLine())
+	assert.Regexp(t, ".+ response:\n", cmdTest.ReadLine())
+	assert.Equal(t, "< HTTP/1.1 200 OK\n", cmdTest.ReadLine())
+	assert.Equal(t, "< Content-Length: 16\n", cmdTest.ReadLine())
+	assert.Equal(t, "< Content-Type: text/plain; charset=utf-8\n", cmdTest.ReadLine())
+	assert.Regexp(t, "< Date: .+\n", cmdTest.ReadLine())
+	assert.Equal(t, "< X-Remote-Ip: 127.0.0.1\n", cmdTest.ReadLine())
+	assert.Equal(t, "< \n", cmdTest.ReadLine())
+	assert.Equal(t, "< \"127.0.0.1:8300\"\n", cmdTest.ReadLine())
+	assert.Regexp(t, ".+ request:\n", cmdTest.ReadLine())
+	assert.Regexp(t, "> GET /v1/catalog/node/.+ HTTP/1.1\n", cmdTest.ReadLine())
+	assert.Regexp(t, "> Host: .+\n", cmdTest.ReadLine())
+	assert.Equal(t, "> User-Agent: Go-http-client/1.1\n", cmdTest.ReadLine())
+	assert.Equal(t, "> Accept-Encoding: gzip\n", cmdTest.ReadLine())
+	assert.Equal(t, "> \n", cmdTest.ReadLine())
+	assert.Equal(t, "> \n", cmdTest.ReadLine())
+	assert.Regexp(t, ".+ response:\n", cmdTest.ReadLine())
+	assert.Equal(t, "< HTTP/1.1 200 OK\n", cmdTest.ReadLine())
+	assert.Equal(t, "< Content-Length: 92\n", cmdTest.ReadLine())
+	assert.Equal(t, "< Content-Type: text/plain; charset=utf-8\n", cmdTest.ReadLine())
+	assert.Regexp(t, "< Date: .+\n", cmdTest.ReadLine())
+	assert.Equal(t, "< \n", cmdTest.ReadLine())
+	assert.Equal(t, "< {\"Node\":{\"ID\":\"\",\"Node\":\"\",\"Address\":\"\",\"TaggedAddresses\":null,\"Meta\":null},\"Services\":null}\n", cmdTest.ReadLine())
+
+	// stdout
+	assert.Equal(t, "OK, PMM server is alive.\n", cmdTest.ReadLine())
+	assert.Equal(t, "\n", cmdTest.ReadLine())
+	assert.Equal(t, fmt.Sprintf("%-15s | %s \n", "PMM Server", u.Host), cmdTest.ReadLine())
+	assert.Equal(t, fmt.Sprintf("%-15s | %s\n", "Client Name", clientName), cmdTest.ReadLine())
+	assert.Equal(t, fmt.Sprintf("%-15s | %s \n", "Client Address", clientAddress), cmdTest.ReadLine())
+
+	assert.Equal(t, []string{}, cmdTest.Output()) // No more data
 }
 
 func testStartStopRestartAllWithNoServices(t *testing.T, data pmmAdminData) {

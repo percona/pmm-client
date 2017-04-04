@@ -857,6 +857,7 @@ func main() {
 
 	// Flags.
 	rootCmd.PersistentFlags().StringVarP(&pmm.ConfigFile, "config-file", "c", pmm.ConfigFile, "PMM config file")
+	rootCmd.PersistentFlags().BoolVarP(&admin.Verbose, "verbose", "", false, "verbose output")
 	rootCmd.Flags().BoolVarP(&flagVersion, "version", "v", false, "show version")
 
 	cmdConfig.Flags().StringVar(&flagC.ServerAddress, "server", "", "PMM server address, optionally following with the :port (default port 80 or 443 if using SSL)")

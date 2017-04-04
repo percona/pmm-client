@@ -301,7 +301,7 @@ func (a *Admin) isPasswordProtected(svcType string, port int) bool {
 	if a.isSSLProtected(svcType, port) {
 		scheme = "https"
 		// Enforce InsecureSkipVerify true to bypass err and check http code.
-		api = NewAPI(true, apiTimeout)
+		api = NewAPI(true, apiTimeout, a.Verbose)
 	}
 	url := api.URL(fmt.Sprintf("%s://%s:%d", scheme, a.Config.BindAddress, port), urlPath)
 	if resp, _, err := api.Get(url); err == nil && resp.StatusCode == http.StatusUnauthorized {
