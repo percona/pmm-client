@@ -90,7 +90,7 @@ func TestPmmAdmin(t *testing.T) {
 	tests := []func(*testing.T, pmmAdminData){
 		testVersion,
 		testConfig,
-    testConfigVerbose,
+		testConfigVerbose,
 		testStartStopRestartAllWithNoServices,
 		testStartStopRestartAllWithServices,
 	}
@@ -174,11 +174,11 @@ func testConfig(t *testing.T, data pmmAdminData) {
 
 func testConfigVerbose(t *testing.T, data pmmAdminData) {
 	defer func() {
-		err := os.RemoveAll(data.basedir)
+		err := os.RemoveAll(data.rootDir)
 		assert.Nil(t, err)
 	}()
 
-	os.MkdirAll(data.basedir+"/pmm-client", 0777)
+	os.MkdirAll(data.rootDir+pmm.PMMBaseDir, 0777)
 
 	// Create fake api server
 	api := fakeapi.New()
@@ -266,20 +266,6 @@ func testConfigVerbose(t *testing.T, data pmmAdminData) {
 	assert.Equal(t, "< X-Remote-Ip: 127.0.0.1\n", cmdTest.ReadLine())
 	assert.Equal(t, "< \n", cmdTest.ReadLine())
 	assert.Equal(t, "< \"127.0.0.1:8300\"\n", cmdTest.ReadLine())
-	assert.Regexp(t, ".+ request:\n", cmdTest.ReadLine())
-	assert.Regexp(t, "> GET /v1/catalog/node/.+ HTTP/1.1\n", cmdTest.ReadLine())
-	assert.Regexp(t, "> Host: .+\n", cmdTest.ReadLine())
-	assert.Equal(t, "> User-Agent: Go-http-client/1.1\n", cmdTest.ReadLine())
-	assert.Equal(t, "> Accept-Encoding: gzip\n", cmdTest.ReadLine())
-	assert.Equal(t, "> \n", cmdTest.ReadLine())
-	assert.Equal(t, "> \n", cmdTest.ReadLine())
-	assert.Regexp(t, ".+ response:\n", cmdTest.ReadLine())
-	assert.Equal(t, "< HTTP/1.1 200 OK\n", cmdTest.ReadLine())
-	assert.Equal(t, "< Content-Length: 92\n", cmdTest.ReadLine())
-	assert.Equal(t, "< Content-Type: text/plain; charset=utf-8\n", cmdTest.ReadLine())
-	assert.Regexp(t, "< Date: .+\n", cmdTest.ReadLine())
-	assert.Equal(t, "< \n", cmdTest.ReadLine())
-	assert.Equal(t, "< {\"Node\":{\"ID\":\"\",\"Node\":\"\",\"Address\":\"\",\"TaggedAddresses\":null,\"Meta\":null},\"Services\":null}\n", cmdTest.ReadLine())
 
 	// stdout
 	assert.Equal(t, "OK, PMM server is alive.\n", cmdTest.ReadLine())
