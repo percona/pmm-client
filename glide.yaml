@@ -1,0 +1,33 @@
+package: github.com/percona/pmm-client
+import:
+- package: github.com/fatih/color
+- package: github.com/go-sql-driver/mysql
+- package: github.com/hashicorp/consul
+  subpackages:
+  - api
+- package: github.com/percona/go-mysql
+  subpackages:
+  - dsn
+- package: github.com/percona/kardianos-service
+- package: github.com/percona/pmm
+  subpackages:
+  - proto
+  - proto/config
+- package: github.com/prometheus/client_golang
+  subpackages:
+  - api/prometheus
+- package: github.com/spf13/cobra
+- package: golang.org/x/net
+  subpackages:
+  - context
+- package: gopkg.in/mgo.v2
+- package: gopkg.in/yaml.v2
+- package: github.com/percona/pmgo
+testImport:
+- package: github.com/smartystreets/goconvey
+  subpackages:
+  - convey
+- package: github.com/stretchr/testify
+  subpackages:
+  - assert
+- package: gopkg.in/DATA-DOG/go-sqlmock.v1
