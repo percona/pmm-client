@@ -74,7 +74,8 @@ func TestAdmin_StartStopQAN(t *testing.T) {
 	admin := &Admin{}
 	insecureFlag := true
 	timeout := 1 * time.Second
-	admin.qanAPI = NewAPI(insecureFlag, timeout)
+	debug := false
+	admin.qanAPI = NewAPI(insecureFlag, timeout, debug)
 
 	// point pmm-admin to fake http api
 	admin.serverURL = u.Host
