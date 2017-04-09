@@ -67,12 +67,17 @@ var (
 			switch cmd.Name() {
 			case
 				"info",
-				"start",
-				"stop",
-				"restart",
 				"show-passwords":
 				// above cmds should work w/o connectivity, so we return before admin.SetAPI()
 				return
+			case
+				"start",
+				"stop",
+				"restart":
+				if flagAll {
+					// above cmds should work w/o connectivity if flagAll is set
+					return
+				}
 			}
 
 			// Set APIs and check if server is alive.
