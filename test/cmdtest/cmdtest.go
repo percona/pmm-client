@@ -107,7 +107,6 @@ func (c *CmdTest) run() <-chan string {
 
 				for i := range lines {
 					line := string(lines[i])
-					//log.Printf("%#v", line)
 					output <- line
 				}
 			}

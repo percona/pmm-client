@@ -3,6 +3,12 @@
 	"ignore": "",
 	"package": [
 		{
+			"checksumSHA1": "gfezizkSsyRKf5eTaCEC9BjorPs=",
+			"path": "github.com/beevik/ntp",
+			"revision": "cb3dae3a7588ae35829eb5724df611cd75152fba",
+			"revisionTime": "2017-03-23T03:30:58Z"
+		},
+		{
 			"checksumSHA1": "nX1W2xXs8wsF/UNlO+2fWXO2D60=",
 			"path": "github.com/fatih/color",
 			"revision": "bf82308e8c8546dc2b945157173eb8a959ae9505",

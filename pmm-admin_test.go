@@ -94,6 +94,7 @@ func TestPmmAdmin(t *testing.T) {
 		testStartStopRestartAllWithNoServices,
 		testStartStopRestartAllWithServices,
 		testStartStopRestartNoServiceFound,
+		testCheckNetwork,
 	}
 	t.Run("pmm-admin", func(t *testing.T) {
 		for _, f := range tests {
@@ -234,6 +235,7 @@ func testConfigVerbose(t *testing.T, data pmmAdminData) {
 	assert.Equal(t, "< Content-Type: text/plain; charset=utf-8\n", cmdTest.ReadLine())
 	assert.Regexp(t, "< Date: .+\n", cmdTest.ReadLine())
 	assert.Equal(t, "< X-Remote-Ip: 127.0.0.1\n", cmdTest.ReadLine())
+	assert.Regexp(t, "< X-Server-Time: .+\n", cmdTest.ReadLine())
 	assert.Equal(t, "< \n", cmdTest.ReadLine())
 	assert.Equal(t, "< \"127.0.0.1:8300\"\n", cmdTest.ReadLine())
 
@@ -265,6 +267,7 @@ func testConfigVerbose(t *testing.T, data pmmAdminData) {
 	assert.Equal(t, "< Content-Type: text/plain; charset=utf-8\n", cmdTest.ReadLine())
 	assert.Regexp(t, "< Date: .+\n", cmdTest.ReadLine())
 	assert.Equal(t, "< X-Remote-Ip: 127.0.0.1\n", cmdTest.ReadLine())
+	assert.Regexp(t, "< X-Server-Time: .+\n", cmdTest.ReadLine())
 	assert.Equal(t, "< \n", cmdTest.ReadLine())
 	assert.Equal(t, "< \"127.0.0.1:8300\"\n", cmdTest.ReadLine())
 
@@ -498,8 +501,8 @@ func testStartStopRestartNoServiceFound(t *testing.T, data pmmAdminData) {
 	pmmConfig := pmm.Config{
 		ServerAddress: fmt.Sprintf("%s:%s", api.Host(), api.Port()),
 		ClientName:    clientName,
-		ClientAddress: api.URL(),
-		BindAddress:   api.URL(),
+		ClientAddress: "localhost",
+		BindAddress:   "localhost",
 	}
 	bytes, _ := yaml.Marshal(pmmConfig)
 	ioutil.WriteFile(data.rootDir+pmm.PMMBaseDir+"/pmm.yml", bytes, 0600)
@@ -561,4 +564,100 @@ func testStartStopRestartNoServiceFound(t *testing.T, data pmmAdminData) {
 
 		assert.Equal(t, []string{}, cmdTest.Output()) // No more data
 	})
+}
+
+func testCheckNetwork(t *testing.T, data pmmAdminData) {
+	defer func() {
+		err := os.RemoveAll(data.rootDir)
+		assert.Nil(t, err)
+	}()
+
+	// Create fake api server
+	api := fakeapi.New()
+	clientName, _ := os.Hostname()
+	api.AppendRoot()
+	api.AppendPrometheusAPIV1Query()
+	api.AppendQanAPIPing()
+	api.AppendConsulV1StatusLeader(api.Host())
+	api.AppendConsulV1CatalogNode()
+
+	// Create fake filesystem
+	os.MkdirAll(data.rootDir+pmm.PMMBaseDir, 0777)
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/node_exporter")
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/mysqld_exporter")
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/mongodb_exporter")
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/proxysql_exporter")
+
+	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/bin", 0777)
+	os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent")
+	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/config", 0777)
+	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/instance", 0777)
+
+	f, _ := os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent-installer")
+	f.WriteString("#!/bin/sh\n")
+	f.WriteString("echo 'it works'")
+	f.Close()
+	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
+
+	f, _ = os.Create(data.rootDir + pmm.AgentBaseDir + "/config/agent.conf")
+	f.WriteString(`{"UUID":"42","ApiHostname":"somehostname","ApiPath":"/qan-api","ServerUser":"pmm"}`)
+	f.WriteString("\n")
+	f.Close()
+	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
+
+	pmmConfig := pmm.Config{
+		ServerAddress: fmt.Sprintf("%s:%s", api.Host(), api.Port()),
+		ClientName:    clientName,
+		ClientAddress: "localhost",
+		BindAddress:   "localhost",
+	}
+	bytes, _ := yaml.Marshal(pmmConfig)
+	ioutil.WriteFile(data.rootDir+pmm.PMMBaseDir+"/pmm.yml", bytes, 0600)
+
+	// Test the command
+	{
+		cmd := exec.Command(
+			data.bin,
+			"check-network",
+		)
+
+		cmdTest := cmdtest.New(cmd)
+		if err := cmd.Start(); err != nil {
+			log.Fatal(err)
+		}
+		err := cmd.Wait()
+		assert.Nil(t, err)
+
+		assert.Equal(t, "PMM Network Status\n", cmdTest.ReadLine())
+		assert.Equal(t, "\n", cmdTest.ReadLine())
+		assert.Regexp(t, "Server Address | .*\n", cmdTest.ReadLine())
+		assert.Regexp(t, "Client Address | .*\n", cmdTest.ReadLine())
+		assert.Equal(t, "\n", cmdTest.ReadLine())
+		assert.Equal(t, "* System Time\n", cmdTest.ReadLine())
+		assert.Regexp(t, "NTP Server (0.pool.ntp.org)         | .*\n", cmdTest.ReadLine())
+		assert.Regexp(t, "PMM Server                          | .*\n", cmdTest.ReadLine())
+		assert.Regexp(t, "PMM Client                          | .*\n", cmdTest.ReadLine())
+		assert.Equal(t, "PMM Server Time Drift               | OK\n", cmdTest.ReadLine())
+		assert.Equal(t, "PMM Client Time Drift               | OK\n", cmdTest.ReadLine())
+		assert.Equal(t, "PMM Client to PMM Server Time Drift | OK\n", cmdTest.ReadLine())
+		assert.Equal(t, "\n", cmdTest.ReadLine())
+		assert.Equal(t, "* Connection: Client --> Server\n", cmdTest.ReadLine())
+		assert.Equal(t, "-------------------- -------      \n", cmdTest.ReadLine())
+		assert.Equal(t, "SERVER SERVICE       STATUS       \n", cmdTest.ReadLine())
+		assert.Equal(t, "-------------------- -------      \n", cmdTest.ReadLine())
+		assert.Equal(t, "Consul API           OK           \n", cmdTest.ReadLine())
+		assert.Equal(t, "Prometheus API       OK           \n", cmdTest.ReadLine())
+		assert.Equal(t, "Query Analytics API  OK           \n", cmdTest.ReadLine())
+		assert.Equal(t, "\n", cmdTest.ReadLine())
+		assert.Regexp(t, "Connection duration | .*         \n", cmdTest.ReadLine())
+		assert.Regexp(t, "Request duration    | .*         \n", cmdTest.ReadLine())
+		assert.Regexp(t, "Full round trip     | .*         \n", cmdTest.ReadLine())
+		assert.Equal(t, "\n", cmdTest.ReadLine())
+		assert.Equal(t, "\n", cmdTest.ReadLine())
+		assert.Equal(t, "* Connection: Client <-- Server\n", cmdTest.ReadLine())
+		assert.Equal(t, "No metric endpoints registered.\n", cmdTest.ReadLine())
+		assert.Equal(t, "\n", cmdTest.ReadLine())
+
+		assert.Equal(t, []string{}, cmdTest.Output()) // No more data
+	}
 }
