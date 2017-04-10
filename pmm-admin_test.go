@@ -313,7 +313,7 @@ func testConfigVerboseServerNotAvailable(t *testing.T, data pmmAdminData) {
 	assert.Equal(t, "> \n", cmdTest.ReadLine())
 	// ... and then error message
 	assert.Equal(t, "Unable to connect to PMM server by address: xyz\n", cmdTest.ReadLine())
-	assert.Equal(t, "Get http://xyz: dial tcp: lookup xyz: no such host\n", cmdTest.ReadLine())
+	assert.Regexp(t, "Get http://xyz: dial tcp: lookup xyz.*: no such host\n", cmdTest.ReadLine())
 	assert.Equal(t, "\n", cmdTest.ReadLine())
 	assert.Equal(t, "* Check if the configured address is correct.\n", cmdTest.ReadLine())
 	assert.Equal(t, "* If server is running on non-default port, ensure it was specified along with the address.\n", cmdTest.ReadLine())
