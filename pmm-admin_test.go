@@ -91,6 +91,7 @@ func TestPmmAdmin(t *testing.T) {
 		testVersion,
 		testConfig,
 		testConfigVerbose,
+		testConfigVerboseServerNotAvailable,
 		testStartStopRestartAllWithNoServices,
 		testStartStopRestartAllWithServices,
 		testStartStopRestartNoServiceFound,
@@ -274,6 +275,50 @@ func testConfigVerbose(t *testing.T, data pmmAdminData) {
 	assert.Equal(t, fmt.Sprintf("%-15s | %s \n", "PMM Server", u.Host), cmdTest.ReadLine())
 	assert.Equal(t, fmt.Sprintf("%-15s | %s\n", "Client Name", clientName), cmdTest.ReadLine())
 	assert.Equal(t, fmt.Sprintf("%-15s | %s \n", "Client Address", clientAddress), cmdTest.ReadLine())
+
+	assert.Equal(t, []string{}, cmdTest.Output()) // No more data
+}
+
+func testConfigVerboseServerNotAvailable(t *testing.T, data pmmAdminData) {
+	defer func() {
+		err := os.RemoveAll(data.rootDir)
+		assert.Nil(t, err)
+	}()
+
+	os.MkdirAll(data.rootDir+pmm.PMMBaseDir, 0777)
+
+	cmd := exec.Command(
+		data.bin,
+		"config",
+		"--verbose",
+		"--server",
+		"xyz",
+	)
+
+	cmdTest := cmdtest.New(cmd)
+	if err := cmd.Start(); err != nil {
+		log.Fatal(err)
+	}
+	err := cmd.Wait()
+	assert.Error(t, err)
+
+	// with --verbose flag we should have bunch of http requests to server
+	// however api is unavailable, so `--verbose` prints only request...
+	assert.Regexp(t, ".+ request:\n", cmdTest.ReadLine())
+	assert.Equal(t, "> GET / HTTP/1.1\n", cmdTest.ReadLine())
+	assert.Regexp(t, "> Host: .+\n", cmdTest.ReadLine())
+	assert.Equal(t, "> User-Agent: Go-http-client/1.1\n", cmdTest.ReadLine())
+	assert.Equal(t, "> Accept-Encoding: gzip\n", cmdTest.ReadLine())
+	assert.Equal(t, "> \n", cmdTest.ReadLine())
+	assert.Equal(t, "> \n", cmdTest.ReadLine())
+	// ... and then error message
+	assert.Equal(t, "Unable to connect to PMM server by address: xyz\n", cmdTest.ReadLine())
+	assert.Regexp(t, "Get http://xyz: dial tcp: lookup xyz.*: no such host\n", cmdTest.ReadLine())
+	assert.Equal(t, "\n", cmdTest.ReadLine())
+	assert.Equal(t, "* Check if the configured address is correct.\n", cmdTest.ReadLine())
+	assert.Equal(t, "* If server is running on non-default port, ensure it was specified along with the address.\n", cmdTest.ReadLine())
+	assert.Equal(t, "* If server is enabled for SSL or self-signed SSL, enable the corresponding option.\n", cmdTest.ReadLine())
+	assert.Equal(t, "* You may also check the firewall settings.\n", cmdTest.ReadLine())
 
 	assert.Equal(t, []string{}, cmdTest.Output()) // No more data
 }
