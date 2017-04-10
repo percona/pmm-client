@@ -41,7 +41,10 @@ type verboseRoundTripper struct {
 func (v *verboseRoundTripper) RoundTrip(req *http.Request) (resp *http.Response, err error) {
 	resp, err = v.parent.RoundTrip(req)
 	log.Printf("request:\n%s", dumpRequest(req))
-	log.Printf("response:\n%s", dumpResponse(resp))
+	if err == nil {
+		// we can process response only if there was no error
+		log.Printf("response:\n%s", dumpResponse(resp))
+	}
 	return resp, err
 }
 
