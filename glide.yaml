@@ -23,6 +23,7 @@ import:
 - package: gopkg.in/mgo.v2
 - package: gopkg.in/yaml.v2
 - package: github.com/percona/pmgo
+- package: github.com/beevik/ntp
 testImport:
 - package: github.com/smartystreets/goconvey
   subpackages:
