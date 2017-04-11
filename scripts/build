@@ -24,9 +24,12 @@ echo
 # Default build for linux, not Darwin.
 export GOOS=linux
 
+# Get `glide` package manager
+go get -u github.com/Masterminds/glide
+
 printf "Building pmm-admin...\t\t"
 echo $(git log -1 --format="%d %cd")
-govendor sync
+glide install
 go build -ldflags "-X github.com/percona/pmm-client/pmm.Version=$VERSION" -o distro/bin/pmm-admin
 
 printf "Building percona-qan-agent...\t"

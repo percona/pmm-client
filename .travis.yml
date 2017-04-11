@@ -11,6 +11,10 @@ services:
 notifications:
   email: false
 
+install:
+  - go get -u github.com/Masterminds/glide
+  - glide install
+
 script:
   # Magical command `go list ./... | grep -v /vendor/` is required to skip vendor folder when using `./...` pattern
   # https://github.com/golang/go/issues/19090

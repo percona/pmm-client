@@ -30,6 +30,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hashicorp/consul/api"
 	"github.com/percona/pmm-client/pmm"
 	"github.com/percona/pmm-client/test/cmdtest"
 	"github.com/percona/pmm-client/test/fakeapi"
@@ -91,6 +92,8 @@ func TestPmmAdmin(t *testing.T) {
 		testVersion,
 		testConfig,
 		testConfigVerbose,
+		testConfigVerboseServerNotAvailable,
+		testStartStopRestart,
 		testStartStopRestartAllWithNoServices,
 		testStartStopRestartAllWithServices,
 		testStartStopRestartNoServiceFound,
@@ -143,13 +146,16 @@ func testConfig(t *testing.T, data pmmAdminData) {
 	os.MkdirAll(data.rootDir+pmm.PMMBaseDir, 0777)
 
 	// Create fake api server
-	api := fakeapi.New()
-	u, _ := url.Parse(api.URL())
+	fapi := fakeapi.New()
+	u, _ := url.Parse(fapi.URL())
 	clientAddress, _, _ := net.SplitHostPort(u.Host)
 	clientName, _ := os.Hostname()
-	api.AppendRoot()
-	api.AppendConsulV1StatusLeader(clientAddress)
-	api.AppendConsulV1CatalogNode()
+	fapi.AppendRoot()
+	fapi.AppendConsulV1StatusLeader(clientAddress)
+	node := api.CatalogNode{
+		Node: &api.Node{},
+	}
+	fapi.AppendConsulV1CatalogNode(clientName, node)
 
 	cmd := exec.Command(
 		data.bin,
@@ -183,13 +189,16 @@ func testConfigVerbose(t *testing.T, data pmmAdminData) {
 	os.MkdirAll(data.rootDir+pmm.PMMBaseDir, 0777)
 
 	// Create fake api server
-	api := fakeapi.New()
-	u, _ := url.Parse(api.URL())
+	fapi := fakeapi.New()
+	u, _ := url.Parse(fapi.URL())
 	clientAddress, _, _ := net.SplitHostPort(u.Host)
 	clientName, _ := os.Hostname()
-	api.AppendRoot()
-	api.AppendConsulV1StatusLeader(clientAddress)
-	api.AppendConsulV1CatalogNode()
+	fapi.AppendRoot()
+	fapi.AppendConsulV1StatusLeader(clientAddress)
+	node := api.CatalogNode{
+		Node: &api.Node{},
+	}
+	fapi.AppendConsulV1CatalogNode(clientName, node)
 
 	cmd := exec.Command(
 		data.bin,
@@ -281,6 +290,50 @@ func testConfigVerbose(t *testing.T, data pmmAdminData) {
 	assert.Equal(t, []string{}, cmdTest.Output()) // No more data
 }
 
+func testConfigVerboseServerNotAvailable(t *testing.T, data pmmAdminData) {
+	defer func() {
+		err := os.RemoveAll(data.rootDir)
+		assert.Nil(t, err)
+	}()
+
+	os.MkdirAll(data.rootDir+pmm.PMMBaseDir, 0777)
+
+	cmd := exec.Command(
+		data.bin,
+		"config",
+		"--verbose",
+		"--server",
+		"xyz",
+	)
+
+	cmdTest := cmdtest.New(cmd)
+	if err := cmd.Start(); err != nil {
+		log.Fatal(err)
+	}
+	err := cmd.Wait()
+	assert.Error(t, err)
+
+	// with --verbose flag we should have bunch of http requests to server
+	// however api is unavailable, so `--verbose` prints only request...
+	assert.Regexp(t, ".+ request:\n", cmdTest.ReadLine())
+	assert.Equal(t, "> GET / HTTP/1.1\n", cmdTest.ReadLine())
+	assert.Regexp(t, "> Host: .+\n", cmdTest.ReadLine())
+	assert.Equal(t, "> User-Agent: Go-http-client/1.1\n", cmdTest.ReadLine())
+	assert.Equal(t, "> Accept-Encoding: gzip\n", cmdTest.ReadLine())
+	assert.Equal(t, "> \n", cmdTest.ReadLine())
+	assert.Equal(t, "> \n", cmdTest.ReadLine())
+	// ... and then error message
+	assert.Equal(t, "Unable to connect to PMM server by address: xyz\n", cmdTest.ReadLine())
+	assert.Regexp(t, "Get http://xyz: dial tcp: lookup xyz.*: no such host\n", cmdTest.ReadLine())
+	assert.Equal(t, "\n", cmdTest.ReadLine())
+	assert.Equal(t, "* Check if the configured address is correct.\n", cmdTest.ReadLine())
+	assert.Equal(t, "* If server is running on non-default port, ensure it was specified along with the address.\n", cmdTest.ReadLine())
+	assert.Equal(t, "* If server is enabled for SSL or self-signed SSL, enable the corresponding option.\n", cmdTest.ReadLine())
+	assert.Equal(t, "* You may also check the firewall settings.\n", cmdTest.ReadLine())
+
+	assert.Equal(t, []string{}, cmdTest.Output()) // No more data
+}
+
 func testStartStopRestartAllWithNoServices(t *testing.T, data pmmAdminData) {
 	defer func() {
 		err := os.RemoveAll(data.rootDir)
@@ -350,6 +403,134 @@ func testStartStopRestartAllWithNoServices(t *testing.T, data pmmAdminData) {
 	})
 }
 
+func testStartStopRestart(t *testing.T, data pmmAdminData) {
+	defer func() {
+		err := os.RemoveAll(data.rootDir)
+		assert.Nil(t, err)
+	}()
+
+	svcName := "mysql:queries"
+
+	// Create fake api server
+	fapi := fakeapi.New()
+	u, _ := url.Parse(fapi.URL())
+	serverAddress, _, _ := net.SplitHostPort(u.Host)
+	clientName := "test-client-name"
+	fapi.AppendRoot()
+	fapi.AppendConsulV1StatusLeader(serverAddress)
+	node := api.CatalogNode{
+		Node: &api.Node{},
+		Services: map[string]*api.AgentService{
+			"a": {
+				ID:      "id",
+				Service: svcName,
+				Port:    0,
+				Tags: []string{
+					fmt.Sprintf("alias_%s", clientName),
+				},
+			},
+		},
+	}
+	fapi.AppendConsulV1CatalogNode(clientName, node)
+
+	os.MkdirAll(data.rootDir+pmm.PMMBaseDir, 0777)
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/node_exporter")
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/mysqld_exporter")
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/mongodb_exporter")
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/proxysql_exporter")
+
+	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/bin", 0777)
+	os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent")
+	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/config", 0777)
+	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/instance", 0777)
+
+	f, _ := os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent-installer")
+	f.WriteString("#!/bin/sh\n")
+	f.WriteString("echo 'it works'")
+	f.Close()
+	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
+
+	f, _ = os.Create(data.rootDir + pmm.AgentBaseDir + "/config/agent.conf")
+	f.WriteString(`{"UUID":"42","ApiHostname":"somehostname","ApiPath":"/qan-api","ServerUser":"pmm"}`)
+	f.WriteString("\n")
+	f.Close()
+	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
+
+	pmmConfig := pmm.Config{
+		ServerAddress: fmt.Sprintf("%s:%s", fapi.Host(), fapi.Port()),
+		ClientName:    clientName,
+		ClientAddress: "empty",
+		BindAddress:   "data",
+	}
+	bytes, _ := yaml.Marshal(pmmConfig)
+	ioutil.WriteFile(data.rootDir+pmm.PMMBaseDir+"/pmm.yml", bytes, 0600)
+
+	// create fake system service
+	{
+		dir, extension := pmm.GetServiceDirAndExtension()
+		os.MkdirAll(data.rootDir+dir, 0777)
+		name := fmt.Sprintf("pmm-mysql-queries-0%s", extension)
+		os.Create(data.rootDir + dir + "/" + name)
+	}
+
+	t.Run("start", func(t *testing.T) {
+		cmd := exec.Command(
+			data.bin,
+			"start",
+			svcName,
+		)
+
+		cmdTest := cmdtest.New(cmd)
+		if err := cmd.Start(); err != nil {
+			log.Fatal(err)
+		}
+		err := cmd.Wait()
+		assert.Nil(t, err)
+
+		assert.Equal(t, fmt.Sprintf("OK, service %s already %s for %s.\n", svcName, "started", clientName), cmdTest.ReadLine())
+
+		assert.Equal(t, []string{}, cmdTest.Output()) // No more data
+	})
+
+	t.Run("stop", func(t *testing.T) {
+		cmd := exec.Command(
+			data.bin,
+			"stop",
+			svcName,
+		)
+
+		cmdTest := cmdtest.New(cmd)
+		if err := cmd.Start(); err != nil {
+			log.Fatal(err)
+		}
+		err := cmd.Wait()
+		assert.Nil(t, err)
+
+		assert.Equal(t, fmt.Sprintf("OK, %s %s service for %s.\n", "stopped", svcName, clientName), cmdTest.ReadLine())
+
+		assert.Equal(t, []string{}, cmdTest.Output()) // No more data
+	})
+
+	t.Run("restart", func(t *testing.T) {
+		cmd := exec.Command(
+			data.bin,
+			"restart",
+			svcName,
+		)
+
+		cmdTest := cmdtest.New(cmd)
+		if err := cmd.Start(); err != nil {
+			log.Fatal(err)
+		}
+		err := cmd.Wait()
+		assert.Nil(t, err)
+
+		assert.Equal(t, fmt.Sprintf("OK, %s %s service for %s.\n", "restarted", svcName, clientName), cmdTest.ReadLine())
+
+		assert.Equal(t, []string{}, cmdTest.Output()) // No more data
+	})
+}
+
 func testStartStopRestartAllWithServices(t *testing.T, data pmmAdminData) {
 	defer func() {
 		err := os.RemoveAll(data.rootDir)
@@ -394,11 +575,7 @@ func testStartStopRestartAllWithServices(t *testing.T, data pmmAdminData) {
 		dir, extension := pmm.GetServiceDirAndExtension()
 		os.MkdirAll(data.rootDir+dir, 0777)
 		for i := 0; i < numOfServices; i++ {
-			name := fmt.Sprintf("pmm-service-%d.%s", i, extension)
-			if extension == "" {
-				name = fmt.Sprintf("pmm-service-%d", i)
-			}
-
+			name := fmt.Sprintf("pmm-service-%d%s", i, extension)
 			os.Create(data.rootDir + dir + "/" + name)
 		}
 	}
@@ -468,11 +645,14 @@ func testStartStopRestartNoServiceFound(t *testing.T, data pmmAdminData) {
 	}()
 
 	// Create fake api server
-	api := fakeapi.New()
+	fapi := fakeapi.New()
 	clientName, _ := os.Hostname()
-	api.AppendRoot()
-	api.AppendConsulV1StatusLeader(api.Host())
-	api.AppendConsulV1CatalogNode()
+	fapi.AppendRoot()
+	fapi.AppendConsulV1StatusLeader(fapi.Host())
+	node := api.CatalogNode{
+		Node: &api.Node{},
+	}
+	fapi.AppendConsulV1CatalogNode(clientName, node)
 
 	// Create fake filesystem
 	os.MkdirAll(data.rootDir+pmm.PMMBaseDir, 0777)
@@ -499,7 +679,7 @@ func testStartStopRestartNoServiceFound(t *testing.T, data pmmAdminData) {
 	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
 
 	pmmConfig := pmm.Config{
-		ServerAddress: fmt.Sprintf("%s:%s", api.Host(), api.Port()),
+		ServerAddress: fmt.Sprintf("%s:%s", fapi.Host(), fapi.Port()),
 		ClientName:    clientName,
 		ClientAddress: "localhost",
 		BindAddress:   "localhost",

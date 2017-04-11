@@ -42,7 +42,6 @@ import (
 	consul "github.com/hashicorp/consul/api"
 	"github.com/percona/kardianos-service"
 	"github.com/prometheus/client_golang/api/prometheus"
-	//"golang.org/x/net/context"
 )
 
 // Admin main class.
@@ -209,9 +208,9 @@ func (a *Admin) ServerInfo() {
 }
 
 // StartStopMonitoring start/stop system service by its metric type and name.
-func (a *Admin) StartStopMonitoring(action, svcType string) error {
+func (a *Admin) StartStopMonitoring(action, svcType string) (affected bool, err error) {
 	if svcType != "linux:metrics" && svcType != "mysql:metrics" && svcType != "mysql:queries" && svcType != "mongodb:metrics" && svcType != "proxysql:metrics" {
-		return errors.New(`bad service type.
+		return false, errors.New(`bad service type.
 
 Service type takes the following values: linux:metrics, mysql:metrics, mysql:queries, mongodb:metrics, proxysql:metrics.`)
 	}
@@ -219,32 +218,40 @@ Service type takes the following values: linux:metrics, mysql:metrics, mysql:que
 	// Check if we have this service on Consul.
 	consulSvc, err := a.getConsulService(svcType, a.ServiceName)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if consulSvc == nil {
-		return ErrNoService
+		return false, ErrNoService
 	}
 
 	svcName := fmt.Sprintf("pmm-%s-%d", strings.Replace(svcType, ":", "-", 1), consulSvc.Port)
 	switch action {
 	case "start":
+		if getServiceStatus(svcName) {
+			// if it's already started then return
+			return false, nil
+		}
 		if err := startService(svcName); err != nil {
-			return err
+			return false, err
 		}
 	case "stop":
+		if !getServiceStatus(svcName) {
+			// if it's already stopped then return
+			return false, nil
+		}
 		if err := stopService(svcName); err != nil {
-			return err
+			return false, err
 		}
 	case "restart":
 		if err := stopService(svcName); err != nil {
-			return err
+			return false, err
 		}
 		if err := startService(svcName); err != nil {
-			return err
+			return false, err
 		}
 	}
 
-	return nil
+	return true, nil
 }
 
 // StartStopAllMonitoring start/stop all metric services.
@@ -610,6 +617,9 @@ func GetServiceDirAndExtension() (dir, extension string) {
 	case "unix-systemv":
 		dir = "/etc/init.d"
 		extension = ""
+	case "darwin-launchd":
+		dir = "/Library/LaunchDaemons"
+		extension = ".plist"
 	}
 
 	return RootDir + dir, extension
