@@ -64,12 +64,9 @@ func (f *FakeApi) AppendConsulV1StatusLeader(xRemoteIP string) {
 	})
 }
 
-func (f *FakeApi) AppendConsulV1CatalogNode() {
-	f.Append("/v1/catalog/node/", func(w http.ResponseWriter, r *http.Request) {
-		out := api.CatalogNode{
-			Node: &api.Node{},
-		}
-		data, _ := json.Marshal(out)
+func (f *FakeApi) AppendConsulV1CatalogNode(name string, node api.CatalogNode) {
+	f.Append("/v1/catalog/node/"+name, func(w http.ResponseWriter, r *http.Request) {
+		data, _ := json.Marshal(node)
 		w.WriteHeader(http.StatusOK)
 		w.Write(data)
 	})
