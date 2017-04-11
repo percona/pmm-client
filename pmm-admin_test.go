@@ -753,13 +753,16 @@ func testCheckNetwork(t *testing.T, data pmmAdminData) {
 	}()
 
 	// Create fake api server
-	api := fakeapi.New()
+	fapi := fakeapi.New()
 	clientName, _ := os.Hostname()
-	api.AppendRoot()
-	api.AppendPrometheusAPIV1Query()
-	api.AppendQanAPIPing()
-	api.AppendConsulV1StatusLeader(api.Host())
-	api.AppendConsulV1CatalogNode()
+	fapi.AppendRoot()
+	fapi.AppendPrometheusAPIV1Query()
+	fapi.AppendQanAPIPing()
+	fapi.AppendConsulV1StatusLeader(fapi.Host())
+	node := api.CatalogNode{
+		Node: &api.Node{},
+	}
+	fapi.AppendConsulV1CatalogNode(clientName, node)
 
 	// Create fake filesystem
 	os.MkdirAll(data.rootDir+pmm.PMMBaseDir, 0777)
@@ -786,7 +789,7 @@ func testCheckNetwork(t *testing.T, data pmmAdminData) {
 	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
 
 	pmmConfig := pmm.Config{
-		ServerAddress: fmt.Sprintf("%s:%s", api.Host(), api.Port()),
+		ServerAddress: fmt.Sprintf("%s:%s", fapi.Host(), fapi.Port()),
 		ClientName:    clientName,
 		ClientAddress: "localhost",
 		BindAddress:   "localhost",
