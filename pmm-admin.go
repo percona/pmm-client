@@ -669,11 +669,16 @@ please check the firewall settings whether this system allows incoming connectio
 				admin.ServiceName = args[1]
 			}
 
-			if err := admin.StartStopMonitoring("start", svcType); err != nil {
+			affected, err := admin.StartStopMonitoring("start", svcType)
+			if err != nil {
 				fmt.Printf("Error starting %s service for %s: %s\n", svcType, admin.ServiceName, err)
 				os.Exit(1)
 			}
-			fmt.Printf("OK, started %s service for %s.\n", svcType, admin.ServiceName)
+			if affected {
+				fmt.Printf("OK, started %s service for %s.\n", svcType, admin.ServiceName)
+			} else {
+				fmt.Printf("OK, service %s already started for %s.\n", svcType, admin.ServiceName)
+			}
 		},
 	}
 	cmdStop = &cobra.Command{
@@ -715,11 +720,16 @@ please check the firewall settings whether this system allows incoming connectio
 				admin.ServiceName = args[1]
 			}
 
-			if err := admin.StartStopMonitoring("stop", svcType); err != nil {
+			affected, err := admin.StartStopMonitoring("stop", svcType)
+			if err != nil {
 				fmt.Printf("Error stopping %s service for %s: %s\n", svcType, admin.ServiceName, err)
 				os.Exit(1)
 			}
-			fmt.Printf("OK, stopped %s service for %s.\n", svcType, admin.ServiceName)
+			if affected {
+				fmt.Printf("OK, stopped %s service for %s.\n", svcType, admin.ServiceName)
+			} else {
+				fmt.Printf("OK, service %s already stopped for %s.\n", svcType, admin.ServiceName)
+			}
 		},
 	}
 	cmdRestart = &cobra.Command{
@@ -759,7 +769,7 @@ please check the firewall settings whether this system allows incoming connectio
 				admin.ServiceName = args[1]
 			}
 
-			if err := admin.StartStopMonitoring("restart", svcType); err != nil {
+			if _, err := admin.StartStopMonitoring("restart", svcType); err != nil {
 				fmt.Printf("Error restarting %s service for %s: %s\n", svcType, admin.ServiceName, err)
 				os.Exit(1)
 			}
