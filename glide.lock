@@ -1,6 +1,8 @@
-hash: 19569e6a7075a59ac3d8ef5c24e5467b60635af8faab8e6e4030dfecc5349f28
-updated: 2017-04-07T11:31:17.288182269+02:00
+hash: 6094e6b094eb6b63b2671514a92c5d8ba8946b853f6102b43b8cc0d11282848b
+updated: 2017-04-11T18:36:50.401531023+02:00
 imports:
+- name: github.com/beevik/ntp
+  version: cb3dae3a7588ae35829eb5724df611cd75152fba
 - name: github.com/fatih/color
   version: 7824417a424b65227be8ac9b14d545a7f3e6c3f0
 - name: github.com/go-sql-driver/mysql
