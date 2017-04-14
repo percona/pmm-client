@@ -596,6 +596,14 @@ func testStartStopRestartAllWithServices(t *testing.T, data pmmAdminData) {
 
 		assert.Equal(t, fmt.Sprintf("OK, all services already %s. Run 'pmm-admin list' to see monitoring services.\n", "started"), cmdTest.ReadLine())
 
+		assert.Regexp(t, "Unable to connect to PMM server by address: .*\n", cmdTest.ReadLine())
+		assert.Regexp(t, "Get http://.*: dial tcp: lookup .*: no such host\n", cmdTest.ReadLine())
+		assert.Equal(t, "\n", cmdTest.ReadLine())
+		assert.Equal(t, "* Check if the configured address is correct.\n", cmdTest.ReadLine())
+		assert.Equal(t, "* If server is running on non-default port, ensure it was specified along with the address.\n", cmdTest.ReadLine())
+		assert.Equal(t, "* If server is enabled for SSL or self-signed SSL, enable the corresponding option.\n", cmdTest.ReadLine())
+		assert.Equal(t, "* You may also check the firewall settings.\n", cmdTest.ReadLine())
+
 		assert.Equal(t, []string{}, cmdTest.Output()) // No more data
 	})
 
@@ -633,6 +641,14 @@ func testStartStopRestartAllWithServices(t *testing.T, data pmmAdminData) {
 		assert.Nil(t, err)
 
 		assert.Equal(t, fmt.Sprintf("OK, %s %d services.\n", "restarted", numOfServices), cmdTest.ReadLine())
+
+		assert.Regexp(t, "Unable to connect to PMM server by address: .*\n", cmdTest.ReadLine())
+		assert.Regexp(t, "Get http://.*: dial tcp: lookup .*: no such host\n", cmdTest.ReadLine())
+		assert.Equal(t, "\n", cmdTest.ReadLine())
+		assert.Equal(t, "* Check if the configured address is correct.\n", cmdTest.ReadLine())
+		assert.Equal(t, "* If server is running on non-default port, ensure it was specified along with the address.\n", cmdTest.ReadLine())
+		assert.Equal(t, "* If server is enabled for SSL or self-signed SSL, enable the corresponding option.\n", cmdTest.ReadLine())
+		assert.Equal(t, "* You may also check the firewall settings.\n", cmdTest.ReadLine())
 
 		assert.Equal(t, []string{}, cmdTest.Output()) // No more data
 	})
