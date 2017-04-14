@@ -69,12 +69,17 @@ var (
 			switch cmd.Name() {
 			case
 				"info",
-				"start",
-				"stop",
-				"restart",
 				"show-passwords":
 				// above cmds should work w/o connectivity, so we return before admin.SetAPI()
 				return
+			case
+				"start",
+				"stop",
+				"restart":
+				if flagAll {
+					// above cmds should work w/o connectivity if flagAll is set
+					return
+				}
 			}
 
 			// Set APIs and check if server is alive.
@@ -704,10 +709,16 @@ please check the firewall settings whether this system allows incoming connectio
 				}
 				if numOfAll == 0 {
 					fmt.Println("OK, no services found.")
-				} else if numOfAffected == 0 {
+					os.Exit(0)
+				}
+				if numOfAffected == 0 {
 					fmt.Println("OK, all services already started. Run 'pmm-admin list' to see monitoring services.")
 				} else {
 					fmt.Printf("OK, started %d services.\n", numOfAffected)
+				}
+				// check if server is alive.
+				if err := admin.SetAPI(); err != nil {
+					fmt.Printf("%s\n", err)
 				}
 				os.Exit(0)
 			}
@@ -724,11 +735,16 @@ please check the firewall settings whether this system allows incoming connectio
 				admin.ServiceName = args[1]
 			}
 
-			if err := admin.StartStopMonitoring("start", svcType); err != nil {
+			affected, err := admin.StartStopMonitoring("start", svcType)
+			if err != nil {
 				fmt.Printf("Error starting %s service for %s: %s\n", svcType, admin.ServiceName, err)
 				os.Exit(1)
 			}
-			fmt.Printf("OK, started %s service for %s.\n", svcType, admin.ServiceName)
+			if affected {
+				fmt.Printf("OK, started %s service for %s.\n", svcType, admin.ServiceName)
+			} else {
+				fmt.Printf("OK, service %s already started for %s.\n", svcType, admin.ServiceName)
+			}
 		},
 	}
 	cmdStop = &cobra.Command{
@@ -750,7 +766,9 @@ please check the firewall settings whether this system allows incoming connectio
 				}
 				if numOfAll == 0 {
 					fmt.Println("OK, no services found.")
-				} else if numOfAffected == 0 {
+					os.Exit(0)
+				}
+				if numOfAffected == 0 {
 					fmt.Println("OK, all services already stopped. Run 'pmm-admin list' to see monitoring services.")
 				} else {
 					fmt.Printf("OK, stopped %d services.\n", numOfAffected)
@@ -770,11 +788,16 @@ please check the firewall settings whether this system allows incoming connectio
 				admin.ServiceName = args[1]
 			}
 
-			if err := admin.StartStopMonitoring("stop", svcType); err != nil {
+			affected, err := admin.StartStopMonitoring("stop", svcType)
+			if err != nil {
 				fmt.Printf("Error stopping %s service for %s: %s\n", svcType, admin.ServiceName, err)
 				os.Exit(1)
 			}
-			fmt.Printf("OK, stopped %s service for %s.\n", svcType, admin.ServiceName)
+			if affected {
+				fmt.Printf("OK, stopped %s service for %s.\n", svcType, admin.ServiceName)
+			} else {
+				fmt.Printf("OK, service %s already stopped for %s.\n", svcType, admin.ServiceName)
+			}
 		},
 	}
 	cmdRestart = &cobra.Command{
@@ -796,8 +819,13 @@ please check the firewall settings whether this system allows incoming connectio
 				}
 				if numOfAll == 0 {
 					fmt.Println("OK, no services found.")
-				} else {
-					fmt.Printf("OK, restarted %d services.\n", numOfAffected)
+					os.Exit(0)
+				}
+
+				fmt.Printf("OK, restarted %d services.\n", numOfAffected)
+				// check if server is alive.
+				if err := admin.SetAPI(); err != nil {
+					fmt.Printf("%s\n", err)
 				}
 				os.Exit(0)
 			}
@@ -814,7 +842,7 @@ please check the firewall settings whether this system allows incoming connectio
 				admin.ServiceName = args[1]
 			}
 
-			if err := admin.StartStopMonitoring("restart", svcType); err != nil {
+			if _, err := admin.StartStopMonitoring("restart", svcType); err != nil {
 				fmt.Printf("Error restarting %s service for %s: %s\n", svcType, admin.ServiceName, err)
 				os.Exit(1)
 			}

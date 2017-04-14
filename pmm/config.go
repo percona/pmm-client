@@ -263,11 +263,11 @@ What ports to map you can find from "pmm-admin check-network" output once you ad
 			return fmt.Errorf("Unable to update agent config %s: %s", agentConfigFile, err)
 		}
 		// Restart QAN agent for MySQL.
-		if err := a.StartStopMonitoring("restart", "mysql:queries"); err != nil && err != ErrNoService {
+		if _, err := a.StartStopMonitoring("restart", "mysql:queries"); err != nil && err != ErrNoService {
 			return fmt.Errorf("Unable to restart queries service for MySQL: %s", err)
 		}
 		// Restart QAN agent for MongoDB.
-		if err := a.StartStopMonitoring("restart", "mongodb:queries"); err != nil && err != ErrNoService {
+		if _, err := a.StartStopMonitoring("restart", "mongodb:queries"); err != nil && err != ErrNoService {
 			return fmt.Errorf("Unable to restart queries service for MongoDB: %s", err)
 		}
 	}

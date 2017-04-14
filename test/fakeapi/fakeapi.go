@@ -18,8 +18,10 @@
 package fakeapi
 
 import (
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 )
 
 type FakeApi struct {
@@ -38,6 +40,21 @@ func (f *FakeApi) Close() {
 	f.testServer.Close()
 }
 
+// Host of the fake api
+func (f *FakeApi) Host() string {
+	u, _ := url.Parse(f.URL())
+	host, _, _ := net.SplitHostPort(u.Host)
+	return host
+}
+
+// Port of the fake api
+func (f *FakeApi) Port() string {
+	u, _ := url.Parse(f.URL())
+	_, port, _ := net.SplitHostPort(u.Host)
+	return port
+}
+
+// URL for the fake api
 func (f *FakeApi) URL() string {
 	return f.testServer.URL
 }
