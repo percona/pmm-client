@@ -443,6 +443,9 @@ func (a *Admin) registerAgent() error {
 	}
 	args = append(args, fmt.Sprintf("%s/%s", a.serverURL, qanAPIBasePath))
 	if _, err := exec.Command(path, args...).Output(); err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			return fmt.Errorf("problem with agent registration on QAN API: %s\n%s", err, exitErr.Stderr)
+		}
 		return fmt.Errorf("problem with agent registration on QAN API: %s", err)
 	}
 	return nil
