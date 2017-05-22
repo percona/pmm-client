@@ -34,6 +34,7 @@ import (
 	"github.com/percona/pmm-client/pmm"
 	"github.com/percona/pmm-client/test/cmdtest"
 	"github.com/percona/pmm-client/test/fakeapi"
+	"github.com/percona/pmm/proto"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v2"
 )
@@ -98,6 +99,8 @@ func TestPmmAdmin(t *testing.T) {
 		testStartStopRestartAllWithServices,
 		testStartStopRestartNoServiceFound,
 		testCheckNetwork,
+		testMongoDB,
+		testMongoDBQueries,
 	}
 	t.Run("pmm-admin", func(t *testing.T) {
 		for _, f := range tests {
@@ -662,9 +665,9 @@ func testStartStopRestartNoServiceFound(t *testing.T, data pmmAdminData) {
 
 	// Create fake api server
 	fapi := fakeapi.New()
-	clientName, _ := os.Hostname()
 	fapi.AppendRoot()
 	fapi.AppendConsulV1StatusLeader(fapi.Host())
+	clientName, _ := os.Hostname()
 	node := api.CatalogNode{
 		Node: &api.Node{},
 	}
@@ -770,11 +773,11 @@ func testCheckNetwork(t *testing.T, data pmmAdminData) {
 
 	// Create fake api server
 	fapi := fakeapi.New()
-	clientName, _ := os.Hostname()
 	fapi.AppendRoot()
 	fapi.AppendPrometheusAPIV1Query()
 	fapi.AppendQanAPIPing()
 	fapi.AppendConsulV1StatusLeader(fapi.Host())
+	clientName, _ := os.Hostname()
 	node := api.CatalogNode{
 		Node: &api.Node{},
 	}
@@ -859,4 +862,170 @@ func testCheckNetwork(t *testing.T, data pmmAdminData) {
 
 		assert.Equal(t, []string{}, cmdTest.Output()) // No more data
 	}
+}
+
+func testMongoDB(t *testing.T, data pmmAdminData) {
+	defer func() {
+		err := os.RemoveAll(data.rootDir)
+		assert.Nil(t, err)
+	}()
+
+	os.MkdirAll(data.rootDir+pmm.PMMBaseDir, 0777)
+	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/bin", 0777)
+	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/config", 0777)
+	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/instance", 0777)
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/node_exporter")
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/mysqld_exporter")
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/mongodb_exporter")
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/proxysql_exporter")
+	os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent")
+
+	f, _ := os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent-installer")
+	f.WriteString("#!/bin/sh\n")
+	f.WriteString("echo 'it works'")
+	f.Close()
+	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
+
+	f, _ = os.Create(data.rootDir + pmm.AgentBaseDir + "/config/agent.conf")
+	f.WriteString(`{"UUID":"42","ApiHostname":"somehostname","ApiPath":"/qan-api","ServerUser":"pmm"}`)
+	f.WriteString("\n")
+	f.Close()
+	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
+	{
+		// Create fake api server
+		fapi := fakeapi.New()
+		fapi.AppendRoot()
+		fapi.AppendConsulV1StatusLeader(fapi.Host())
+		clientName, _ := os.Hostname()
+		node := api.CatalogNode{
+			Node: &api.Node{},
+		}
+		fapi.AppendConsulV1CatalogNode(clientName, node)
+		fapi.AppendConsulV1CatalogService()
+		fapi.AppendConsulV1CatalogRegister()
+		mongodbInstance := &proto.Instance{
+			Subsystem: "mongodb",
+			UUID:      "13",
+		}
+		agentInstance := &proto.Instance{
+			Subsystem: "agent",
+			UUID:      "42",
+		}
+		fapi.AppendQanAPIInstancesId(agentInstance.UUID, agentInstance)
+		fapi.AppendQanAPIAgents(agentInstance.UUID)
+		fapi.AppendQanAPIInstances([]*proto.Instance{
+			mongodbInstance,
+		})
+
+		// Configure pmm
+		cmd := exec.Command(
+			data.bin,
+			"config",
+			"--server",
+			fmt.Sprintf("%s:%s", fapi.Host(), fapi.Port()),
+		)
+		output, err := cmd.CombinedOutput()
+		assert.Nil(t, err, string(output))
+	}
+
+	cmd := exec.Command(
+		data.bin,
+		"add",
+		"mongodb",
+	)
+
+	cmdTest := cmdtest.New(cmd)
+	if err := cmd.Start(); err != nil {
+		log.Fatal(err)
+	}
+	err := cmd.Wait()
+	assert.Nil(t, err)
+
+	assert.Equal(t, fmt.Sprintln("[linux:metrics]   OK, now monitoring this system."), cmdTest.ReadLine())
+	assert.Equal(t, fmt.Sprintln("[mongodb:metrics] OK, now monitoring MongoDB metrics using URI localhost:27017"), cmdTest.ReadLine())
+	assert.Equal(t, fmt.Sprintln("[mongodb:queries] OK, now monitoring MongoDB queries using URI localhost:27017"), cmdTest.ReadLine())
+
+	assert.Equal(t, "", cmdTest.ReadLine()) // No more data
+}
+
+func testMongoDBQueries(t *testing.T, data pmmAdminData) {
+	defer func() {
+		err := os.RemoveAll(data.rootDir)
+		assert.Nil(t, err)
+	}()
+
+	os.MkdirAll(data.rootDir+pmm.PMMBaseDir, 0777)
+	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/bin", 0777)
+	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/config", 0777)
+	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/instance", 0777)
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/node_exporter")
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/mysqld_exporter")
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/mongodb_exporter")
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/proxysql_exporter")
+	os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent")
+
+	f, _ := os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent-installer")
+	f.WriteString("#!/bin/sh\n")
+	f.WriteString("echo 'it works'")
+	f.Close()
+	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
+
+	f, _ = os.Create(data.rootDir + pmm.AgentBaseDir + "/config/agent.conf")
+	f.WriteString(`{"UUID":"42","ApiHostname":"somehostname","ApiPath":"/qan-api","ServerUser":"pmm"}`)
+	f.WriteString("\n")
+	f.Close()
+	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
+	{
+		// Create fake api server
+		fapi := fakeapi.New()
+		fapi.AppendRoot()
+		fapi.AppendConsulV1StatusLeader(fapi.Host())
+		clientName, _ := os.Hostname()
+		node := api.CatalogNode{
+			Node: &api.Node{},
+		}
+		fapi.AppendConsulV1CatalogNode(clientName, node)
+		fapi.AppendConsulV1CatalogService()
+		fapi.AppendConsulV1CatalogRegister()
+		mongodbInstance := &proto.Instance{
+			Subsystem: "mongodb",
+			UUID:      "13",
+		}
+		agentInstance := &proto.Instance{
+			Subsystem: "agent",
+			UUID:      "42",
+		}
+		fapi.AppendQanAPIInstancesId(agentInstance.UUID, agentInstance)
+		fapi.AppendQanAPIAgents(agentInstance.UUID)
+		fapi.AppendQanAPIInstances([]*proto.Instance{
+			mongodbInstance,
+		})
+
+		// Configure pmm
+		cmd := exec.Command(
+			data.bin,
+			"config",
+			"--server",
+			fmt.Sprintf("%s:%s", fapi.Host(), fapi.Port()),
+		)
+		output, err := cmd.CombinedOutput()
+		assert.Nil(t, err, string(output))
+	}
+
+	cmd := exec.Command(
+		data.bin,
+		"add",
+		"mongodb:queries",
+	)
+
+	cmdTest := cmdtest.New(cmd)
+	if err := cmd.Start(); err != nil {
+		log.Fatal(err)
+	}
+	err := cmd.Wait()
+	assert.Nil(t, err)
+
+	assert.Equal(t, fmt.Sprintln("OK, now monitoring MongoDB queries using URI localhost:27017"), cmdTest.ReadLine())
+
+	assert.Equal(t, "", cmdTest.ReadLine()) // No more data
 }

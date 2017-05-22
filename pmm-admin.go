@@ -59,6 +59,8 @@ var (
 				os.Exit(1)
 			}
 
+			// Check for required settings in config file
+			// optional settings are marked with "omitempty"
 			if admin.Config.ServerAddress == "" || admin.Config.ClientName == "" || admin.Config.ClientAddress == "" || admin.Config.BindAddress == "" {
 				fmt.Println("PMM client is not configured properly. Please make sure you have run 'pmm-admin config'.")
 				os.Exit(1)
@@ -305,7 +307,8 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 				fmt.Println("[linux:metrics]   OK, now monitoring this system.")
 			}
 
-			if err := admin.DetectMongoDB(flagMongoURI); err != nil {
+			buildInfo, err := admin.DetectMongoDB(flagMongoURI)
+			if err != nil {
 				fmt.Printf("[mongodb:metrics] %s\n", err)
 				os.Exit(1)
 			}
@@ -317,6 +320,15 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 				os.Exit(1)
 			} else {
 				fmt.Println("[mongodb:metrics] OK, now monitoring MongoDB metrics using URI", pmm.SanitizeDSN(flagMongoURI))
+			}
+			err = admin.AddMongoDBQueries(buildInfo, flagMongoURI)
+			if err == pmm.ErrDuplicate {
+				fmt.Println("[mongodb:queries] OK, already monitoring MongoDB queries.")
+			} else if err != nil {
+				fmt.Println("[mongodb:queries] Error adding MongoDB queries:", err)
+				os.Exit(1)
+			} else {
+				fmt.Println("[mongodb:queries] OK, now monitoring MongoDB queries using URI", pmm.SanitizeDSN(flagMongoURI))
 			}
 		},
 	}
@@ -332,7 +344,7 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 		Example: `  pmm-admin add mongodb:metrics
   pmm-admin add mongodb:metrics --cluster bare-metal`,
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := admin.DetectMongoDB(flagMongoURI); err != nil {
+			if _, err := admin.DetectMongoDB(flagMongoURI); err != nil {
 				fmt.Println(err)
 				os.Exit(1)
 			}
@@ -341,6 +353,30 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 				os.Exit(1)
 			}
 			fmt.Println("OK, now monitoring MongoDB metrics using URI", pmm.SanitizeDSN(flagMongoURI))
+		},
+	}
+	cmdAddMongoDBQueries = &cobra.Command{
+		Use:   "mongodb:queries [name]",
+		Short: "Add MongoDB instance to Query Analytics.",
+		Long: `This command adds the given MongoDB instance to Query Analytics.
+
+When adding a MongoDB instance, you may provide --uri if the default one does not work for you.
+
+[name] is an optional argument, by default it is set to the client name of this PMM client.
+		`,
+		Example: `  pmm-admin add mongodb:queries
+  pmm-admin add mongodb:queries`,
+		Run: func(cmd *cobra.Command, args []string) {
+			buildInfo, err := admin.DetectMongoDB(flagMongoURI)
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+			if err := admin.AddMongoDBQueries(buildInfo, flagMongoURI); err != nil {
+				fmt.Println("Error adding MongoDB queries:", err)
+				os.Exit(1)
+			}
+			fmt.Println("OK, now monitoring MongoDB queries using URI", pmm.SanitizeDSN(flagMongoURI))
 		},
 	}
 	cmdAddProxySQLMetrics = &cobra.Command{
@@ -499,6 +535,15 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 			} else {
 				fmt.Printf("[mongodb:metrics] OK, removed MongoDB metrics %s from monitoring.\n", admin.ServiceName)
 			}
+
+			err = admin.RemoveMongoDBQueries()
+			if err == pmm.ErrNoService {
+				fmt.Printf("[mongodb:queries] OK, no MongoDB queries %s under monitoring.\n", admin.ServiceName)
+			} else if err != nil {
+				fmt.Printf("[mongodb:queries] Error removing MongoDB queries %s: %s\n", admin.ServiceName, err)
+			} else {
+				fmt.Printf("[mongodb:queries] OK, removed MongoDB queries %s from monitoring.\n", admin.ServiceName)
+			}
 		},
 	}
 	cmdRemoveMongoDBMetrics = &cobra.Command{
@@ -514,6 +559,21 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 				os.Exit(1)
 			}
 			fmt.Printf("OK, removed MongoDB metrics %s from monitoring.\n", admin.ServiceName)
+		},
+	}
+	cmdRemoveMongoDBQueries = &cobra.Command{
+		Use:   "mongodb:queries [name]",
+		Short: "Remove MongoDB instance from Query Analytics.",
+		Long: `This command removes MongoDB instance from Query Analytics.
+
+[name] is an optional argument, by default it is set to the client name of this PMM client.
+		`,
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := admin.RemoveMongoDBQueries(); err != nil {
+				fmt.Printf("Error removing MongoDB queries %s: %s\n", admin.ServiceName, err)
+				os.Exit(1)
+			}
+			fmt.Printf("OK, removed MongoDB queries %s from monitoring.\n", admin.ServiceName)
 		},
 	}
 	cmdRemoveProxySQLMetrics = &cobra.Command{
@@ -867,7 +927,7 @@ despite PMM server is alive or not.
 
 	flagVersion, flagAll, flagForce bool
 
-	flagServicePort uint16
+	flagServicePort int
 
 	flagM pmm.MySQLFlags
 	flagC pmm.Config
@@ -876,12 +936,42 @@ despite PMM server is alive or not.
 func main() {
 	// Commands.
 	cobra.EnableCommandSorting = false
-	rootCmd.AddCommand(cmdConfig, cmdAdd, cmdRemove, cmdList, cmdInfo, cmdCheckNet, cmdPing, cmdStart, cmdStop,
-		cmdRestart, cmdShowPass, cmdPurge, cmdRepair, cmdUninstall)
-	cmdAdd.AddCommand(cmdAddMySQL, cmdAddLinuxMetrics, cmdAddMySQLMetrics, cmdAddMySQLQueries,
-		cmdAddMongoDB, cmdAddMongoDBMetrics, cmdAddProxySQLMetrics)
-	cmdRemove.AddCommand(cmdRemoveMySQL, cmdRemoveLinuxMetrics, cmdRemoveMySQLMetrics, cmdRemoveMySQLQueries,
-		cmdRemoveMongoDB, cmdRemoveMongoDBMetrics, cmdRemoveProxySQLMetrics)
+	rootCmd.AddCommand(
+		cmdConfig,
+		cmdAdd,
+		cmdRemove,
+		cmdList,
+		cmdInfo,
+		cmdCheckNet,
+		cmdPing,
+		cmdStart,
+		cmdStop,
+		cmdRestart,
+		cmdShowPass,
+		cmdPurge,
+		cmdRepair,
+		cmdUninstall,
+	)
+	cmdAdd.AddCommand(
+		cmdAddMySQL,
+		cmdAddLinuxMetrics,
+		cmdAddMySQLMetrics,
+		cmdAddMySQLQueries,
+		cmdAddMongoDB,
+		cmdAddMongoDBMetrics,
+		cmdAddMongoDBQueries,
+		cmdAddProxySQLMetrics,
+	)
+	cmdRemove.AddCommand(
+		cmdRemoveMySQL,
+		cmdRemoveLinuxMetrics,
+		cmdRemoveMySQLMetrics,
+		cmdRemoveMySQLQueries,
+		cmdRemoveMongoDB,
+		cmdRemoveMongoDBMetrics,
+		cmdRemoveMongoDBQueries,
+		cmdRemoveProxySQLMetrics,
+	)
 
 	// Flags.
 	rootCmd.PersistentFlags().StringVarP(&pmm.ConfigFile, "config-file", "c", pmm.ConfigFile, "PMM config file")
@@ -898,20 +988,24 @@ func main() {
 	cmdConfig.Flags().BoolVar(&flagC.ServerInsecureSSL, "server-insecure-ssl", false, "enable insecure SSL (self-signed certificate) to communicate with PMM Server")
 	cmdConfig.Flags().BoolVar(&flagForce, "force", false, "force to set client name on initial setup after uninstall with unreachable server")
 
-	cmdAdd.PersistentFlags().Uint16Var(&flagServicePort, "service-port", 0, "service port")
+	cmdAdd.PersistentFlags().IntVar(&flagServicePort, "service-port", 0, "service port")
 
 	cmdAddLinuxMetrics.Flags().BoolVar(&flagForce, "force", false, "force to add another linux:metrics instance with different name for testing purposes")
 
-	cmdAddMySQL.Flags().StringVar(&flagM.DefaultsFile, "defaults-file", "", "path to my.cnf")
-	cmdAddMySQL.Flags().StringVar(&flagM.Host, "host", "", "MySQL host")
-	cmdAddMySQL.Flags().StringVar(&flagM.Port, "port", "", "MySQL port")
-	cmdAddMySQL.Flags().StringVar(&flagM.User, "user", "", "MySQL username")
-	cmdAddMySQL.Flags().StringVar(&flagM.Password, "password", "", "MySQL password")
-	cmdAddMySQL.Flags().StringVar(&flagM.Socket, "socket", "", "MySQL socket")
-	cmdAddMySQL.Flags().BoolVar(&flagM.CreateUser, "create-user", false, "create a new MySQL user")
-	cmdAddMySQL.Flags().StringVar(&flagM.CreateUserPassword, "create-user-password", "", "optional password for a new MySQL user")
-	cmdAddMySQL.Flags().Uint16Var(&flagM.MaxUserConn, "create-user-maxconn", 10, "max user connections for a new user")
-	cmdAddMySQL.Flags().BoolVar(&flagM.Force, "force", false, "force to create/update MySQL user")
+	addCommonMySQLFlags := func(cmd *cobra.Command) {
+		cmd.Flags().StringVar(&flagM.DefaultsFile, "defaults-file", "", "path to my.cnf")
+		cmd.Flags().StringVar(&flagM.Host, "host", "", "MySQL host")
+		cmd.Flags().StringVar(&flagM.Port, "port", "", "MySQL port")
+		cmd.Flags().StringVar(&flagM.User, "user", "", "MySQL username")
+		cmd.Flags().StringVar(&flagM.Password, "password", "", "MySQL password")
+		cmd.Flags().StringVar(&flagM.Socket, "socket", "", "MySQL socket")
+		cmd.Flags().BoolVar(&flagM.CreateUser, "create-user", false, "create a new MySQL user")
+		cmd.Flags().StringVar(&flagM.CreateUserPassword, "create-user-password", "", "optional password for a new MySQL user")
+		cmd.Flags().Uint16Var(&flagM.MaxUserConn, "create-user-maxconn", 10, "max user connections for a new user")
+		cmd.Flags().BoolVar(&flagM.Force, "force", false, "force to create/update MySQL user")
+	}
+
+	addCommonMySQLFlags(cmdAddMySQL)
 	cmdAddMySQL.Flags().BoolVar(&flagM.DisableTableStats, "disable-tablestats", false, "disable table statistics")
 	cmdAddMySQL.Flags().Uint16Var(&flagM.DisableTableStatsLimit, "disable-tablestats-limit", 1000, "number of tables after which table stats are disabled automatically")
 	cmdAddMySQL.Flags().BoolVar(&flagM.DisableUserStats, "disable-userstats", false, "disable user statistics")
@@ -920,40 +1014,24 @@ func main() {
 	cmdAddMySQL.Flags().BoolVar(&flagM.DisableQueryExamples, "disable-queryexamples", false, "disable collection of query examples")
 	cmdAddMySQL.Flags().StringVar(&flagM.QuerySource, "query-source", "auto", "source of SQL queries: auto, slowlog, perfschema")
 
-	cmdAddMySQLMetrics.Flags().StringVar(&flagM.DefaultsFile, "defaults-file", "", "path to my.cnf")
-	cmdAddMySQLMetrics.Flags().StringVar(&flagM.Host, "host", "", "MySQL host")
-	cmdAddMySQLMetrics.Flags().StringVar(&flagM.Port, "port", "", "MySQL port")
-	cmdAddMySQLMetrics.Flags().StringVar(&flagM.User, "user", "", "MySQL username")
-	cmdAddMySQLMetrics.Flags().StringVar(&flagM.Password, "password", "", "MySQL password")
-	cmdAddMySQLMetrics.Flags().StringVar(&flagM.Socket, "socket", "", "MySQL socket")
-	cmdAddMySQLMetrics.Flags().BoolVar(&flagM.CreateUser, "create-user", false, "create a new MySQL user")
-	cmdAddMySQLMetrics.Flags().StringVar(&flagM.CreateUserPassword, "create-user-password", "", "optional password for a new MySQL user")
-	cmdAddMySQLMetrics.Flags().Uint16Var(&flagM.MaxUserConn, "create-user-maxconn", 10, "max user connections for a new user")
-	cmdAddMySQLMetrics.Flags().BoolVar(&flagM.Force, "force", false, "force to create/update MySQL user")
+	addCommonMySQLFlags(cmdAddMySQLMetrics)
 	cmdAddMySQLMetrics.Flags().BoolVar(&flagM.DisableTableStats, "disable-tablestats", false, "disable table statistics")
 	cmdAddMySQLMetrics.Flags().Uint16Var(&flagM.DisableTableStatsLimit, "disable-tablestats-limit", 1000, "number of tables after which table stats are disabled automatically")
 	cmdAddMySQLMetrics.Flags().BoolVar(&flagM.DisableUserStats, "disable-userstats", false, "disable user statistics")
 	cmdAddMySQLMetrics.Flags().BoolVar(&flagM.DisableBinlogStats, "disable-binlogstats", false, "disable binlog statistics")
 	cmdAddMySQLMetrics.Flags().BoolVar(&flagM.DisableProcesslist, "disable-processlist", false, "disable process state metrics")
-
-	cmdAddMySQLQueries.Flags().StringVar(&flagM.DefaultsFile, "defaults-file", "", "path to my.cnf")
-	cmdAddMySQLQueries.Flags().StringVar(&flagM.Host, "host", "", "MySQL host")
-	cmdAddMySQLQueries.Flags().StringVar(&flagM.Port, "port", "", "MySQL port")
-	cmdAddMySQLQueries.Flags().StringVar(&flagM.User, "user", "", "MySQL username")
-	cmdAddMySQLQueries.Flags().StringVar(&flagM.Password, "password", "", "MySQL password")
-	cmdAddMySQLQueries.Flags().StringVar(&flagM.Socket, "socket", "", "MySQL socket")
-	cmdAddMySQLQueries.Flags().BoolVar(&flagM.CreateUser, "create-user", false, "create a new MySQL user")
-	cmdAddMySQLQueries.Flags().StringVar(&flagM.CreateUserPassword, "create-user-password", "", "optional password for a new MySQL user")
-	cmdAddMySQLQueries.Flags().Uint16Var(&flagM.MaxUserConn, "create-user-maxconn", 10, "max user connections for a new user")
-	cmdAddMySQLQueries.Flags().BoolVar(&flagM.Force, "force", false, "force to create/update MySQL user")
+	addCommonMySQLFlags(cmdAddMySQLQueries)
 	cmdAddMySQLQueries.Flags().BoolVar(&flagM.DisableQueryExamples, "disable-queryexamples", false, "disable collection of query examples")
 	cmdAddMySQLQueries.Flags().StringVar(&flagM.QuerySource, "query-source", "auto", "source of SQL queries: auto, slowlog, perfschema")
 
-	cmdAddMongoDB.Flags().StringVar(&flagMongoURI, "uri", "localhost:27017", "MongoDB URI, format: [mongodb://][user:pass@]host[:port][/database][?options]")
+	addCommonMongoDBFlags := func(cmd *cobra.Command) {
+		cmd.Flags().StringVar(&flagMongoURI, "uri", "localhost:27017", "MongoDB URI, format: [mongodb://][user:pass@]host[:port][/database][?options]")
+	}
+	addCommonMongoDBFlags(cmdAddMongoDB)
 	cmdAddMongoDB.Flags().StringVar(&flagCluster, "cluster", "", "cluster name")
-
-	cmdAddMongoDBMetrics.Flags().StringVar(&flagMongoURI, "uri", "localhost:27017", "MongoDB URI, format: [mongodb://][user:pass@]host[:port][/database][?options]")
+	addCommonMongoDBFlags(cmdAddMongoDBMetrics)
 	cmdAddMongoDBMetrics.Flags().StringVar(&flagCluster, "cluster", "", "cluster name")
+	addCommonMongoDBFlags(cmdAddMongoDBQueries)
 
 	cmdAddProxySQLMetrics.Flags().StringVar(&flagDSN, "dsn", "stats:stats@tcp(localhost:6032)/", "ProxySQL connection DSN")
 

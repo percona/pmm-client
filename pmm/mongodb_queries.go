@@ -22,21 +22,20 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
 	consul "github.com/hashicorp/consul/api"
 	"github.com/percona/kardianos-service"
 	"github.com/percona/pmm/proto"
-	protocfg "github.com/percona/pmm/proto/config"
+	"gopkg.in/mgo.v2"
 )
 
-// AddMySQLQueries add mysql instance to Query Analytics.
-func (a *Admin) AddMySQLQueries(info map[string]string) error {
-	serviceType := "mysql:queries"
-	dsn := info["dsn"]
-	safeDSN := info["safe_dsn"]
+// AddMongoDBQueries add mongodb instance to Query Analytics.
+func (a *Admin) AddMongoDBQueries(buildInfo mgo.BuildInfo, uri string) error {
+	serviceType := "mongodb:queries"
+	dsn := uri
+	safeDSN := SanitizeDSN(uri)
 
 	// Check if we have already this service on Consul.
 	consulSvc, err := a.getConsulService(serviceType, a.ServiceName)
@@ -91,10 +90,10 @@ func (a *Admin) AddMySQLQueries(info map[string]string) error {
 	}
 
 	// Check if related instance exists or try to re-use the existing one.
-	instance, err := a.getMySQLInstance(a.ServiceName, parentUUID)
+	instance, err := a.getMongoDBInstance(a.ServiceName, parentUUID)
 	if err == errNoInstance {
 		// Create new instance on QAN.
-		instance, err = a.createMySQLInstance(info, parentUUID)
+		instance, err = a.createMongoDBInstance(buildInfo, safeDSN, parentUUID)
 		if err != nil {
 			return err
 		}
@@ -117,9 +116,9 @@ func (a *Admin) AddMySQLQueries(info map[string]string) error {
 		// Install and start service via platform service manager.
 		// We have to run agent before adding it to QAN.
 		svcConfig := &service.Config{
-			Name:        fmt.Sprintf("pmm-mysql-queries-%d", port),
-			DisplayName: "PMM Query Analytics agent",
-			Description: "PMM Query Analytics agent",
+			Name:        fmt.Sprintf("pmm-mongodb-queries-%d", port),
+			DisplayName: "PMM MongoDB Query Analytics agent",
+			Description: "PMM MongoDB Query Analytics agent",
 			Executable:  fmt.Sprintf("%s/bin/percona-qan-agent", AgentBaseDir),
 		}
 		if err := installService(svcConfig); err != nil {
@@ -128,19 +127,16 @@ func (a *Admin) AddMySQLQueries(info map[string]string) error {
 	} else {
 		port = consulSvc.Port
 		// Ensure qan-agent is started if service exists, otherwise it won't be enabled for QAN.
-		if err := startService(fmt.Sprintf("pmm-mysql-queries-%d", port)); err != nil {
+		if err := startService(fmt.Sprintf("pmm-mongodb-queries-%d", port)); err != nil {
 			return err
 		}
 	}
 
 	// Start QAN by associating instance with agent.
-	// @todo struct instead of map[]interface{}
-	query_examples, _ := strconv.ParseBool(info["query_examples"])
 	qanConfig := map[string]interface{}{
 		"UUID":           instance.UUID,
-		"CollectFrom":    info["query_source"],
 		"Interval":       60,
-		"ExampleQueries": query_examples,
+		"ExampleQueries": true,
 	}
 	if err := a.startQAN(agentID, qanConfig); err != nil {
 		return err
@@ -148,6 +144,7 @@ func (a *Admin) AddMySQLQueries(info map[string]string) error {
 
 	tags := []string{
 		fmt.Sprintf("alias_%s", a.ServiceName),
+		"scheme_https", // What this do?
 	}
 	// For existing service, we append a new alias_ tag.
 	if consulSvc != nil {
@@ -178,7 +175,7 @@ func (a *Admin) AddMySQLQueries(info map[string]string) error {
 	}
 	a.consulAPI.KV().Put(d, nil)
 	d = &consul.KVPair{
-		Key:   fmt.Sprintf("%s/%s/%s/qan_mysql_uuid", a.Config.ClientName, serviceID, a.ServiceName),
+		Key:   fmt.Sprintf("%s/%s/%s/qan_mongodb_uuid", a.Config.ClientName, serviceID, a.ServiceName),
 		Value: []byte(instance.UUID),
 	}
 	a.consulAPI.KV().Put(d, nil)
@@ -186,9 +183,9 @@ func (a *Admin) AddMySQLQueries(info map[string]string) error {
 	return nil
 }
 
-// RemoveMySQLQueries remove mysql instance from QAN.
-func (a *Admin) RemoveMySQLQueries() error {
-	serviceType := "mysql:queries"
+// RemoveMongoDBQueries remove mongodb instance from QAN.
+func (a *Admin) RemoveMongoDBQueries() error {
+	serviceType := "mongodb:queries"
 
 	// Check if we have this service on Consul.
 	consulSvc, err := a.getConsulService(serviceType, a.ServiceName)
@@ -200,18 +197,15 @@ func (a *Admin) RemoveMySQLQueries() error {
 	}
 
 	// Ensure qan-agent is started, otherwise it will be an error to stop QAN.
-	if err := startService(fmt.Sprintf("pmm-mysql-queries-%d", consulSvc.Port)); err != nil {
+	if err := startService(fmt.Sprintf("pmm-mongodb-queries-%d", consulSvc.Port)); err != nil {
 		return err
 	}
 
-	// Get UUID of MySQL instance the agent is monitoring from KV.
-	key := fmt.Sprintf("%s/%s/%s/qan_mysql_uuid", a.Config.ClientName, consulSvc.ID, a.ServiceName)
+	// Get UUID of instance the agent is monitoring from KV.
+	key := fmt.Sprintf("%s/%s/%s/qan_mongodb_uuid", a.Config.ClientName, consulSvc.ID, a.ServiceName)
 	data, _, err := a.consulAPI.KV().Get(key, nil)
 	if err != nil {
 		return err
-	}
-	if data == nil {
-		return fmt.Errorf("can't get key %s", key)
 	}
 	uuid := string(data.Value)
 
@@ -253,7 +247,7 @@ func (a *Admin) RemoveMySQLQueries() error {
 		}
 
 		// Stop and uninstall service.
-		if err := uninstallService(fmt.Sprintf("pmm-mysql-queries-%d", consulSvc.Port)); err != nil {
+		if err := uninstallService(fmt.Sprintf("pmm-mongodb-queries-%d", consulSvc.Port)); err != nil {
 			return err
 		}
 	} else {
@@ -272,11 +266,11 @@ func (a *Admin) RemoveMySQLQueries() error {
 	return nil
 }
 
-// getMySQLInstance get or re-use mysql instance from QAN API and return it.
-func (a *Admin) getMySQLInstance(name, parentUUID string) (proto.Instance, error) {
+// getMongoDBInstance get or re-use mongodb instance from QAN API and return it.
+func (a *Admin) getMongoDBInstance(name, parentUUID string) (proto.Instance, error) {
 	var in proto.Instance
 	url := a.qanAPI.URL(a.serverURL, qanAPIBasePath, "instances",
-		fmt.Sprintf("?type=mysql&name=%s&parent_uuid=%s", name, parentUUID))
+		fmt.Sprintf("?type=mongo&name=%s&parent_uuid=%s", name, parentUUID))
 	resp, bytes, err := a.qanAPI.Get(url)
 	if err != nil {
 		return in, err
@@ -332,15 +326,15 @@ func (a *Admin) getMySQLInstance(name, parentUUID string) (proto.Instance, error
 	return in, nil
 }
 
-// createMySQLInstance create mysql instance on QAN API and return it.
-func (a *Admin) createMySQLInstance(info map[string]string, parentUUID string) (proto.Instance, error) {
+// createMongoDBInstance create mongodb instance on QAN API and return it.
+func (a *Admin) createMongoDBInstance(buildInfo mgo.BuildInfo, safeDSN, parentUUID string) (proto.Instance, error) {
 	in := proto.Instance{
-		Subsystem:  "mysql",
+		Subsystem:  "mongo",
 		ParentUUID: parentUUID,
 		Name:       a.ServiceName,
-		DSN:        info["safe_dsn"],
-		Distro:     info["distro"],
-		Version:    info["version"],
+		DSN:        safeDSN,
+		Distro:     "MongoDB",
+		Version:    buildInfo.Version,
 	}
 	inBytes, _ := json.Marshal(in)
 	url := a.qanAPI.URL(a.serverURL, qanAPIBasePath, "instances")
@@ -370,48 +364,4 @@ func (a *Admin) createMySQLInstance(info map[string]string, parentUUID string) (
 	}
 
 	return in, err
-}
-
-// updateInstance updates instance on QAN API.
-func (a *Admin) updateInstance(inUUID string, bytes []byte) error {
-	url := a.qanAPI.URL(a.serverURL, qanAPIBasePath, "instances", inUUID)
-	resp, content, err := a.qanAPI.Put(url, bytes)
-	if err != nil {
-		return err
-	}
-	if resp.StatusCode != http.StatusNoContent {
-		return a.qanAPI.Error("PUT", url, resp.StatusCode, http.StatusNoContent, content)
-
-	}
-	return nil
-}
-
-// getQuerySource read CollectFrom from mysql instance QAN config file.
-func getQuerySource(configFile string) (string, error) {
-	jsonData, err := ioutil.ReadFile(configFile)
-	if err != nil {
-		return "", err
-	}
-
-	config := &protocfg.QAN{}
-	if err := json.Unmarshal(jsonData, &config); err != nil {
-		return "", err
-	}
-
-	return config.CollectFrom, nil
-}
-
-// getQueryExamples read ExampleQueries from mysql instance QAN config file.
-func getQueryExamples(configFile string) (bool, error) {
-	jsonData, err := ioutil.ReadFile(configFile)
-	if err != nil {
-		return false, err
-	}
-
-	config := &protocfg.QAN{}
-	if err := json.Unmarshal(jsonData, &config); err != nil {
-		return false, err
-	}
-
-	return config.ExampleQueries, nil
 }

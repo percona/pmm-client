@@ -47,7 +47,7 @@ import (
 // Admin main class.
 type Admin struct {
 	ServiceName  string
-	ServicePort  uint16
+	ServicePort  int
 	Config       *Config
 	Verbose      bool
 	serverURL    string
@@ -147,11 +147,11 @@ Use 'pmm-admin config' to define server user and password.`, a.Config.ServerAddr
 	}
 
 	// Check Consul status.
-	if leader, err := a.consulAPI.Status().Leader(); err != nil || leader != "127.0.0.1:8300" {
+	if leader, err := a.consulAPI.Status().Leader(); err != nil || leader == "" {
 		return fmt.Errorf(`Unable to connect to PMM server by address: %s
 
 Even though the server is reachable it does not look to be PMM server.
-Check if the configured address is correct.`, a.Config.ServerAddress)
+Check if the configured address is correct. %s`, a.Config.ServerAddress, err)
 	}
 
 	// Check if server is not password protected but client is configured so.
@@ -209,10 +209,9 @@ func (a *Admin) ServerInfo() {
 
 // StartStopMonitoring start/stop system service by its metric type and name.
 func (a *Admin) StartStopMonitoring(action, svcType string) (affected bool, err error) {
-	if svcType != "linux:metrics" && svcType != "mysql:metrics" && svcType != "mysql:queries" && svcType != "mongodb:metrics" && svcType != "proxysql:metrics" {
-		return false, errors.New(`bad service type.
-
-Service type takes the following values: linux:metrics, mysql:metrics, mysql:queries, mongodb:metrics, proxysql:metrics.`)
+	err = isValidSvcType(svcType)
+	if err != nil {
+		return false, err
 	}
 
 	// Check if we have this service on Consul.
@@ -332,6 +331,10 @@ func (a *Admin) RemoveAllMonitoring(ignoreErrors bool) (uint16, error) {
 				if err := a.RemoveMongoDBMetrics(); err != nil && !ignoreErrors {
 					return count, err
 				}
+			case "mongodb:queries":
+				if err := a.RemoveMongoDBQueries(); err != nil && !ignoreErrors {
+					return count, err
+				}
 			case "proxysql:metrics":
 				if err := a.RemoveProxySQLMetrics(); err != nil && !ignoreErrors {
 					return count, err
@@ -429,7 +432,7 @@ Choose different name for this service.`,
 }
 
 // choosePort automatically choose the port for service.
-func (a *Admin) choosePort(port uint16, userDefined bool) (uint16, error) {
+func (a *Admin) choosePort(port int, userDefined bool) (int, error) {
 	// Check if user defined port is not used.
 	if userDefined {
 		ok, err := a.availablePort(port)
@@ -456,14 +459,14 @@ func (a *Admin) choosePort(port uint16, userDefined bool) (uint16, error) {
 }
 
 // availablePort check if port is occupied by any service on Consul.
-func (a *Admin) availablePort(port uint16) (bool, error) {
+func (a *Admin) availablePort(port int) (bool, error) {
 	node, _, err := a.consulAPI.Catalog().Node(a.Config.ClientName, nil)
 	if err != nil {
 		return false, err
 	}
 	if node != nil {
 		for _, svc := range node.Services {
-			if port == uint16(svc.Port) {
+			if port == svc.Port {
 				return false, nil
 			}
 		}
@@ -539,16 +542,18 @@ func (a *Admin) RepairInstallation() error {
 
 		prefix := fmt.Sprintf("%s/%s/", a.Config.ClientName, s)
 
-		// Try to delete mysql instances from QAN associated with queries service on KV.
+		// Try to delete instances from QAN associated with queries service on KV.
 		names, _, err := a.consulAPI.KV().Keys(prefix, "", nil)
 		if err == nil {
 			for _, name := range names {
-				if !strings.HasSuffix(name, "/qan_mysql_uuid") {
-					continue
-				}
-				data, _, err := a.consulAPI.KV().Get(name, nil)
-				if err == nil && data != nil {
-					a.deleteMySQLinstance(string(data.Value))
+				for _, serviceName := range []string{"mysql", "mongodb"} {
+					if strings.HasSuffix(name, fmt.Sprintf("/qan_%s_uuid", serviceName)) {
+						data, _, err := a.consulAPI.KV().Get(name, nil)
+						if err == nil && data != nil {
+							a.deleteInstance(string(data.Value))
+						}
+						break
+					}
 				}
 			}
 		}
@@ -741,4 +746,26 @@ func generateSSLCertificate(host, certFile, keyFile string) error {
 	out.Close()
 
 	return nil
+}
+
+var svcTypes = []string{
+	"linux:metrics",
+	"mysql:metrics",
+	"mysql:queries",
+	"mongodb:metrics",
+	"mongodb:queries",
+	"proxysql:metrics",
+}
+
+// isValidSvcType checks if given service type is allowed
+func isValidSvcType(svcType string) error {
+	for _, v := range svcTypes {
+		if v == svcType {
+			return nil
+		}
+	}
+
+	return fmt.Errorf(`bad service type.
+
+Service type takes the following values: %s.`, strings.Join(svcTypes, ", "))
 }

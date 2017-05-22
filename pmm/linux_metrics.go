@@ -48,7 +48,7 @@ func (a *Admin) AddLinuxMetrics(force bool) error {
 	}
 
 	// Choose port.
-	var port uint16
+	var port int
 	if a.ServicePort > 0 {
 		// The port is user defined.
 		port, err = a.choosePort(a.ServicePort, true)

@@ -28,8 +28,10 @@ import (
 
 // AddMySQLMetrics add mysql metrics service to monitoring.
 func (a *Admin) AddMySQLMetrics(info map[string]string, mf MySQLFlags) error {
+	serviceType := "mysql:metrics"
+
 	// Check if we have already this service on Consul.
-	consulSvc, err := a.getConsulService("mysql:metrics", a.ServiceName)
+	consulSvc, err := a.getConsulService(serviceType, a.ServiceName)
 	if err != nil {
 		return err
 	}
@@ -37,12 +39,12 @@ func (a *Admin) AddMySQLMetrics(info map[string]string, mf MySQLFlags) error {
 		return ErrDuplicate
 	}
 
-	if err := a.checkGlobalDuplicateService("mysql:metrics", a.ServiceName); err != nil {
+	if err := a.checkGlobalDuplicateService(serviceType, a.ServiceName); err != nil {
 		return err
 	}
 
 	// Choose port.
-	var port uint16
+	port := 0
 	if a.ServicePort > 0 {
 		// The port is user defined.
 		port, err = a.choosePort(a.ServicePort, true)
@@ -51,6 +53,7 @@ func (a *Admin) AddMySQLMetrics(info map[string]string, mf MySQLFlags) error {
 		port, err = a.choosePort(42002, false)
 	}
 	// We consider the first port available as okay despite 3 mysql services.
+	// @todo What above comments means?
 	if err != nil {
 		return err
 	}
@@ -70,14 +73,15 @@ func (a *Admin) AddMySQLMetrics(info map[string]string, mf MySQLFlags) error {
 	if mf.DisableProcesslist {
 		optsToDisable = append(optsToDisable, "processlist")
 	}
+	tags := []string{fmt.Sprintf("alias_%s", a.ServiceName), "scheme_https"}
 
 	// Add service to Consul.
-	serviceID := fmt.Sprintf("mysql:metrics-%d", port)
+	serviceID := fmt.Sprintf("%s-%d", serviceType, port)
 	srv := consul.AgentService{
 		ID:      serviceID,
-		Service: "mysql:metrics",
-		Tags:    []string{fmt.Sprintf("alias_%s", a.ServiceName), "scheme_https"},
-		Port:    int(port),
+		Service: serviceType,
+		Tags:    tags,
+		Port:    port,
 	}
 	reg := consul.CatalogRegistration{
 		Node:    a.Config.ClientName,
@@ -140,8 +144,10 @@ func (a *Admin) AddMySQLMetrics(info map[string]string, mf MySQLFlags) error {
 
 // RemoveMySQLMetrics remove mysql metrics service from monitoring.
 func (a *Admin) RemoveMySQLMetrics() error {
+	serviceType := "mysql:metrics"
+
 	// Check if we have this service on Consul.
-	consulSvc, err := a.getConsulService("mysql:metrics", a.ServiceName)
+	consulSvc, err := a.getConsulService(serviceType, a.ServiceName)
 	if err != nil {
 		return err
 	}

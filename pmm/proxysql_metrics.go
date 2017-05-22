@@ -41,7 +41,7 @@ func (a *Admin) AddProxySQLMetrics(dsn string) error {
 	}
 
 	// Choose port.
-	var port uint16
+	var port int
 	if a.ServicePort > 0 {
 		// The port is user defined.
 		port, err = a.choosePort(a.ServicePort, true)
@@ -59,7 +59,7 @@ func (a *Admin) AddProxySQLMetrics(dsn string) error {
 		ID:      serviceID,
 		Service: "proxysql:metrics",
 		Tags:    []string{fmt.Sprintf("alias_%s", a.ServiceName), "scheme_https"},
-		Port:    int(port),
+		Port:    port,
 	}
 	reg := consul.CatalogRegistration{
 		Node:    a.Config.ClientName,

@@ -9,7 +9,6 @@ Vendor:         Percona LLC
 URL:            https://percona.com
 Source:         pmm-client-%{version}.tar.gz
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root
-BuildArch:      x86_64
 AutoReq:        no
 
 %description
