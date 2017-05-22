@@ -931,6 +931,7 @@ func testMongoDB(t *testing.T, data pmmAdminData) {
 	cmd := exec.Command(
 		data.bin,
 		"add",
+		"--dev-enable",
 		"mongodb",
 	)
 
@@ -1015,6 +1016,7 @@ func testMongoDBQueries(t *testing.T, data pmmAdminData) {
 	cmd := exec.Command(
 		data.bin,
 		"add",
+		"--dev-enable",
 		"mongodb:queries",
 	)
 
