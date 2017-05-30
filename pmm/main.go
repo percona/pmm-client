@@ -29,8 +29,8 @@ import (
 	"fmt"
 	"math/big"
 	"net"
-	"net/url"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -42,14 +42,14 @@ import (
 	consul "github.com/hashicorp/consul/api"
 	"github.com/percona/kardianos-service"
 	"github.com/prometheus/client_golang/api/prometheus"
-	//"golang.org/x/net/context"
 )
 
 // Admin main class.
 type Admin struct {
 	ServiceName  string
-	ServicePort  uint16
+	ServicePort  int
 	Config       *Config
+	Verbose      bool
 	serverURL    string
 	apiTimeout   time.Duration
 	qanAPI       *API
@@ -78,18 +78,22 @@ func (a *Admin) SetAPI() error {
 		helpText = "--server-ssl"
 	}
 
+	// QAN API.
+	a.qanAPI = NewAPI(a.Config.ServerInsecureSSL, a.apiTimeout, a.Verbose)
+	httpClient := a.qanAPI.NewClient()
+
 	// Consul API.
 	config := consul.Config{
 		Address:    a.Config.ServerAddress,
-		HttpClient: &http.Client{Timeout: a.apiTimeout},
+		HttpClient: httpClient,
 		Scheme:     scheme,
-	}
-	if a.Config.ServerInsecureSSL {
-		config.HttpClient.Transport = insecureTransport
 	}
 	var authStr string
 	if a.Config.ServerUser != "" {
-		config.HttpAuth = &consul.HttpBasicAuth{Username: a.Config.ServerUser, Password: a.Config.ServerPassword}
+		config.HttpAuth = &consul.HttpBasicAuth{
+			Username: a.Config.ServerUser,
+			Password: a.Config.ServerPassword,
+		}
 		authStr = fmt.Sprintf("%s:%s@", url.QueryEscape(a.Config.ServerUser), url.QueryEscape(a.Config.ServerPassword))
 	}
 	a.consulAPI, _ = consul.NewClient(&config)
@@ -97,11 +101,11 @@ func (a *Admin) SetAPI() error {
 	// Full URL.
 	a.serverURL = fmt.Sprintf("%s://%s%s", scheme, authStr, a.Config.ServerAddress)
 
-	// QAN API.
-	a.qanAPI = NewAPI(a.Config.ServerInsecureSSL, a.apiTimeout)
-
 	// Prometheus API.
 	cfg := prometheus.Config{Address: fmt.Sprintf("%s/prometheus", a.serverURL)}
+	// cfg.Transport = httpClient.Transport
+	// above should be used instead below but
+	// https://github.com/prometheus/client_golang/issues/292
 	if a.Config.ServerInsecureSSL {
 		cfg.Transport = insecureTransport
 	}
@@ -125,17 +129,17 @@ Run 'pmm-admin config --server-insecure-ssl' to enable such configuration.`, a.C
 * Check if the configured address is correct.
 * If server is running on non-default port, ensure it was specified along with the address.
 * If server is enabled for SSL or self-signed SSL, enable the corresponding option.
-* You may also check the firewall settings.`, a.Config.ServerAddress, err.Error())
+* You may also check the firewall settings.`, a.Config.ServerAddress, err)
 	}
 
 	// Try to detect 400 (SSL) and 401 (HTTP auth).
-	if err == nil && resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest {
 		return fmt.Errorf(`Unable to connect to PMM server by address: %s
 
 Looks like the server is enabled for SSL or self-signed SSL.
 Use 'pmm-admin config' to enable the corresponding SSL option.`, a.Config.ServerAddress)
 	}
-	if err == nil && resp.StatusCode == http.StatusUnauthorized {
+	if resp.StatusCode == http.StatusUnauthorized {
 		return fmt.Errorf(`Unable to connect to PMM server by address: %s
 
 Looks like the server is password protected.
@@ -143,11 +147,11 @@ Use 'pmm-admin config' to define server user and password.`, a.Config.ServerAddr
 	}
 
 	// Check Consul status.
-	if leader, err := a.consulAPI.Status().Leader(); err != nil || leader != "127.0.0.1:8300" {
+	if leader, err := a.consulAPI.Status().Leader(); err != nil || leader == "" {
 		return fmt.Errorf(`Unable to connect to PMM server by address: %s
 
 Even though the server is reachable it does not look to be PMM server.
-Check if the configured address is correct.`, a.Config.ServerAddress)
+Check if the configured address is correct. %s`, a.Config.ServerAddress, err)
 	}
 
 	// Check if server is not password protected but client is configured so.
@@ -204,73 +208,96 @@ func (a *Admin) ServerInfo() {
 }
 
 // StartStopMonitoring start/stop system service by its metric type and name.
-func (a *Admin) StartStopMonitoring(action, svcType string) error {
-	if svcType != "linux:metrics" && svcType != "mysql:metrics" && svcType != "mysql:queries" && svcType != "mongodb:metrics" && svcType != "proxysql:metrics" {
-		return errors.New(`bad service type.
-
-Service type takes the following values: linux:metrics, mysql:metrics, mysql:queries, mongodb:metrics, proxysql:metrics.`)
+func (a *Admin) StartStopMonitoring(action, svcType string) (affected bool, err error) {
+	err = isValidSvcType(svcType)
+	if err != nil {
+		return false, err
 	}
 
 	// Check if we have this service on Consul.
 	consulSvc, err := a.getConsulService(svcType, a.ServiceName)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if consulSvc == nil {
-		return ErrNoService
+		return false, ErrNoService
 	}
 
 	svcName := fmt.Sprintf("pmm-%s-%d", strings.Replace(svcType, ":", "-", 1), consulSvc.Port)
 	switch action {
 	case "start":
+		if getServiceStatus(svcName) {
+			// if it's already started then return
+			return false, nil
+		}
 		if err := startService(svcName); err != nil {
-			return err
+			return false, err
 		}
 	case "stop":
+		if !getServiceStatus(svcName) {
+			// if it's already stopped then return
+			return false, nil
+		}
 		if err := stopService(svcName); err != nil {
-			return err
+			return false, err
 		}
 	case "restart":
 		if err := stopService(svcName); err != nil {
-			return err
+			return false, err
 		}
 		if err := startService(svcName); err != nil {
-			return err
+			return false, err
 		}
 	}
 
-	return nil
+	return true, nil
 }
 
 // StartStopAllMonitoring start/stop all metric services.
-func (a *Admin) StartStopAllMonitoring(action string) (int, error) {
-	node, _, err := a.consulAPI.Catalog().Node(a.Config.ClientName, nil)
-	if err != nil || node == nil || len(node.Services) == 0 {
-		return 0, nil
-	}
+func (a *Admin) StartStopAllMonitoring(action string) (numOfAffected, numOfAll int, err error) {
+	var errs Errors
 
-	for _, svc := range node.Services {
-		svcName := fmt.Sprintf("pmm-%s-%d", strings.Replace(svc.Service, ":", "-", 1), svc.Port)
+	localServices := GetLocalServices()
+	numOfAll = len(localServices)
+
+	for _, svcName := range localServices {
 		switch action {
 		case "start":
+			if getServiceStatus(svcName) {
+				// if it's already started then continue
+				continue
+			}
 			if err := startService(svcName); err != nil {
-				return 0, err
+				errs = append(errs, err)
+				continue
 			}
 		case "stop":
+			if !getServiceStatus(svcName) {
+				// if it's already stopped then continue
+				continue
+			}
 			if err := stopService(svcName); err != nil {
-				return 0, err
+				errs = append(errs, err)
+				continue
 			}
 		case "restart":
 			if err := stopService(svcName); err != nil {
-				return 0, err
+				errs = append(errs, err)
+				continue
 			}
 			if err := startService(svcName); err != nil {
-				return 0, err
+				errs = append(errs, err)
+				continue
 			}
 		}
+		numOfAffected++
 	}
 
-	return len(node.Services), nil
+	if len(errs) > 0 {
+		return numOfAffected, numOfAll, errs
+	}
+
+	return numOfAffected, numOfAll, nil
 }
 
 // RemoveAllMonitoring remove all the monitoring services.
@@ -304,6 +331,10 @@ func (a *Admin) RemoveAllMonitoring(ignoreErrors bool) (uint16, error) {
 				if err := a.RemoveMongoDBMetrics(); err != nil && !ignoreErrors {
 					return count, err
 				}
+			case "mongodb:queries":
+				if err := a.RemoveMongoDBQueries(); err != nil && !ignoreErrors {
+					return count, err
+				}
 			case "proxysql:metrics":
 				if err := a.RemoveProxySQLMetrics(); err != nil && !ignoreErrors {
 					return count, err
@@ -312,6 +343,10 @@ func (a *Admin) RemoveAllMonitoring(ignoreErrors bool) (uint16, error) {
 			count++
 		}
 	}
+
+	// PMM-606: Remove generated password.
+	a.Config.MySQLPassword = ""
+	a.writeConfig()
 
 	return count, nil
 }
@@ -397,7 +432,7 @@ Choose different name for this service.`,
 }
 
 // choosePort automatically choose the port for service.
-func (a *Admin) choosePort(port uint16, userDefined bool) (uint16, error) {
+func (a *Admin) choosePort(port int, userDefined bool) (int, error) {
 	// Check if user defined port is not used.
 	if userDefined {
 		ok, err := a.availablePort(port)
@@ -424,14 +459,14 @@ func (a *Admin) choosePort(port uint16, userDefined bool) (uint16, error) {
 }
 
 // availablePort check if port is occupied by any service on Consul.
-func (a *Admin) availablePort(port uint16) (bool, error) {
+func (a *Admin) availablePort(port int) (bool, error) {
 	node, _, err := a.consulAPI.Catalog().Node(a.Config.ClientName, nil)
 	if err != nil {
 		return false, err
 	}
 	if node != nil {
 		for _, svc := range node.Services {
-			if port == uint16(svc.Port) {
+			if port == svc.Port {
 				return false, nil
 			}
 		}
@@ -450,42 +485,17 @@ func (a *Admin) checkSSLCertificate() error {
 }
 
 // CheckInstallation check for broken installation.
-func (a *Admin) CheckInstallation() ([]string, []string) {
-	var (
-		dir              string
-		extension        string
-		services         []string
-		orphanedServices []string
-		missingServices  []string
-	)
-	switch service.Platform() {
-	case "linux-systemd":
-		dir = "/etc/systemd/system"
-		extension = ".service"
-	case "linux-upstart":
-		dir = "/etc/init"
-		extension = ".conf"
-	case "unix-systemv":
-		dir = "/etc/init.d"
-		extension = ""
-	}
-
-	filesFound, _ := filepath.Glob(fmt.Sprintf("%s/pmm-*%s", dir, extension))
-	rService, _ := regexp.Compile(fmt.Sprintf("%s/(pmm-.+)%s", dir, extension))
-	for _, f := range filesFound {
-		if data := rService.FindStringSubmatch(f); data != nil {
-			services = append(services, data[1])
-		}
-	}
+func (a *Admin) CheckInstallation() (orphanedServices, missingServices []string) {
+	localServices := GetLocalServices()
 
 	node, _, err := a.consulAPI.Catalog().Node(a.Config.ClientName, nil)
 	if err != nil || node == nil || len(node.Services) == 0 {
-		return services, []string{}
+		return localServices, []string{}
 	}
 
 	// Find orphaned services: local system services that are not associated with Consul services.
 ForLoop1:
-	for _, s := range services {
+	for _, s := range localServices {
 		for _, svc := range node.Services {
 			svcName := fmt.Sprintf("pmm-%s-%d", strings.Replace(svc.Service, ":", "-", 1), svc.Port)
 			if s == svcName {
@@ -499,7 +509,7 @@ ForLoop1:
 ForLoop2:
 	for _, svc := range node.Services {
 		svcName := fmt.Sprintf("pmm-%s-%d", strings.Replace(svc.Service, ":", "-", 1), svc.Port)
-		for _, s := range services {
+		for _, s := range localServices {
 			if s == svcName {
 				continue ForLoop2
 			}
@@ -532,16 +542,18 @@ func (a *Admin) RepairInstallation() error {
 
 		prefix := fmt.Sprintf("%s/%s/", a.Config.ClientName, s)
 
-		// Try to delete mysql instances from QAN associated with queries service on KV.
+		// Try to delete instances from QAN associated with queries service on KV.
 		names, _, err := a.consulAPI.KV().Keys(prefix, "", nil)
 		if err == nil {
 			for _, name := range names {
-				if !strings.HasSuffix(name, "/qan_mysql_uuid") {
-					continue
-				}
-				data, _, err := a.consulAPI.KV().Get(name, nil)
-				if err == nil && data != nil {
-					a.deleteMySQLinstance(string(data.Value))
+				for _, serviceName := range []string{"mysql", "mongodb"} {
+					if strings.HasSuffix(name, fmt.Sprintf("/qan_%s_uuid", serviceName)) {
+						data, _, err := a.consulAPI.KV().Get(name, nil)
+						if err == nil && data != nil {
+							a.deleteInstance(string(data.Value))
+						}
+						break
+					}
 				}
 			}
 		}
@@ -571,7 +583,35 @@ func (a *Admin) Uninstall() uint16 {
 		}
 	}
 
-	var dir, extension string
+	// Find any local PMM services and try to uninstall ignoring the errors.
+	localServices := GetLocalServices()
+
+	for _, service := range localServices {
+		if err := uninstallService(service); err == nil {
+			count++
+		}
+	}
+
+	return count
+}
+
+// GetLocalServices finds any local PMM services
+func GetLocalServices() (services []string) {
+	dir, extension := GetServiceDirAndExtension()
+
+	filesFound, _ := filepath.Glob(fmt.Sprintf("%s/pmm-*%s", dir, extension))
+	rService, _ := regexp.Compile(fmt.Sprintf("%s/(pmm-.+)%s", dir, extension))
+	for _, f := range filesFound {
+		if data := rService.FindStringSubmatch(f); data != nil {
+			services = append(services, data[1])
+		}
+	}
+
+	return services
+}
+
+// GetServiceDirAndExtension returns dir and extension used to create system service
+func GetServiceDirAndExtension() (dir, extension string) {
 	switch service.Platform() {
 	case "linux-systemd":
 		dir = "/etc/systemd/system"
@@ -582,22 +622,12 @@ func (a *Admin) Uninstall() uint16 {
 	case "unix-systemv":
 		dir = "/etc/init.d"
 		extension = ""
+	case "darwin-launchd":
+		dir = "/Library/LaunchDaemons"
+		extension = ".plist"
 	}
 
-	// Find any local PMM services and try to uninstall ignoring the errors.
-	filesFound, _ := filepath.Glob(fmt.Sprintf("%s/pmm-*%s", dir, extension))
-	rService, _ := regexp.Compile(fmt.Sprintf("%s/(pmm-.+)%s", dir, extension))
-	for _, f := range filesFound {
-		data := rService.FindStringSubmatch(f)
-		if data == nil {
-			continue
-		}
-		if err := uninstallService(data[1]); err == nil {
-			count++
-		}
-	}
-
-	return count
+	return RootDir + dir, extension
 }
 
 // ShowPasswords display passwords from config file.
@@ -646,8 +676,8 @@ func CheckBinaries() string {
 		fmt.Sprintf("%s/mysqld_exporter", PMMBaseDir),
 		fmt.Sprintf("%s/mongodb_exporter", PMMBaseDir),
 		fmt.Sprintf("%s/proxysql_exporter", PMMBaseDir),
-		fmt.Sprintf("%s/bin/percona-qan-agent", agentBaseDir),
-		fmt.Sprintf("%s/bin/percona-qan-agent-installer", agentBaseDir),
+		fmt.Sprintf("%s/bin/percona-qan-agent", AgentBaseDir),
+		fmt.Sprintf("%s/bin/percona-qan-agent-installer", AgentBaseDir),
 	}
 	for _, p := range paths {
 		if !FileExists(p) {
@@ -716,4 +746,26 @@ func generateSSLCertificate(host, certFile, keyFile string) error {
 	out.Close()
 
 	return nil
+}
+
+var svcTypes = []string{
+	"linux:metrics",
+	"mysql:metrics",
+	"mysql:queries",
+	"mongodb:metrics",
+	"mongodb:queries",
+	"proxysql:metrics",
+}
+
+// isValidSvcType checks if given service type is allowed
+func isValidSvcType(svcType string) error {
+	for _, v := range svcTypes {
+		if v == svcType {
+			return nil
+		}
+	}
+
+	return fmt.Errorf(`bad service type.
+
+Service type takes the following values: %s.`, strings.Join(svcTypes, ", "))
 }

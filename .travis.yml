@@ -5,15 +5,23 @@ go:
   - 1.7.x
   - 1.8.x
 
+services:
+  - mysql
+  - mongodb
+
 notifications:
   email: false
 
 install:
-  - go get github.com/kardianos/govendor
+  - go get -u github.com/Masterminds/glide
   - rm -rf vendor/
-  - git checkout vendor/vendor.json
-  - govendor sync
+  - glide install
 
 script:
+  # check if vendor dir is correct
   - git diff --exit-code
-  - go test -v ./pmm
+  # Magical command `go list ./... | grep -v /vendor/` is required to skip vendor folder when using `./...` pattern
+  # https://github.com/golang/go/issues/19090
+  - pkgs=$(go list ./... | grep -v /vendor/)
+  - go test -v $pkgs
+  - go build -o bin/pmm-admin

@@ -74,15 +74,16 @@ func (a *Admin) List() error {
 	}
 
 	// Parse all services except mysql:queries.
-	var queryService *consul.AgentService
+	var queryServices []*consul.AgentService
 	var svcTable []instanceStatus
 	for _, svc := range node.Services {
 		// When server hostname == client name, we have to exclude consul.
 		if svc.Service == "consul" {
 			continue
 		}
-		if svc.Service == "mysql:queries" {
-			queryService = svc
+		switch svc.Service {
+		case "mysql:queries", "mongodb:queries":
+			queryServices = append(queryServices, svc)
 			continue
 		}
 
@@ -129,8 +130,8 @@ func (a *Admin) List() error {
 	}
 
 	// Parse queries service.
-	if queryService != nil {
-		status := getServiceStatus(fmt.Sprintf("pmm-mysql-queries-%d", queryService.Port))
+	for _, queryService := range queryServices {
+		status := getServiceStatus(fmt.Sprintf("pmm-%s-%d", strings.Replace(queryService.Service, ":", "-", 1), queryService.Port))
 
 		// Get names from Consul tags.
 		names := []string{}
@@ -151,10 +152,14 @@ func (a *Admin) List() error {
 					switch key {
 					case "dsn":
 						dsn = string(kvp.Value)
-					case "qan_mysql_uuid":
-						f := fmt.Sprintf("%s/config/qan-%s.conf", agentBaseDir, kvp.Value)
+					case "qan_mysql_uuid", "qan_mongodb_uuid":
+						f := fmt.Sprintf("%s/config/qan-%s.conf", AgentBaseDir, kvp.Value)
 						querySource, _ := getQuerySource(f)
-						opts = append(opts, fmt.Sprintf("query_source=%s", querySource))
+						if querySource != "" {
+							opts = append(opts, fmt.Sprintf("query_source=%s", querySource))
+						}
+						queryExamples, _ := getQueryExamples(f)
+						opts = append(opts, fmt.Sprintf("query_examples=%t", queryExamples))
 					}
 				}
 			}

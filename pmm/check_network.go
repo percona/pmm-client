@@ -29,6 +29,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/beevik/ntp"
 	"github.com/fatih/color"
 	"golang.org/x/net/context"
 )
@@ -44,7 +45,7 @@ func (a *Admin) CheckNetwork() error {
 		}
 	}
 
-	// Check Prometheus API by retriving all "up" time series.
+	// Check Prometheus API by retrieving all "up" time series.
 	promStatus := true
 	promData, err := a.promQueryAPI.Query(context.Background(), "up", time.Now())
 	if err != nil {
@@ -62,6 +63,19 @@ func (a *Admin) CheckNetwork() error {
 
 	t := a.getNginxHeader("X-Server-Time")
 	if t != "" {
+		timeFormat := "2006-01-02 15:04:05 -0700 MST"
+
+		// Real time (ntp server time)
+		ntpHost := "0.pool.ntp.org"
+		ntpTime, ntpTimeErr := ntp.Time(ntpHost)
+		ntpTimeText := ""
+		if ntpTimeErr != nil {
+			ntpTimeText = fmt.Sprintf("unable to get ntp time: %s", err)
+		} else {
+			ntpTimeText = ntpTime.Format(timeFormat)
+		}
+
+		// Server time
 		color.New(color.Bold).Println("* System Time")
 		var serverTime time.Time
 		if s, err := strconv.ParseInt(t, 10, 64); err == nil {
@@ -69,13 +83,38 @@ func (a *Admin) CheckNetwork() error {
 		} else {
 			serverTime, _ = time.Parse("Monday, 02-Jan-2006 15:04:05 MST", t)
 		}
+
+		// Client Time
 		clientTime := time.Now()
-		fmt.Printf("%-10s | %s\n", "Server", serverTime.Format("2006-01-02 15:04:05 -0700 MST"))
-		fmt.Printf("%-10s | %s\n", "Client", clientTime.Format("2006-01-02 15:04:05 -0700 MST"))
+
+		// Print times
+		if ntpTimeErr == nil {
+			fmt.Printf("%-35s | %s\n", fmt.Sprintf("NTP Server (%s)", ntpHost), ntpTimeText)
+		}
+		fmt.Printf("%-35s | %s\n", "PMM Server", serverTime.Format(timeFormat))
+		fmt.Printf("%-35s | %s\n", "PMM Client", clientTime.Format(timeFormat))
+
+		allowedDriftTime := float64(60) // seconds
+		if ntpTimeErr == nil {
+			// Calculate time drift between NTP Server and PMM Server
+			drift := math.Abs(float64(serverTime.Unix()) - float64(ntpTime.Unix()))
+			fmt.Printf("%-35s | %s\n", "PMM Server Time Drift", colorStatus("OK", fmt.Sprintf("%.0fs", drift), drift <= allowedDriftTime))
+			if drift > allowedDriftTime {
+				fmt.Print("Time is out of sync. Please make sure the server time is correct to see the metrics.\n")
+			}
+			// Calculate time drift between NTP Server and PMM Client
+			drift = math.Abs(float64(clientTime.Unix()) - float64(ntpTime.Unix()))
+			fmt.Printf("%-35s | %s\n", "PMM Client Time Drift", colorStatus("OK", fmt.Sprintf("%.0fs", drift), drift <= allowedDriftTime))
+			if drift > allowedDriftTime {
+				fmt.Print("Time is out of sync. Please make sure the client time is correct to see the metrics.\n")
+			}
+		}
+
+		// Calculate time drift between server and client
 		drift := math.Abs(float64(serverTime.Unix()) - float64(clientTime.Unix()))
-		fmt.Printf("%-10s | %s\n\n", "Time Drift", colorStatus("OK", fmt.Sprintf("%.0fs", drift), drift <= 120))
-		if drift > 120 {
-			fmt.Print("Time is out of sync. Please make sure the server time is correct to see the metrics.\n\n")
+		fmt.Printf("%-35s | %s\n", "PMM Client to PMM Server Time Drift", colorStatus("OK", fmt.Sprintf("%.0fs", drift), drift <= allowedDriftTime))
+		if drift > allowedDriftTime {
+			fmt.Print("Time is out of sync. Please make sure the server time is correct to see the metrics.\n")
 		}
 	}
 
@@ -301,7 +340,7 @@ func (a *Admin) isPasswordProtected(svcType string, port int) bool {
 	if a.isSSLProtected(svcType, port) {
 		scheme = "https"
 		// Enforce InsecureSkipVerify true to bypass err and check http code.
-		api = NewAPI(true, apiTimeout)
+		api = NewAPI(true, apiTimeout, a.Verbose)
 	}
 	url := api.URL(fmt.Sprintf("%s://%s:%d", scheme, a.Config.BindAddress, port), urlPath)
 	if resp, _, err := api.Get(url); err == nil && resp.StatusCode == http.StatusUnauthorized {
