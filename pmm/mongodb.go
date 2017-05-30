@@ -40,6 +40,7 @@ func (a *Admin) DetectMongoDB(uri string) (mgo.BuildInfo, error) {
 		return mgo.BuildInfo{}, fmt.Errorf("Cannot connect to MongoDB using uri %s: %s", uri, err)
 	}
 	defer session.Close()
+	session.SetMode(mgo.Eventual, true)
 
 	buildInfo, err := session.BuildInfo()
 	if err != nil {
