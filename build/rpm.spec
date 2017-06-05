@@ -40,11 +40,17 @@ install -m 0755 bin/mongodb_exporter $RPM_BUILD_ROOT/usr/local/percona/pmm-clien
 install -m 0755 bin/proxysql_exporter $RPM_BUILD_ROOT/usr/local/percona/pmm-client/
 install -m 0755 bin/percona-qan-agent $RPM_BUILD_ROOT/usr/local/percona/qan-agent/bin/
 install -m 0755 bin/percona-qan-agent-installer $RPM_BUILD_ROOT/usr/local/percona/qan-agent/bin/
+if [ "$1" -ge 2 ]; then
+    echo "NOTE:  This upgrade requires that the PMM monitoring services be re-added to provide credentials."
+fi
 
 %clean
 rm -rf $RPM_BUILD_ROOT
 
 %post
+if [ "$1" -ge 2 ]; then
+    echo "NOTE:  This upgrade requires that the PMM monitoring services be re-added to provide credentials."
+fi
 # upgrade
 pmm-admin ping > /dev/null
 if [ $? = 0 ] && [ "$1" = "2" ]; then
