@@ -68,7 +68,7 @@ go build -ldflags "-X $importpath/version.Version=$VERSION -X $importpath/versio
 
 printf "Building mongodb_exporter...\t"
 cd $GOPATH/src/github.com/percona/mongodb_exporter
-make build
+make
 mv ./mongodb_exporter $SOURCE_DIR/distro/bin/mongodb_exporter
 
 printf "Building proxysql_exporter...\t"
