@@ -14,9 +14,12 @@ notifications:
 
 install:
   - go get -u github.com/Masterminds/glide
+  - rm -rf vendor/
   - glide install
 
 script:
+  # check if vendor dir is correct
+  - git diff --exit-code
   # Magical command `go list ./... | grep -v /vendor/` is required to skip vendor folder when using `./...` pattern
   # https://github.com/golang/go/issues/19090
   - pkgs=$(go list ./... | grep -v /vendor/)
