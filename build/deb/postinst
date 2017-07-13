@@ -1,5 +1,5 @@
 #!/bin/bash
 pmm-admin ping > /dev/null
 if [ $? = 0 ]; then
-    pmm-admin restart --all
+    pmm-admin restart --all || pmm-admin restart --all
 fi
