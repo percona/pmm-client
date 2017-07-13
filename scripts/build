@@ -24,18 +24,14 @@ echo
 # Default build for linux, not Darwin.
 export GOOS=linux
 
-# Get `glide` package manager
-go get -u github.com/Masterminds/glide
-
 printf "Building pmm-admin...\t\t"
 echo $(git log -1 --format="%d %cd")
-glide install
 go build -ldflags "-X github.com/percona/pmm-client/pmm.Version=$VERSION" -o distro/bin/pmm-admin
 
 printf "Building percona-qan-agent...\t"
 cd $GOPATH/src/github.com/percona/qan-agent
 echo $(git log -1 --format="%d %cd")
-govendor sync
+
 cd $SOURCE_DIR
 go build -ldflags "-X github.com/percona/qan-agent/agent/release.VERSION=$VERSION" \
     -o distro/bin/percona-qan-agent github.com/percona/qan-agent/bin/percona-qan-agent
@@ -55,7 +51,6 @@ commit=$(git rev-parse HEAD)
 branch=$(git rev-parse --abbrev-ref HEAD)
 echo $(git log -1 --format="%d %cd")
 importpath=github.com/percona/mysqld_exporter/vendor/github.com/prometheus/common
-govendor sync
 cd $SOURCE_DIR
 go build -ldflags "-X $importpath/version.Version=$VERSION -X $importpath/version.Branch=$branch -X $importpath/version.Revision=$commit" \
     -o distro/bin/mysqld_exporter github.com/percona/mysqld_exporter
