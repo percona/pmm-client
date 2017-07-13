@@ -32,7 +32,7 @@ imports:
   subpackages:
   - dsn
 - name: github.com/percona/kardianos-service
-  version: feb3bb6021e7754467634ce2d5899a344bf180af
+  version: 45c70c40a84e0bd33420aa50c7f17923d2ac9304
 - name: github.com/percona/pmgo
   version: 717c9ce3810f3744d303a8ad418f84d517fde597
 - name: github.com/percona/pmm
