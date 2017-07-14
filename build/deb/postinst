@@ -1,5 +1,8 @@
 #!/bin/bash
-sed -i 's:for i in {1..10}:for i in $(seq 1 10):' /etc/init.d/pmm-*
+for file in $(find -L /etc/init.d -maxdepth 1 -name "pmm-*")
+do
+    sed -i 's:for i in {1..10}:for i in $(seq 1 10):' "$file"
+done
 pmm-admin ping > /dev/null
 if [ $? = 0 ]; then
     pmm-admin restart --all
