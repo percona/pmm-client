@@ -51,6 +51,16 @@ func (_mr *_MockCollectionManagerRecorder) Create(arg0 interface{}) *gomock.Call
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Create", arg0)
 }
 
+func (_m *MockCollectionManager) DropCollection() error {
+	ret := _m.ctrl.Call(_m, "DropCollection")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockCollectionManagerRecorder) DropCollection() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "DropCollection")
+}
+
 func (_m *MockCollectionManager) Find(_param0 interface{}) QueryManager {
 	ret := _m.ctrl.Call(_m, "Find", _param0)
 	ret0, _ := ret[0].(QueryManager)

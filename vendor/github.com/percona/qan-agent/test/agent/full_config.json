@@ -1,0 +1,6 @@
+{
+	"ApiHostname": "agent hostname",
+	"ApiKey":      "api key",
+	"UUID":   "agent uuid",
+	"PidFile":     "pid file"
+}

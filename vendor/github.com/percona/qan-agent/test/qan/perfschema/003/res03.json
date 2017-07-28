@@ -1,0 +1,251 @@
+{
+    "Class": [
+        {
+            "Fingerprint": "select 1",
+            "Id": "1111111111111111",
+            "Metrics": {
+                "BoolMetrics": {
+                    "Full_join": {
+                        "Sum": 0
+                    },
+                    "Full_scan": {
+                        "Sum": 0
+                    },
+                    "Tmp_table": {
+                        "Sum": 0
+                    },
+                    "Tmp_table_on_disk": {
+                        "Sum": 0
+                    }
+                },
+                "NumberMetrics": {
+                    "Merge_passes": {
+                        "Med": 0,
+                        "Pct95": 0,
+                        "Sum": 0
+                    },
+                    "Rows_affected": {
+                        "Med": 0,
+                        "Pct95": 0,
+                        "Sum": 0
+                    },
+                    "Rows_examined": {
+                        "Med": 0,
+                        "Pct95": 0,
+                        "Sum": 0
+                    },
+                    "Rows_sent": {
+                        "Med": 0,
+                        "Pct95": 0,
+                        "Sum": 0
+                    }
+                },
+                "TimeMetrics": {
+                    "Lock_time": {
+                        "Med": 0,
+                        "Pct95": 0,
+                        "Sum": 0
+                    },
+                    "Query_time": {
+                        "Avg": 0.00081111,
+                        "Max": 0.00082461,
+                        "Min": 0.00080461,
+                        "Sum": 0
+                    }
+                }
+            },
+            "TotalQueries": 1
+        },
+        {
+            "Fingerprint": "select 2",
+            "Id": "2222222222222222",
+            "Metrics": {
+                "BoolMetrics": {
+                    "Full_join": {
+                        "Sum": 0
+                    },
+                    "Full_scan": {
+                        "Sum": 0
+                    },
+                    "Tmp_table": {
+                        "Sum": 0
+                    },
+                    "Tmp_table_on_disk": {
+                        "Sum": 0
+                    }
+                },
+                "NumberMetrics": {
+                    "Merge_passes": {
+                        "Pct95": 0,
+                        "Sum": 0
+                    },
+                    "Rows_affected": {
+                        "Pct95": 0,
+                        "Sum": 0
+                    },
+                    "Rows_examined": {
+                        "Pct95": 0,
+                        "Sum": 0
+                    },
+                    "Rows_sent": {
+                        "Sum": 0
+                    }
+                },
+                "TimeMetrics": {
+                    "Lock_time": {
+                        "Sum": 0
+                    },
+                    "Query_time": {
+                        "Avg": 0.00018998,
+                        "Max": 0.000202022,
+                        "Min": 0.00010063,
+                        "Sum": 0
+                    }
+                }
+            },
+            "TotalQueries": 1
+        },
+        {
+            "Fingerprint": "select 3",
+            "Id": "3333333333333333",
+            "Metrics": {
+                "BoolMetrics": {
+                    "Full_join": {
+                        "Sum": 0
+                    },
+                    "Full_scan": {
+                        "Sum": 2
+                    },
+                    "Tmp_table": {
+                        "Sum": 0
+                    },
+                    "Tmp_table_on_disk": {
+                        "Sum": 2
+                    }
+                },
+                "NumberMetrics": {
+                    "Merge_passes": {
+                        "Sum": 100
+                    },
+                    "Rows_affected": {
+                        "Sum": 0
+                    },
+                    "Rows_examined": {
+                        "Pct95": 0,
+                        "Sum": 11
+                    },
+                    "Rows_sent": {
+                        "Sum": 10
+                    }
+                },
+                "TimeMetrics": {
+                    "Lock_time": {
+                        "Sum": 0.00012345
+                    },
+                    "Query_time": {
+                        "Avg": 0.00018008,
+                        "Max": 0.000202022,
+                        "Min": 0.00010083,
+                        "Sum": 0.00019951
+                    }
+                }
+            },
+            "TotalQueries": 1
+        },
+        {
+            "Fingerprint": "select 4",
+            "Id": "4444444444444444",
+            "Metrics": {
+                "BoolMetrics": {
+                    "Full_join": {
+                        "Sum": 0
+                    },
+                    "Full_scan": {
+                        "Sum": 0
+                    },
+                    "Tmp_table": {
+                        "Sum": 0
+                    },
+                    "Tmp_table_on_disk": {
+                        "Sum": 0
+                    }
+                },
+                "NumberMetrics": {
+                    "Merge_passes": {
+                        "Sum": 0
+                    },
+                    "Rows_affected": {
+                        "Sum": 0
+                    },
+                    "Rows_examined": {
+                        "Sum": 5
+                    },
+                    "Rows_sent": {
+                        "Sum": 5
+                    }
+                },
+                "TimeMetrics": {
+                    "Lock_time": {
+                        "Sum": 0.0001002
+                    },
+                    "Query_time": {
+                        "Avg": 0.0001001,
+                        "Max": 0.0001001,
+                        "Min": 0.0001001,
+                        "Sum": 0.0001001
+                    }
+                }
+            },
+            "TotalQueries": 1
+        }
+    ],
+    "Global": {
+        "Metrics": {
+            "BoolMetrics": {
+                "Full_join": {
+                    "Sum": 0
+                },
+                "Full_scan": {
+                    "Sum": 2
+                },
+                "Tmp_table": {
+                    "Sum": 0
+                },
+                "Tmp_table_on_disk": {
+                    "Sum": 2
+                }
+            },
+            "NumberMetrics": {
+                "Merge_passes": {
+                    "Sum": 100,
+		    "Avg": 25
+                },
+                "Rows_affected": {
+                    "Sum": 0
+                },
+                "Rows_examined": {
+                    "Sum": 16,
+		    "Avg": 4
+                },
+                "Rows_sent": {
+                    "Sum": 15,
+		    "Avg": 3
+                }
+            },
+            "TimeMetrics": {
+                "Lock_time": {
+		    "Sum": 0.000224,
+		    "Avg": 0.000056
+                },
+                "Query_time": {
+                    "Avg": 0,
+                    "Max": 0.00082461,
+                    "Min": 0.0001,
+                    "Sum": 0.00029960999999999996
+                }
+            }
+        },
+        "TotalQueries": 4,
+        "UniqueQueries": 4
+    }
+}

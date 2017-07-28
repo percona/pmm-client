@@ -14,7 +14,7 @@ The following procedure describes how to properly deploy PMM:
 
    * :ref:`Run PMM Server using Docker <run-server-docker>`
 
-   * :ref:`Run PMM Server using VirtualBox <run-server-vbox>`
+   * :ref:`Run PMM Server as a virtual appliance <run-server-ova>`
 
    * :ref:`Run PMM Server using Amazon Machine Image (AMI) <run-server-ami>`
 
@@ -33,15 +33,23 @@ The following procedure describes how to properly deploy PMM:
 
 #. :ref:`Start data collection <start-collect>`
 
-Removing and Upgrading
-======================
+Upgrading
+=========
 
-For information about removing and upgrading PMM, see:
+To upgrade PMM:
+
+1. :ref:`Upgrade PMM Server <upgrade-server>`
+
+#. :ref:`Upgrade PMM Client <upgrade-client>`
+   on all hosts that you are monitoring
+
+Removing
+========
+
+For more information about removing PMM, see the following:
 
 * :ref:`remove-server`
-* :ref:`upgrade-server`
 * :ref:`remove-client`
-* :ref:`upgrade-client`
 
 .. toctree::
    :hidden:

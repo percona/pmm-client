@@ -1,0 +1,95 @@
+{
+    "Class": [
+        {
+            "Fingerprint": "select 1",
+            "Id": "C40318BFC3888AED",
+            "Metrics": {
+                "BoolMetrics": {
+                    "Full_join": {
+                        "Sum": 0
+                    },
+                    "Full_scan": {
+                        "Sum": 1
+                    },
+                    "Tmp_table": {
+                        "Sum": 1
+                    },
+                    "Tmp_table_on_disk": {
+                        "Sum": 0
+                    }
+                },
+                "NumberMetrics": {
+                    "Merge_passes": {
+                        "Sum": 0
+                    },
+                    "Rows_affected": {
+                        "Sum": 0
+                    },
+                    "Rows_examined": {
+                        "Sum": 10
+                    },
+                    "Rows_sent": {
+                        "Sum": 10
+                    }
+                },
+                "TimeMetrics": {
+                    "Lock_time": {
+                        "Sum": 0.000100
+                    },
+                    "Query_time": {
+                        "Avg": 0.000743,
+                        "Max": 0.000855,
+                        "Min": 0.000805,
+                        "Sum": 0.000070
+                    }
+                }
+            },
+            "TotalQueries": 1
+        }
+    ],
+    "Global": {
+        "Metrics": {
+            "BoolMetrics": {
+                "Full_join": {
+                    "Sum": 0
+                },
+                "Full_scan": {
+                    "Sum": 1
+                },
+                "Tmp_table": {
+                    "Sum": 1
+                },
+                "Tmp_table_on_disk": {
+                    "Sum": 0
+                }
+            },
+            "NumberMetrics": {
+                "Merge_passes": {
+                    "Sum": 0
+                },
+                "Rows_affected": {
+                    "Sum": 0
+                },
+                "Rows_examined": {
+                    "Sum": 10
+                },
+                "Rows_sent": {
+                    "Sum": 10
+                }
+            },
+            "TimeMetrics": {
+                "Lock_time": {
+                    "Sum": 0.000100
+                },
+                "Query_time": {
+                    "Avg": 0.000743,
+                    "Max": 0.000855,
+                    "Min": 0.000805,
+                    "Sum": 0.000070
+                }
+            }
+        },
+        "TotalQueries": 1,
+        "UniqueQueries": 1
+    }
+}

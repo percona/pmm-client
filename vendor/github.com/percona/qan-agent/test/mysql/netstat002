@@ -1,0 +1,26 @@
+Active UNIX domain sockets (only servers)
+Proto RefCnt Flags       Type       State         I-Node Path
+unix  2      [ ACC ]     STREAM     LISTENING     6769   @/com/ubuntu/upstart
+unix  2      [ ACC ]     STREAM     LISTENING     8489   /var/run/rpcbind.sock
+unix  2      [ ACC ]     STREAM     LISTENING     9128   public/cleanup
+unix  2      [ ACC ]     STREAM     LISTENING     9135   private/tlsmgr
+unix  2      [ ACC ]     STREAM     LISTENING     9139   private/rewrite
+unix  2      [ ACC ]     STREAM     LISTENING     9143   private/bounce
+unix  2      [ ACC ]     STREAM     LISTENING     9147   private/defer
+unix  2      [ ACC ]     STREAM     LISTENING     9151   private/trace
+unix  2      [ ACC ]     STREAM     LISTENING     9155   private/verify
+unix  2      [ ACC ]     STREAM     LISTENING     9159   public/flush
+unix  2      [ ACC ]     STREAM     LISTENING     9163   private/proxymap
+unix  2      [ ACC ]     STREAM     LISTENING     9167   private/proxywrite
+unix  2      [ ACC ]     STREAM     LISTENING     9171   private/smtp
+unix  2      [ ACC ]     STREAM     LISTENING     9175   private/relay
+unix  2      [ ACC ]     STREAM     LISTENING     9179   public/showq
+unix  2      [ ACC ]     STREAM     LISTENING     9183   private/error
+unix  2      [ ACC ]     STREAM     LISTENING     9187   private/retry
+unix  2      [ ACC ]     STREAM     LISTENING     9191   private/discard
+unix  2      [ ACC ]     STREAM     LISTENING     9195   private/local
+unix  2      [ ACC ]     STREAM     LISTENING     9199   private/virtual
+unix  2      [ ACC ]     STREAM     LISTENING     9203   private/lmtp
+unix  2      [ ACC ]     STREAM     LISTENING     9207   private/anvil
+unix  2      [ ACC ]     STREAM     LISTENING     9211   private/scache
+unix  2      [ ACC ]     STREAM     LISTENING     383838 /var/lib/mysql/mysql.sock

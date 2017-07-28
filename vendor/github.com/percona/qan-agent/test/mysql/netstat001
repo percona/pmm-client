@@ -1,0 +1,33 @@
+Active UNIX domain sockets (only servers)
+Proto RefCnt Flags       Type       State         I-Node   Path
+unix  2      [ ACC ]     STREAM     LISTENING     3980293  /var/run/mysqld/mysqld.sock
+unix  2      [ ACC ]     STREAM     LISTENING     6259     @/com/ubuntu/upstart
+unix  2      [ ACC ]     STREAM     LISTENING     17834    public/cleanup
+unix  2      [ ACC ]     STREAM     LISTENING     17839    private/tlsmgr
+unix  2      [ ACC ]     STREAM     LISTENING     17842    private/rewrite
+unix  2      [ ACC ]     STREAM     LISTENING     17845    private/bounce
+unix  2      [ ACC ]     STREAM     LISTENING     17848    private/defer
+unix  2      [ ACC ]     STREAM     LISTENING     17851    private/trace
+unix  2      [ ACC ]     STREAM     LISTENING     17854    private/verify
+unix  2      [ ACC ]     STREAM     LISTENING     17857    public/flush
+unix  2      [ ACC ]     STREAM     LISTENING     17860    private/proxymap
+unix  2      [ ACC ]     STREAM     LISTENING     17863    private/proxywrite
+unix  2      [ ACC ]     STREAM     LISTENING     17866    private/smtp
+unix  2      [ ACC ]     STREAM     LISTENING     17869    private/relay
+unix  2      [ ACC ]     STREAM     LISTENING     17872    public/showq
+unix  2      [ ACC ]     STREAM     LISTENING     17875    private/error
+unix  2      [ ACC ]     STREAM     LISTENING     17878    private/retry
+unix  2      [ ACC ]     STREAM     LISTENING     17881    private/discard
+unix  2      [ ACC ]     STREAM     LISTENING     17884    private/local
+unix  2      [ ACC ]     STREAM     LISTENING     17887    private/virtual
+unix  2      [ ACC ]     STREAM     LISTENING     17890    private/lmtp
+unix  2      [ ACC ]     STREAM     LISTENING     17893    private/anvil
+unix  2      [ ACC ]     STREAM     LISTENING     17896    private/scache
+unix  2      [ ACC ]     STREAM     LISTENING     17899    private/maildrop
+unix  2      [ ACC ]     STREAM     LISTENING     17902    private/uucp
+unix  2      [ ACC ]     STREAM     LISTENING     17905    private/ifmail
+unix  2      [ ACC ]     STREAM     LISTENING     17908    private/bsmtp
+unix  2      [ ACC ]     STREAM     LISTENING     17911    private/scalemail-backend
+unix  2      [ ACC ]     STREAM     LISTENING     17914    private/mailman
+unix  2      [ ACC ]     STREAM     LISTENING     6802     /var/run/dbus/system_bus_socket
+unix  2      [ ACC ]     SEQPACKET  LISTENING     6370     /run/udev/control

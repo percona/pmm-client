@@ -1,0 +1,30 @@
+[
+	{
+		"Schema": "db1",
+		"Digest": "",
+		"CountStar": 2,
+		"SumTimerWait": 874610000,
+		"MinTimerWait": 804610000,
+		"AvgTimerWait": 743220000,
+		"MaxTimerWait": 854610000,
+		"SumLockTime": 267000000,
+		"SumErrors": 0,
+		"SumWarnings": 0,
+		"SumRowsAffected": 0,
+		"SumRowsSent": 20,
+		"SumRowsExamined": 20,
+		"SumCreatedTmpDiskTables": 0,
+		"SumCreatedTmpTables": 2,
+		"SumSelectFullJoin": 0,
+		"SumSelectFullRangeJoin": 0,
+		"SumSelectRange": 0,
+		"SumSelectRangeCheck": 0,
+		"SumSelectScan": 2,
+		"SumSortMergePasseS": 0,
+		"SumSortRange": 0,
+		"SumSortRows": 0,
+		"SumSortScan": 0,
+		"FirstSeen": "2015-01-01T12:00:00Z",
+		"LastSeen": "2015-01-01T12:01:10Z"
+	}
+]

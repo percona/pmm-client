@@ -24,6 +24,18 @@ import:
 - package: gopkg.in/yaml.v2
 - package: github.com/percona/pmgo
 - package: github.com/beevik/ntp
+- package: github.com/percona/mongodb_exporter
+  version: v0.3.0
+- package: github.com/percona/proxysql_exporter
+  version: v1.1.0
+- package: github.com/percona/mysqld_exporter
+  version: 0.10.0
+- package: github.com/prometheus/node_exporter
+  version: v0.14.0
+- package: github.com/percona/qan-agent
+  version: v1.0.0
+  subpackages:
+  - bin/percona-qan-agent
 testImport:
 - package: github.com/smartystreets/goconvey
   subpackages:

@@ -1,0 +1,381 @@
+{
+  "StopOffset": 2152,
+  "RunTime": 0,
+  "RateLimit": 2,
+  "Global": {
+    "TotalQueries": 6,
+    "UniqueQueries": 2,
+    "Metrics": {
+      "TimeMetrics": {
+        "InnoDB_IO_r_wait": {
+          "Sum": 0
+        },
+        "InnoDB_queue_wait": {
+          "Sum": 0
+        },
+        "InnoDB_rec_lock_wait": {
+          "Sum": 0
+        },
+        "Lock_time": {
+          "Sum": 0.0005680000031134114,
+          "Min": 4.8000001697801054e-05,
+          "Avg": 9.466666718556856e-05,
+          "Med": 0.0001140000022132881,
+          "P95": 0.00012199999764561653,
+          "Max": 0.00012199999764561653
+        },
+        "Query_time": {
+          "Sum": 0.001260000019101426,
+          "Min": 0.00016500000492669642,
+          "Avg": 0.000210000003183571,
+          "Med": 0.0002280000044265762,
+          "P95": 0.00023700000019744039,
+          "Max": 0.00023700000019744039
+        }
+      },
+      "NumberMetrics": {
+        "Bytes_sent": {
+          "Sum": 3142,
+          "Min": 481,
+          "Avg": 523,
+          "Med": 545,
+          "P95": 545,
+          "Max": 545
+        },
+        "InnoDB_IO_r_bytes": {
+          "Sum": 0
+        },
+        "InnoDB_IO_r_ops": {
+          "Sum": 0
+        },
+        "InnoDB_pages_distinct": {
+          "Sum": 14,
+          "Min": 2,
+          "Avg": 2,
+          "Med": 2,
+          "P95": 3,
+          "Max": 3
+        },
+        "InnoDB_trx_id": {
+          "Sum": 0
+        },
+        "Killed": {
+          "Sum": 0
+        },
+        "Last_errno": {
+          "Sum": 0
+        },
+        "Merge_passes": {
+          "Sum": 0
+        },
+        "Rows_affected": {
+          "Sum": 0
+        },
+        "Rows_examined": {
+          "Sum": 24,
+          "Min": 1,
+          "Avg": 4,
+          "Med": 1,
+          "P95": 10,
+          "Max": 10
+        },
+        "Rows_sent": {
+          "Sum": 14,
+          "Min": 1,
+          "Avg": 2,
+          "Med": 1,
+          "P95": 5,
+          "Max": 5
+        },
+        "Tmp_disk_tables": {
+          "Sum": 0
+        },
+        "Tmp_table_sizes": {
+          "Sum": 0
+        },
+        "Tmp_tables": {
+          "Sum": 0
+        }
+      },
+      "BoolMetrics": {
+        "Filesort": {
+          "Sum": 2
+        },
+        "Filesort_on_disk": {
+          "Sum": 0
+        },
+        "Full_join": {
+          "Sum": 0
+        },
+        "Full_scan": {
+          "Sum": 0
+        },
+        "QC_Hit": {
+          "Sum": 0
+        },
+        "Tmp_table": {
+          "Sum": 0
+        },
+        "Tmp_table_on_disk": {
+          "Sum": 0
+        }
+      }
+    }
+  },
+  "Class": [
+    {
+      "Id": "D2BA209E593ABAA7",
+      "Fingerprint": "insert into foo values(?+)",
+      "Metrics": {
+        "TimeMetrics": {
+          "InnoDB_IO_r_wait": {
+            "Sum": 0
+          },
+          "InnoDB_queue_wait": {
+            "Sum": 0
+          },
+          "InnoDB_rec_lock_wait": {
+            "Sum": 0
+          },
+          "Lock_time": {
+            "Sum": 9.600000339560211e-05,
+            "Min": 4.8000001697801054e-05,
+            "Avg": 4.8000001697801054e-05,
+            "Med": 4.8000001697801054e-05,
+            "P95": 4.8000001697801054e-05,
+            "Max": 4.8000001697801054e-05
+          },
+          "Query_time": {
+            "Sum": 0.00033000000985339284,
+            "Min": 0.00016500000492669642,
+            "Avg": 0.00016500000492669642,
+            "Med": 0.00016500000492669642,
+            "P95": 0.00016500000492669642,
+            "Max": 0.00016500000492669642
+          }
+        },
+        "NumberMetrics": {
+          "Bytes_sent": {
+            "Sum": 962,
+            "Min": 481,
+            "Avg": 481,
+            "Med": 481,
+            "P95": 481,
+            "Max": 481
+          },
+          "InnoDB_IO_r_bytes": {
+            "Sum": 0
+          },
+          "InnoDB_IO_r_ops": {
+            "Sum": 0
+          },
+          "InnoDB_pages_distinct": {
+            "Sum": 6,
+            "Min": 3,
+            "Avg": 3,
+            "Med": 3,
+            "P95": 3,
+            "Max": 3
+          },
+          "InnoDB_trx_id": {
+            "Sum": 0
+          },
+          "Killed": {
+            "Sum": 0
+          },
+          "Last_errno": {
+            "Sum": 0
+          },
+          "Merge_passes": {
+            "Sum": 0
+          },
+          "Rows_affected": {
+            "Sum": 0
+          },
+          "Rows_examined": {
+            "Sum": 20,
+            "Min": 10,
+            "Avg": 10,
+            "Med": 10,
+            "P95": 10,
+            "Max": 10
+          },
+          "Rows_sent": {
+            "Sum": 10,
+            "Min": 5,
+            "Avg": 5,
+            "Med": 5,
+            "P95": 5,
+            "Max": 5
+          },
+          "Tmp_disk_tables": {
+            "Sum": 0
+          },
+          "Tmp_table_sizes": {
+            "Sum": 0
+          },
+          "Tmp_tables": {
+            "Sum": 0
+          }
+        },
+        "BoolMetrics": {
+          "Filesort": {
+            "Sum": 2
+          },
+          "Filesort_on_disk": {
+            "Sum": 0
+          },
+          "Full_join": {
+            "Sum": 0
+          },
+          "Full_scan": {
+            "Sum": 0
+          },
+          "QC_Hit": {
+            "Sum": 0
+          },
+          "Tmp_table": {
+            "Sum": 0
+          },
+          "Tmp_table_on_disk": {
+            "Sum": 0
+          }
+        }
+      },
+      "TotalQueries": 2,
+      "UniqueQueries": 1,
+      "Example": {
+        "QueryTime": 0.00016500000492669642,
+        "Db": "maindb",
+        "Query": "INSERT INTO foo VALUES (NULL, 3)"
+      }
+    },
+    {
+      "Id": "9EA505F4786E7F15",
+      "Fingerprint": "select foo from bar where id=?",
+      "Metrics": {
+        "TimeMetrics": {
+          "InnoDB_IO_r_wait": {
+            "Sum": 0
+          },
+          "InnoDB_queue_wait": {
+            "Sum": 0
+          },
+          "InnoDB_rec_lock_wait": {
+            "Sum": 0
+          },
+          "Lock_time": {
+            "Sum": 0.00047199999971780926,
+            "Min": 0.0001140000022132881,
+            "Avg": 0.00011799999992945231,
+            "Med": 0.00012199999764561653,
+            "P95": 0.00012199999764561653,
+            "Max": 0.00012199999764561653
+          },
+          "Query_time": {
+            "Sum": 0.0009300000092480332,
+            "Min": 0.0002280000044265762,
+            "Avg": 0.0002325000023120083,
+            "Med": 0.00023700000019744039,
+            "P95": 0.00023700000019744039,
+            "Max": 0.00023700000019744039
+          }
+        },
+        "NumberMetrics": {
+          "Bytes_sent": {
+            "Sum": 2180,
+            "Min": 545,
+            "Avg": 545,
+            "Med": 545,
+            "P95": 545,
+            "Max": 545
+          },
+          "InnoDB_IO_r_bytes": {
+            "Sum": 0
+          },
+          "InnoDB_IO_r_ops": {
+            "Sum": 0
+          },
+          "InnoDB_pages_distinct": {
+            "Sum": 8,
+            "Min": 2,
+            "Avg": 2,
+            "Med": 2,
+            "P95": 2,
+            "Max": 2
+          },
+          "InnoDB_trx_id": {
+            "Sum": 0
+          },
+          "Killed": {
+            "Sum": 0
+          },
+          "Last_errno": {
+            "Sum": 0
+          },
+          "Merge_passes": {
+            "Sum": 0
+          },
+          "Rows_affected": {
+            "Sum": 0
+          },
+          "Rows_examined": {
+            "Sum": 4,
+            "Min": 1,
+            "Avg": 1,
+            "Med": 1,
+            "P95": 1,
+            "Max": 1
+          },
+          "Rows_sent": {
+            "Sum": 4,
+            "Min": 1,
+            "Avg": 1,
+            "Med": 1,
+            "P95": 1,
+            "Max": 1
+          },
+          "Tmp_disk_tables": {
+            "Sum": 0
+          },
+          "Tmp_table_sizes": {
+            "Sum": 0
+          },
+          "Tmp_tables": {
+            "Sum": 0
+          }
+        },
+        "BoolMetrics": {
+          "Filesort": {
+            "Sum": 0
+          },
+          "Filesort_on_disk": {
+            "Sum": 0
+          },
+          "Full_join": {
+            "Sum": 0
+          },
+          "Full_scan": {
+            "Sum": 0
+          },
+          "QC_Hit": {
+            "Sum": 0
+          },
+          "Tmp_table": {
+            "Sum": 0
+          },
+          "Tmp_table_on_disk": {
+            "Sum": 0
+          }
+        }
+      },
+      "TotalQueries": 4,
+      "UniqueQueries": 1,
+      "Example": {
+        "QueryTime": 0.00023700000019744039,
+        "Db": "maindb",
+        "Query": "SELECT foo FROM bar WHERE id=2"
+      }
+    }
+  ]
+}

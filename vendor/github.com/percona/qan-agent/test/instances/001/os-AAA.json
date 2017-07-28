@@ -1,0 +1,10 @@
+{
+    "Subsystem": "os",
+    "UUID": "AAA",
+    "Name": "os01",
+    "DSN": "",
+    "Distro": "Ubuntu",
+    "Version": "14.04",
+    "Created": "2015-11-26T14:49:13Z",
+    "Deleted": "0001-01-01T00:00:00Z"
+}
