@@ -1,0 +1,91 @@
+{
+  "Service":"mysql",
+  "InstanceId":1,
+  "StopOffset": 524,
+  "RunTime": 7.123456,
+  "Global": {
+    "TotalQueries": 15,
+    "UniqueQueries": 5,
+    "Metrics": {
+      "TimeMetrics": {
+        "Query_time": {"Cnt":15, "Sum": 7.001001, "Min":0.000100, "Max": 5.543210, "Avg": 2},
+        "Lock_time":  {"Cnt":15, "Sum":        0, "Min":       0, "Max":        0, "Avg": 0}
+      },
+      "NumberMetrics": {
+        "Rows_sent": {"Cnt": 2,"Sum": 2,"Min": 1,"Max": 1,"Avg": 1}
+      }
+    }
+  },
+  "Class": [
+    {
+      "Id": "1000000000000001",
+      "Fingerprint": "select c from t where id=1",
+      "TotalQueries": 1,
+      "Metrics": {
+        "TimeMetrics": {
+          "Query_time": {"Cnt": 1,"Sum": 1,"Min": 1,"Max": 1.12,"Avg": 1},
+          "Lock_time": {"Cnt": 1,"Sum": 0,"Min": 0,"Max": 0,"Avg": 0}
+        },
+        "NumberMetrics": {
+          "Rows_sent": {"Cnt": 1,"Sum": 1,"Min": 1,"Max": 1,"Avg": 1}
+        }
+      }
+    },
+    {
+      "Id": "2000000000000002",
+      "Fingerprint": "select * from user",
+      "TotalQueries": 2,
+      "Metrics": {
+        "TimeMetrics": {
+          "Query_time": {"Cnt": 2,"Sum": 2,"Min": 2,"Max": 2,"Avg": 2},
+          "Lock_time": {"Cnt": 2,"Sum": 0,"Min": 0,"Max": 0,"Avg": 0}
+        },
+        "NumberMetrics": {
+          "Rows_sent": {"Cnt": 2,"Sum": 1,"Min": 1,"Max": 1,"Avg": 1}
+        }
+      }
+    },
+    {
+      "Id": "3000000000000003",
+      "Fingerprint": "insert into data (?)",
+      "TotalQueries": 3,
+      "Metrics": {
+        "TimeMetrics": {
+          "Query_time": {"Cnt": 3,"Sum": 2.9,"Min": 2.0,"Max": 5.543210,"Avg": 1.0},
+          "Lock_time": {"Cnt": 3,"Sum": 0,"Min": 0,"Max": 0,"Avg": 0}
+        },
+        "NumberMetrics": {
+          "Rows_sent": {"Cnt": 3,"Sum": 1,"Min": 1,"Max": 1,"Avg": 1}
+        }
+      }
+    },
+    {
+      "Id": "4000000000000004",
+      "Fingerprint": "delete from old_table where id in (?)",
+      "TotalQueries": 4,
+      "Metrics": {
+        "TimeMetrics": {
+          "Query_time": {"Cnt": 4,"Sum": 1,"Min": 1,"Max": 1,"Avg": 1},
+          "Lock_time": {"Cnt": 4,"Sum": 0,"Min": 0,"Max": 0,"Avg": 0}
+        },
+        "NumberMetrics": {
+          "Rows_sent": {"Cnt": 4,"Sum": 1,"Min": 1,"Max": 1,"Avg": 1}
+        }
+      }
+    },
+    {
+      "Id": "5000000000000005",
+      "Fingerprint": "update user set login=? limit 1",
+      "TotalQueries": 5,
+      "Metrics": {
+        "TimeMetrics": {
+          "Query_time": {"Cnt": 5,"Sum": 0.101001,"Min": 0.000100,"Max": 0.5,"Avg": 0.01},
+          "Lock_time": {"Cnt": 5,"Sum": 0,"Min": 0,"Max": 0,"Avg": 0}
+        },
+        "NumberMetrics": {
+          "Rows_sent": {"Cnt": 5,"Sum": 1,"Min": 1,"Max": 1,"Avg": 1}
+        }
+      }
+    }
+  ]
+}

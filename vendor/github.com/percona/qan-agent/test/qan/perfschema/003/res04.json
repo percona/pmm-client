@@ -1,0 +1,191 @@
+{
+    "Class": [
+        {
+            "Fingerprint": "select 1",
+            "Id": "1111111111111111",
+            "Metrics": {
+                "BoolMetrics": {
+                    "Full_join": {
+                        "Sum": 0
+                    },
+                    "Full_scan": {
+                        "Sum": 0
+                    },
+                    "Tmp_table": {
+                        "Sum": 0
+                    },
+                    "Tmp_table_on_disk": {
+                        "Sum": 0
+                    }
+                },
+                "NumberMetrics": {
+                    "Merge_passes": {
+                        "Sum": 0
+                    },
+                    "Rows_affected": {
+                        "Sum": 0
+                    },
+                    "Rows_examined": {
+                        "Sum": 0
+                    },
+                    "Rows_sent": {
+                        "Sum": 0
+                    }
+                },
+                "TimeMetrics": {
+                    "Lock_time": {
+                        "Sum": 0
+                    },
+                    "Query_time": {
+                        "Avg": 0.00081111,
+                        "Max": 0.00082461,
+                        "Min": 0.00080461,
+                        "Sum": 0
+                    }
+                }
+            },
+            "TotalQueries": 1
+        },
+        {
+            "Fingerprint": "select 2",
+            "Id": "2222222222222222",
+            "Metrics": {
+                "BoolMetrics": {
+                    "Full_join": {
+                        "Sum": 0
+                    },
+                    "Full_scan": {
+                        "Sum": 0
+                    },
+                    "Tmp_table": {
+                        "Sum": 0
+                    },
+                    "Tmp_table_on_disk": {
+                        "Sum": 0
+                    }
+                },
+                "NumberMetrics": {
+                    "Merge_passes": {
+                        "Sum": 0
+                    },
+                    "Rows_affected": {
+                        "Sum": 0
+                    },
+                    "Rows_examined": {
+                        "Sum": 0
+                    },
+                    "Rows_sent": {
+                        "Sum": 0
+                    }
+                },
+                "TimeMetrics": {
+                    "Lock_time": {
+                        "Avg": 0,
+                        "Sum": 2e-08
+                    },
+                    "Query_time": {
+                        "Avg": 0.00019998,
+                        "Max": 0.000299922,
+                        "Min": 0.00019063,
+                        "Sum": 9.999999999999999e-05
+                    }
+                }
+            },
+            "TotalQueries": 1
+        },
+        {
+            "Fingerprint": "select 3",
+            "Id": "3333333333333333",
+            "Metrics": {
+                "BoolMetrics": {
+                    "Full_join": {
+                        "Sum": 0
+                    },
+                    "Full_scan": {
+                        "Sum": 0
+                    },
+                    "Tmp_table": {
+                        "Sum": 0
+                    },
+                    "Tmp_table_on_disk": {
+                        "Sum": 0
+                    }
+                },
+                "NumberMetrics": {
+                    "Merge_passes": {
+                        "Sum": 11
+                    },
+                    "Rows_affected": {
+                        "Sum": 0
+                    },
+                    "Rows_examined": {
+                        "Sum": 0
+                    },
+                    "Rows_sent": {
+                        "Sum": 0
+                    }
+                },
+                "TimeMetrics": {
+                    "Lock_time": {
+                        "Pct95": 0,
+                        "Sum": 9.999999999999999e-05
+                    },
+                    "Query_time": {
+                        "Avg": 0.00019008,
+                        "Max": 0.000252022,
+                        "Min": 0.00019083,
+                        "Sum": 9.999999999999999e-05
+                    }
+                }
+            },
+            "TotalQueries": 1
+        }
+    ],
+    "Global": {
+        "Metrics": {
+            "BoolMetrics": {
+                "Full_join": {
+                    "Sum": 0
+                },
+                "Full_scan": {
+                    "Sum": 0
+                },
+                "Tmp_table": {
+                    "Sum": 0
+                },
+                "Tmp_table_on_disk": {
+                    "Sum": 0
+                }
+            },
+            "NumberMetrics": {
+                "Merge_passes": {
+                    "Sum": 11,
+		    "Avg": 3
+                },
+                "Rows_affected": {
+                    "Sum": 0
+                },
+                "Rows_examined": {
+                    "Sum": 0
+                },
+                "Rows_sent": {
+                    "Sum": 0
+                }
+            },
+            "TimeMetrics": {
+                "Lock_time": {
+                    "Sum": 0.00010002,
+		    "Avg": 0.000033
+                },
+                "Query_time": {
+                    "Avg": 0,
+                    "Max": 0.00082461,
+                    "Min": 0.00019063,
+                    "Sum": 0.00019999999999999998
+                }
+            }
+        },
+        "TotalQueries": 3,
+        "UniqueQueries": 3
+    }
+}

@@ -1,0 +1,181 @@
+{
+	"comment": "",
+	"ignore": "test",
+	"package": [
+		{
+			"checksumSHA1": "0Tugz8gj9KqqVj6JLkXUA7BXas4=",
+			"path": "github.com/Sirupsen/logrus",
+			"revision": "0208149b40d863d2c1a2f8fe5753096a9cf2cc8b",
+			"revisionTime": "2017-02-27T12:44:09Z"
+		},
+		{
+			"checksumSHA1": "gDdXOAXWhLHmSRN+TJ6MiPJFjh4=",
+			"path": "github.com/beevik/ntp",
+			"revision": "a89df35c13954f2f8fd8e34784cfd23be611ca1e",
+			"revisionTime": "2017-02-18T03:32:57Z"
+		},
+		{
+			"checksumSHA1": "spyv5/YFBjYyZLZa1U2LBfDR8PM=",
+			"path": "github.com/beorn7/perks/quantile",
+			"revision": "4c0e84591b9aa9e6dcfdf3e020114cd81f89d5f9",
+			"revisionTime": "2016-08-04T10:47:26Z"
+		},
+		{
+			"checksumSHA1": "/zxxFPYjUB7Wowz33r5AhTDvoz0=",
+			"path": "github.com/coreos/go-systemd/dbus",
+			"revision": "e97b35f834b17eaa82afe3d44715c34736bfa12b",
+			"revisionTime": "2017-02-01T10:47:36Z"
+		},
+		{
+			"checksumSHA1": "Yim1r9qkEFFLLH8JngB4kZTLsYI=",
+			"path": "github.com/godbus/dbus",
+			"revision": "692d22898a1dffbb54a37706afcb1324c510f2ac",
+			"revisionTime": "2017-02-24T15:15:45Z"
+		},
+		{
+			"checksumSHA1": "kBeNcaKk56FguvPSUCEaH6AxpRc=",
+			"path": "github.com/golang/protobuf/proto",
+			"revision": "8ee79997227bf9b34611aee7946ae64735e6fd93",
+			"revisionTime": "2016-11-17T03:31:26Z"
+		},
+		{
+			"checksumSHA1": "tw3ocqSpa9ikzUV6qhcKBAAO6WU=",
+			"path": "github.com/kolo/xmlrpc",
+			"revision": "0826b98aaa29c0766956cb40d45cf7482a597671",
+			"revisionTime": "2015-04-13T19:18:30Z"
+		},
+		{
+			"checksumSHA1": "bKMZjd2wPw13VwoE7mBeSv5djFA=",
+			"path": "github.com/matttproud/golang_protobuf_extensions/pbutil",
+			"revision": "c12348ce28de40eed0136aa2b644d0ee0650e56c",
+			"revisionTime": "2016-04-24T11:30:07Z"
+		},
+		{
+			"checksumSHA1": "r3t+HDvOEQVCaLjuMT8rl6opbNQ=",
+			"path": "github.com/mdlayher/netlink",
+			"revision": "343c07bd16ebbc714f19c528a6deb6723ace06f3",
+			"revisionTime": "2017-03-10T17:31:27Z"
+		},
+		{
+			"checksumSHA1": "+2roeIWCAjCC58tZcs12Vqgf1Io=",
+			"path": "github.com/mdlayher/netlink/genetlink",
+			"revision": "1291b75abe0cc0cb335f110466bf1f02590c916d",
+			"revisionTime": "2017-01-04T04:59:06Z"
+		},
+		{
+			"checksumSHA1": "9udZUcU9bmkXtnkyLNqJ8jKRt0c=",
+			"path": "github.com/mdlayher/netlink/nlenc",
+			"revision": "1291b75abe0cc0cb335f110466bf1f02590c916d",
+			"revisionTime": "2017-01-04T04:59:06Z"
+		},
+		{
+			"checksumSHA1": "FdmT9kyPtsLxk+sgxJmKqcbOCR4=",
+			"path": "github.com/mdlayher/wifi",
+			"revision": "567082929344b0af8eb8a2ad6fe4725c0b3c8702",
+			"revisionTime": "2017-03-17T19:22:46Z"
+		},
+		{
+			"checksumSHA1": "VzutdH69PUqRqhrDVv6F91ebQd4=",
+			"path": "github.com/mdlayher/wifi/internal/nl80211",
+			"revision": "88fd1c0ec178645c1b7d300090b5a9d4b226b8e1",
+			"revisionTime": "2017-01-07T15:17:58Z"
+		},
+		{
+			"checksumSHA1": "QIkEQIvgzjeOXM92+lZlbeXCaRU=",
+			"path": "github.com/prometheus/client_golang/prometheus",
+			"revision": "aace68cde27da90f76be50fcb9937d67fd6a1968",
+			"revisionTime": "2017-02-28T16:20:01Z"
+		},
+		{
+			"checksumSHA1": "lG3//eDlwqA4IOuAPrNtLh9G0TA=",
+			"path": "github.com/prometheus/client_golang/prometheus/promhttp",
+			"revision": "aace68cde27da90f76be50fcb9937d67fd6a1968",
+			"revisionTime": "2017-02-28T16:20:01Z"
+		},
+		{
+			"checksumSHA1": "DvwvOlPNAgRntBzt3b3OSRMS2N4=",
+			"path": "github.com/prometheus/client_model/go",
+			"revision": "6f3806018612930941127f2a7c6c453ba2c527d2",
+			"revisionTime": "2017-02-16T18:52:47Z"
+		},
+		{
+			"checksumSHA1": "Wtpzndm/+bdwwNU5PCTfb4oUhc8=",
+			"path": "github.com/prometheus/common/expfmt",
+			"revision": "49fee292b27bfff7f354ee0f64e1bc4850462edf",
+			"revisionTime": "2017-02-20T10:38:46Z"
+		},
+		{
+			"checksumSHA1": "GWlM3d2vPYyNATtTFgftS10/A9w=",
+			"path": "github.com/prometheus/common/internal/bitbucket.org/ww/goautoneg",
+			"revision": "49fee292b27bfff7f354ee0f64e1bc4850462edf",
+			"revisionTime": "2017-02-20T10:38:46Z"
+		},
+		{
+			"checksumSHA1": "ZA4MLHNAP905WiAOLy4BBzmcuxM=",
+			"path": "github.com/prometheus/common/log",
+			"revision": "49fee292b27bfff7f354ee0f64e1bc4850462edf",
+			"revisionTime": "2017-02-20T10:38:46Z"
+		},
+		{
+			"checksumSHA1": "0LL9u9tfv1KPBjNEiMDP6q7lpog=",
+			"path": "github.com/prometheus/common/model",
+			"revision": "49fee292b27bfff7f354ee0f64e1bc4850462edf",
+			"revisionTime": "2017-02-20T10:38:46Z"
+		},
+		{
+			"checksumSHA1": "91KYK0SpvkaMJJA2+BcxbVnyRO0=",
+			"path": "github.com/prometheus/common/version",
+			"revision": "49fee292b27bfff7f354ee0f64e1bc4850462edf",
+			"revisionTime": "2017-02-20T10:38:46Z"
+		},
+		{
+			"checksumSHA1": "cD4xn1qxbkiuXqUExpdnDroCTrY=",
+			"path": "github.com/prometheus/procfs",
+			"revision": "a1dba9ce8baed984a2495b658c82687f8157b98f",
+			"revisionTime": "2017-02-16T22:32:56Z"
+		},
+		{
+			"checksumSHA1": "kOWRcAHWFkId0aCIOSOyjzC0Zfc=",
+			"path": "github.com/prometheus/procfs/xfs",
+			"revision": "a1dba9ce8baed984a2495b658c82687f8157b98f",
+			"revisionTime": "2017-02-16T22:32:56Z"
+		},
+		{
+			"checksumSHA1": "uozMgPjB4AggpuuJkGq3FgAs4CA=",
+			"path": "github.com/soundcloud/go-runit/runit",
+			"revision": "06ad41a06c4a586951fb8040a697ecd39729640b",
+			"revisionTime": "2015-06-30T19:56:10Z"
+		},
+		{
+			"checksumSHA1": "tK8eFmQ0JeKpR3P0TjiGobzlIh0=",
+			"path": "golang.org/x/net/bpf",
+			"revision": "749a502dd1eaf3e5bfd4f8956748c502357c0bbe",
+			"revisionTime": "2016-09-12T14:44:02Z"
+		},
+		{
+			"checksumSHA1": "RZn37yez/F+5r/PsTW+7w3Ie1mQ=",
+			"path": "golang.org/x/sys/unix",
+			"revision": "21f2569f6feb83b68a25c98c1b20eca5d4e1e6ae",
+			"revisionTime": "2017-02-28T00:49:33Z"
+		},
+		{
+			"checksumSHA1": "kQB2wRB3twjUp615F6zEwGHjNe0=",
+			"path": "golang.org/x/sys/windows",
+			"revision": "21f2569f6feb83b68a25c98c1b20eca5d4e1e6ae",
+			"revisionTime": "2017-02-28T00:49:33Z"
+		},
+		{
+			"checksumSHA1": "ZdFZFaXmCgEEaEhVPkyXrnhKhsg=",
+			"path": "golang.org/x/sys/windows/registry",
+			"revision": "21f2569f6feb83b68a25c98c1b20eca5d4e1e6ae",
+			"revisionTime": "2017-02-28T00:49:33Z"
+		},
+		{
+			"checksumSHA1": "uVlUSSKplihZG7N+QJ6fzDZ4Kh8=",
+			"path": "golang.org/x/sys/windows/svc/eventlog",
+			"revision": "21f2569f6feb83b68a25c98c1b20eca5d4e1e6ae",
+			"revisionTime": "2017-02-28T00:49:33Z"
+		}
+	],
+	"rootPath": "github.com/prometheus/node_exporter"
+}

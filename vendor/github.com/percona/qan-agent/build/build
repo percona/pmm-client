@@ -1,0 +1,163 @@
+#!/bin/sh
+
+PKG="${PKG:-"yes"}"
+
+if [ $# -eq 1 -a "$1" = "help" ]; then
+   echo "Usage: $0 [help]"
+   echo
+   echo "Environment vars:"
+   echo "  DEPS Clone deps into vendor/     (yes)"
+   echo "  PKG  Create a tarball in build/  (yes)"
+   echo "  DEV  Add rev to version and pkg  (no)"
+   echo
+   echo "Example: DEPS=no DEV=yes $0"
+   echo
+   echo "This script must be ran from the root or build/ dir."
+   echo "Binaries and packages are put in build/."
+   exit 0
+fi
+
+set -eu
+
+err() {
+   echo "$@" >&2
+   exit 1
+}
+
+BIN="percona-qan-agent"
+
+if [ -d ".git" ]; then
+   cd agent
+   ROOT_DIR="$PWD"
+elif [ "$(basename "$PWD")" = "build" ]; then
+   cd ..
+   ROOT_DIR="$PWD"
+elif [ -d "agent" -a -d "data" -a -d "log" ]; then
+   ROOT_DIR="$PWD"
+else
+   err "Run this script from the root dir (percona/platform/agent/) or build/ dir."
+fi
+BUILD_DIR="$ROOT_DIR/build"
+
+if [ -z "$(which strings)" ]; then
+   err "The 'strings' program is required. Install binutils."
+fi
+
+PLATFORM=`uname -m`
+if [ "$PLATFORM" = "x86_64" ]; then
+   ARCH="x86_64"  # no change
+elif [ "$PLATFORM" = "i686" -o "$PLATFORM" = "i386" ]; then
+   ARCH="i386"
+else
+   er "Unknown platform: $PLATFORM"
+fi
+
+# Determine if this is a dev or release build. A release build requires using
+# the master branch that's tagged with the same version in conf/app.conf. Else,
+# we presume dev build.
+DEV="yes"
+VER="$(awk '/var VERSION/ {print $5}' $ROOT_DIR/agent/release/release.go | sed 's/"//g')"
+REV="$(git log -n 1 --no-walk --pretty="%h")"
+BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+if [ "$BRANCH" = "master" ]; then
+   # git log -n 1 --no-walk --tags --pretty="%h %d" --decorate=full
+   # 1475390  (HEAD, tag: refs/tags/v1.0.0, refs/remotes/origin/master, refs/heads/master, refs/heads/foo)
+   latestTag="$(git log -n 1 --no-walk --tags --pretty="%h %d" --decorate=full)"
+   tagRev="$(echo "$latestTag" | awk '{print $1}')"
+   tagVer="$(echo "$latestTag" | perl -n -e '/refs\/tags\/v([\d\.]+)/ && print $1')"
+   if [ "$tagVer" -a "$tagRev" = "$REV" ]; then
+      if [ "$tagVer" != "$VER" ]; then
+         err "Version mismatch: conf/app.conf has v$VER, but git tag has v$tagVer"
+      else
+         dirty="$(git status --porcelain)"
+         if [ "$dirty" ]; then
+            if [ "$DIRTY_BUILD" = "no" ]; then
+               err "Cannot do release build because this is the master branch with version" \
+                  "tag v$tagVer but there are uncommitted changes or untracked files" \
+                  "(see 'git status'). If the latest commit is not v$tagVer, remove the tag (git tag -d v$tagVer);" \
+                  "else, add and commit all changes, then re-tag the latest commit" \
+                  "(git tag -a v$tagVer -m \"v$tagVer\"). Or, specify DIRTY_BUILD=yes to force" \
+                  "the release build (not recommended)."
+            else
+               echo "Dirty release build of master branch v$VER"
+            fi
+         else
+            echo "Release build of master branch v$VER"
+         fi
+         DEV="no"
+      fi
+   else
+      echo "Dev build of master branch @ $REV (latest commit has no version tag)"
+   fi
+else
+   echo "Dev build of $BRANCH branch @ $REV"
+fi
+
+# To distinguish dev and release builds, we append "-date.revision" to dev builds,
+# e.g. release 1.0.0 = "1.0.0", but dev 1.0.0 = "1.0.0-20150825.a73cd9e".
+# Also, unless DEPS is set explicitly, dev builds don't use vendoring but release builds do.
+if [ "$DEV" = "yes" ]; then
+   ymd="$(TZ="UTC" date "+%Y%m%d")"
+   REV="-$ymd.$REV"
+   VER="$VER$REV"
+   DEPS="${DEPS:-"no"}"
+else
+   REV=""
+   DEPS="${DEPS:-"yes"}"
+fi
+
+# Install/update deps
+VENDOR_DIR="$ROOT_DIR/vendor"
+if [ "$DEPS" = "yes" ]; then
+   echo "Cloning deps into $VENDOR_DIR..."
+   export GOPATH="$VENDOR_DIR:$GOPATH"
+   [ ! -d "$VENDOR_DIR" ] && mkdir "$VENDOR_DIR"
+   GOPATH="$VENDOR_DIR" godep restore
+fi
+
+# Build the binary
+echo "Building $BIN binary..."
+cd bin/$BIN
+go build -ldflags "-X github.com/percona/platform/agent/agent/release.VERSION=$VER"
+
+# Check that bin was compiled with pkgs from vendor dir
+if [ "$DEPS" = "yes" ]; then
+   strings $BIN | grep -q "$VENDOR_DIR/src/github.com/percona/go-mysql" \
+      || err "ERROR: $BIN not built with vendor deps ($VENDOR_DIR)"
+   strings $BIN | grep -q "$VENDOR_DIR/src/github.com/go-sql-driver/mysql" \
+      || err "ERROR: $BIN not built with vendor deps ($VENDOR_DIR)"
+fi
+
+# Build the installer
+echo "Building $BIN-installer binary..."
+cd ../$BIN-installer/
+go build
+
+cd $BUILD_DIR
+
+# Build the package
+if [ "$PKG" = "yes" ]; then
+   PKG_DIR="$BIN-$VER-$ARCH"
+   echo "Creating ${PKG_DIR}.tar.gz..."
+   [ -f $BIN.tar.gz ] && rm -f $BIN.tar.gz
+   if [ -d $PKG_DIR ]; then
+      rm -rf $PKG_DIR/*
+   fi
+   mkdir -p "$PKG_DIR/bin" "$PKG_DIR/init.d"
+   cp ../install/install.sh $PKG_DIR/install
+   cp ../bin/$BIN/$BIN ../bin/$BIN-installer/$BIN-installer $PKG_DIR/bin
+   cp ../install/$BIN $PKG_DIR/init.d
+   tar cfz $BIN-$VER-$ARCH.tar.gz $PKG_DIR/ > /dev/null
+   FINAL_BIN="$PKG_DIR/bin/$BIN"
+else
+   if [ "$DEV" = "yes" ]; then
+      cp ../bin/$BIN/$BIN ./$BIN-$REV
+      FINAL_BIN="./$BIN-$REV"
+   else
+      cp ../bin/$BIN/$BIN .
+      FINAL_BIN="./$BIN"
+   fi
+fi
+
+built="$($FINAL_BIN -version)"
+echo "Built $built"

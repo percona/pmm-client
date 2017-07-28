@@ -1,0 +1,4 @@
+[client]
+user=percona
+password=percona
+socket=/var/run/mysqld/mysqld.sock

@@ -7,7 +7,7 @@ import mgo "gopkg.in/mgo.v2"
 type CollectionManager interface {
 	Count() (int, error)
 	Create(*mgo.CollectionInfo) error
-	//DropCollection() error
+	DropCollection() error
 	//DropIndex(key ...string) error
 	//DropIndexName(name string) error
 	//EnsureIndex(index mgo.Index) error
@@ -46,6 +46,10 @@ func (c *Collection) Count() (int, error) {
 
 func (c *Collection) Create(info *mgo.CollectionInfo) error {
 	return c.collection.Create(info)
+}
+
+func (c *Collection) DropCollection() error {
+	return c.collection.DropCollection()
 }
 
 func (c *Collection) Find(qu interface{}) QueryManager {

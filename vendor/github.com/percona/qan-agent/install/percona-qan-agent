@@ -1,0 +1,267 @@
+#!/bin/sh
+#
+# percona-qan-agent  This shell script takes care of starting and stopping
+#                    the percona-qan-agent service.
+#
+# chkconfig: 2345 65 35
+# description: Percona Query Analytics Agent
+#
+### BEGIN INIT INFO
+# Provides:          percona-qan-agent
+# Required-Start:    $local_fs $network
+# Required-Stop:     $local_fs $network
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Start and stop percona-qan-agent
+# Description:       Percona Query Analytics Agent
+### END INIT INFO
+
+export LANG="en_US"
+
+SERVICE="percona-qan-agent"
+BIN="percona-qan-agent"
+
+# Agent needs to run as root to read MySQL slow log.
+USERNAME="${PCT_TEST_AGENT_USER:-root}"
+
+# Agent uses a single base directory for all its files and data.
+BASEDIR="${PCT_TEST_AGENT_DIR:-"/usr/local/percona/qan-agent"}"
+
+if [ ! -d "$BASEDIR" ]; then
+   mkdir -p "$BASEDIR" || exit 1
+fi
+
+# Make sure the binary exists.
+CMD="$BASEDIR/bin/$BIN"
+if [ ! -x "$CMD" ]; then
+   echo "$CMD does not exist or is not executable. Check that $SERVICE" \
+        "has been installed correctly." >&2
+   exit 1
+fi
+
+# Start and stop timeouts for the service
+START_TIMEOUT="${PCT_TEST_START_TIMEOUT:-5}"
+STOP_TIMEOUT="${PCT_TEST_STOP_TIMEOUT:-20}"
+
+# Agent may use a different log file, or no log file (online logging only),
+# but we should capture any output, e.g. in case it crashes.
+LOGFILE="$BASEDIR/$SERVICE.log"
+
+# Agent does not manager its own PID file; system is expected to manager this.
+PIDFILE="$BASEDIR/$SERVICE.pid"
+PID=""
+
+# Allow configuration overrides in /etc/sysconfig/$SERVICE
+CONFIGFILE="/etc/sysconfig/$SERVICE"
+[ -x $CONFIGFILE ] && . $CONFIGFILE
+ 
+# Get the fully qualified path to the script
+case $0 in
+    /*)
+        SCRIPT="$0"
+        ;;
+    *)
+        PWD=`pwd`
+        SCRIPT="$PWD/$0"
+        ;;
+esac
+ 
+# Change spaces to ":" so the tokens can be parsed.
+SCRIPT=`echo $SCRIPT | sed -e 's; ;:;g'`
+
+# Get the real path to this script, resolving any symbolic links
+TOKENS=`echo $SCRIPT | sed -e 's;/; ;g'`
+REALPATH=
+for C in $TOKENS; do
+    REALPATH="$REALPATH/$C"
+    while [ -h "$REALPATH" ] ; do
+        LS="`ls -ld "$REALPATH"`"
+        LINK="`expr "$LS" : '.*-> \(.*\)$'`"
+        if expr "$LINK" : '/.*' > /dev/null; then
+            REALPATH="$LINK"
+        else
+            REALPATH="`dirname "$REALPATH"`""/$LINK"
+        fi
+    done
+done
+
+# Change ":" chars back to spaces.
+REALPATH=`echo $REALPATH | sed -e 's;:; ;g'`
+ 
+# Change the current directory to the location of the script
+cd "`dirname "$REALPATH"`"
+
+# Check for ps in path
+ps >/dev/null 2>&1
+if [ $? -ne 0 ]; then
+     echo "Unable to locate 'ps'." >&2
+     echo "Please report this with the location on your system." >&2
+     exit 1
+fi
+
+# Build the nice clause
+if [ "X$PRIORITY" = "X" ]
+then
+    CMDNICE=""
+else
+    CMDNICE="nice -$PRIORITY"
+fi
+
+# seq N, return 1, ..., 5
+_seq() {
+   local i="$1"
+   awk "BEGIN { for(i=1; i<=$i; i++) print i; }"
+}
+
+is_pid_running_agent() {
+	# This will check if the process under $PID runs $BIN
+    if [ -z "$PID" ]; then
+        # ps does not like empty string as pid
+        return 1
+    fi
+    match=`ps w -p "$PID" 2>/dev/null | grep "$BIN"`
+    if [ -z "$match" ]; then
+       return 1
+    fi
+    return 0
+}
+
+remove_stale_pidfile() {
+    # Remove the pidfile checking the success of operation
+    # if succeeds echo optional $1 parameter
+    # Note: rm will always exit with status 0
+    found="no"
+    if [ -f "$PIDFILE" ]; then
+        found="yes"
+    fi
+    rm -f "$PIDFILE"
+    if [ $found = "yes" ] && [ ! -f "$PIDFILE" ] && [ -n "$1" ]; then
+        # If file was actually deleted and a message to display was provided
+        echo "$1"
+    fi
+}
+
+get_pid_from_file() {
+   PID=""
+   if [ ! -f "$PIDFILE" ]; then
+      return 1
+   fi
+
+   if [ ! -r "$PIDFILE" ]; then
+      echo "Cannot read $PIDFILE." >&2
+      exit 1
+   fi
+
+   PID=`cat "$PIDFILE"`
+   return 0
+}
+
+start() {
+   chown "$USERNAME" "$BASEDIR" || exit 1
+
+   echo "Starting $SERVICE..."
+   get_pid_from_file
+   if ! is_pid_running_agent; then
+        remove_stale_pidfile "Removed stale PID file: $PIDFILE"
+   else
+      echo "$SERVICE is already running."
+      exit 0
+   fi
+
+   # Run agent in background; it does not daemonize itself. 
+   $CMD -basedir "$BASEDIR" -pid-file "$PIDFILE" >> "$LOGFILE" 2>&1 &
+
+   echo "Waiting for $SERVICE to start..."
+   for x in $(_seq $START_TIMEOUT); do
+       if get_pid_from_file && is_pid_running_agent; then
+           break
+       fi
+       sleep 1
+   done
+
+   # Process is started in background so $? does not have its exit status.
+   # Instead, check that it's running by trying to get its PID.
+   if ! is_pid_running_agent; then
+      echo "Fail. Check $LOGFILE for details."
+      exit 1
+   else
+      echo "OK"
+   fi
+}
+
+stop() {
+    echo "Stopping $SERVICE..."
+    get_pid_from_file
+    if ! is_pid_running_agent; then
+        remove_stale_pidfile "Removed stale PID file: $PIDFILE"
+        echo "$SERVICE is not running."
+        return 0
+    else
+        # Running so try to stop it.
+        kill "$PID" >/dev/null
+        if [ $? -ne 0 ]; then
+            echo "Failed to stop $SERVICE: kill returned non-zero exit status: $?"
+            return 1
+        fi
+ 
+        #  Loop until it does.
+        echo "Waiting up to $STOP_TIMEOUT seconds for $SERVICE to stop..."
+        savepid=$PID
+        for x in $(_seq $STOP_TIMEOUT); do
+            if ! is_pid_running_agent; then
+                break;    
+            fi
+            sleep 1
+        done
+ 
+        PID=$savepid
+        if is_pid_running_agent; then
+            echo "Timeout waiting for $SERVICE to stop. Trying kill -9 $PID..."
+            kill -9 $PID
+        fi
+
+        PID=$savepid
+        if is_pid_running_agent; then
+            echo "Failed to stop $SERVICE."
+            return 1
+        else
+            remove_stale_pidfile 
+            echo "Stopped $SERVICE."
+            return 0
+        fi
+    fi
+}
+ 
+status() {
+   if get_pid_from_file && is_pid_running_agent; then
+      echo "$SERVICE is running ($PID)."
+      exit 0
+   else
+      echo "$SERVICE is not running."
+      exit 1
+   fi
+}
+ 
+case "$1" in
+    'start')
+        start
+        ;;
+    'stop')
+        stop
+        ;;
+    'restart')
+        stop
+        if [ $? -eq 0 ]; then
+            start
+        fi
+        ;;
+    'status')
+        status
+        ;;
+    *)
+        echo "Usage: $0 start|stop|restart|status"
+        exit 1
+        ;;
+esac
+ 
+exit 0

@@ -1,0 +1,12 @@
+*.swp
+*.tmp
+*.dump
+coverage.out
+revel-build.log
+todo/
+tmp/
+vendor/
+distro/
+build/percona-qan-agent*
+bin/percona-qan-agent/percona-qan-agent
+bin/percona-qan-agent-installer/percona-qan-agent-installer

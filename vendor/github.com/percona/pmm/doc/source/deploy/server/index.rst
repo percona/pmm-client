@@ -14,7 +14,7 @@ There are several options available to run *PMM Server*:
 
 * :ref:`Run PMM Server using Docker <run-server-docker>`
 
-* :ref:`Run PMM Server using VirtualBox <run-server-vbox>`
+* :ref:`Run PMM Server as a virtual appliance <run-server-ova>`
 
 * :ref:`Run PMM Server using Amazon Machine Image (AMI) <run-server-ami>`
 
@@ -23,7 +23,7 @@ There are several options available to run *PMM Server*:
 Verifying PMM Server
 ====================
 
-When you run *PMM Server*,
+After you run *PMM Server*,
 you should be able to access the PMM web interface
 using the IP address of the host where the container is running.
 For example, if it is running on 192.168.100.1 with default port 80,
@@ -44,7 +44,7 @@ Orchestrator                         ``http://192.168.100.1/orchestrator``
    :hidden:
 
    docker
-   vbox
+   virtual-appliance
    ami
    remove
    upgrade

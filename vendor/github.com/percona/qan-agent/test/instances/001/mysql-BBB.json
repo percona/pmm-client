@@ -1,0 +1,11 @@
+{
+    "Subsystem": "mysql",
+    "ParentUUID": "AAA",
+    "UUID": "BBB",
+    "Name": "db01",
+    "DSN": "percona:percona@unix(/var/mysql/mysql.sock)/?parseTime=true",
+    "Distro": "Percona Server",
+    "Version": "5.6.12",
+    "Created": "2015-11-26T14:49:18Z",
+    "Deleted": "0001-01-01T00:00:00Z"
+}

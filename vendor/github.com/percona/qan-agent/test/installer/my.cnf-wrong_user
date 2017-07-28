@@ -1,0 +1,3 @@
+[client]
+user=wrong_user
+socket=/var/run/mysqld/mysqld.sock
