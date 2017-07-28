@@ -1,5 +1,5 @@
-hash: d59d383de11ebc63f289dbed906e1acb0503ac7d61b7a3c4e8a1a50e283d7c97
-updated: 2017-07-28T10:39:14.880227654+02:00
+hash: 7ba701572443d11634ac2ffefd5e6e6a78aae5e28901f408bc5b92549d8cd77c
+updated: 2017-07-28T10:51:22.566795117+02:00
 imports:
 - name: github.com/beevik/ntp
   version: cb3dae3a7588ae35829eb5724df611cd75152fba
@@ -55,9 +55,13 @@ imports:
   subpackages:
   - bin/percona-qan-agent
 - name: github.com/prometheus/client_golang
-  version: 94ff84a9a6ebb5e6eb9172897c221a64df3443bc
+  version: 6ab3432d241cbe3cb7543da7e7e9a934c7e9fe76
   subpackages:
   - api/prometheus
+- name: github.com/prometheus/common
+  version: 3e6a7635bac6573d43f49f97b47eb9bda195dba8
+  subpackages:
+  - model
 - name: github.com/prometheus/node_exporter
   version: 840ba5dcc71a084a3bc63cb6063003c1f94435a6
 - name: github.com/spf13/cobra
@@ -68,6 +72,7 @@ imports:
   version: f5079bd7f6f74e23c4d65efa0f4ce14cbd6a3c0f
   subpackages:
   - context
+  - context/ctxhttp
 - name: golang.org/x/sys
   version: e24f485414aeafb646f6fca458b0bf869c0880a1
   repo: https://go.googlesource.com/sys

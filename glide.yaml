@@ -14,6 +14,7 @@ import:
   - proto
   - proto/config
 - package: github.com/prometheus/client_golang
+  version: 6ab3432d241cbe3cb7543da7e7e9a934c7e9fe76
   subpackages:
   - api/prometheus
 - package: github.com/spf13/cobra
