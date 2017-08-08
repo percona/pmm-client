@@ -12,6 +12,7 @@ PROJECT=pmm-client
 VERSION="$(cat VERSION)"
 RELEASE=${1:-1}
 ARCH=x86_64
+OS=linux
 
 if [ "${DEV:-yes}" = "yes" ]; then
     REV="$(git log -n 1 --no-walk --pretty="%h")"
@@ -30,7 +31,7 @@ build_rpm() {
     cd ..
 
     rpmbuild -ba $WORKSPACE/build/rpm.spec \
-             --target $ARCH \
+             --target ${ARCH}-unknown-${OS} \
              --define "_topdir $WORK_DIR" \
              --define "version $VERSION" \
              --define "release $RELEASE"

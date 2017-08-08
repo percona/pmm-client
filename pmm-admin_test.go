@@ -99,8 +99,10 @@ func TestPmmAdmin(t *testing.T) {
 		testStartStopRestartAllWithServices,
 		testStartStopRestartNoServiceFound,
 		testCheckNetwork,
-		testMongoDB,
-		testMongoDBQueries,
+		testAddMongoDB,
+		testAddMongoDBQueries,
+		testAddLinuxMetricsWithAdditionalArgsOk,
+		testAddLinuxMetricsWithAdditionalArgsFail,
 	}
 	t.Run("pmm-admin", func(t *testing.T) {
 		for _, f := range tests {
@@ -864,7 +866,154 @@ func testCheckNetwork(t *testing.T, data pmmAdminData) {
 	}
 }
 
-func testMongoDB(t *testing.T, data pmmAdminData) {
+func testAddLinuxMetricsWithAdditionalArgsOk(t *testing.T, data pmmAdminData) {
+	defer func() {
+		err := os.RemoveAll(data.rootDir)
+		assert.Nil(t, err)
+	}()
+
+	os.MkdirAll(data.rootDir+pmm.PMMBaseDir, 0777)
+	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/bin", 0777)
+	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/config", 0777)
+	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/instance", 0777)
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/node_exporter")
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/mysqld_exporter")
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/mongodb_exporter")
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/proxysql_exporter")
+	os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent")
+
+	f, _ := os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent-installer")
+	f.WriteString("#!/bin/sh\n")
+	f.WriteString("echo 'it works'")
+	f.Close()
+	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
+
+	f, _ = os.Create(data.rootDir + pmm.AgentBaseDir + "/config/agent.conf")
+	f.WriteString(`{"UUID":"42","ApiHostname":"somehostname","ApiPath":"/qan-api","ServerUser":"pmm"}`)
+	f.WriteString("\n")
+	f.Close()
+	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
+	{
+		// Create fake api server
+		fapi := fakeapi.New()
+		fapi.AppendRoot()
+		fapi.AppendConsulV1StatusLeader(fapi.Host())
+		clientName, _ := os.Hostname()
+		node := api.CatalogNode{
+			Node: &api.Node{},
+		}
+		fapi.AppendConsulV1CatalogNode(clientName, node)
+		fapi.AppendConsulV1CatalogService()
+		fapi.AppendConsulV1CatalogRegister()
+
+		// Configure pmm
+		cmd := exec.Command(
+			data.bin,
+			"config",
+			"--server",
+			fmt.Sprintf("%s:%s", fapi.Host(), fapi.Port()),
+		)
+		output, err := cmd.CombinedOutput()
+		assert.Nil(t, err, string(output))
+	}
+
+	cmd := exec.Command(
+		data.bin,
+		"add",
+		"linux:metrics",
+		"host1",
+		"--",
+		"--some-additional-params",
+		"--for-exporter",
+	)
+
+	cmdTest := cmdtest.New(cmd)
+	if err := cmd.Start(); err != nil {
+		log.Fatal(err)
+	}
+	err := cmd.Wait()
+	assert.Nil(t, err)
+
+	assert.Equal(t, fmt.Sprintln("OK, now monitoring this system."), cmdTest.ReadLine())
+
+	assert.Equal(t, "", cmdTest.ReadLine()) // No more data
+}
+
+func testAddLinuxMetricsWithAdditionalArgsFail(t *testing.T, data pmmAdminData) {
+	defer func() {
+		err := os.RemoveAll(data.rootDir)
+		assert.Nil(t, err)
+	}()
+
+	os.MkdirAll(data.rootDir+pmm.PMMBaseDir, 0777)
+	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/bin", 0777)
+	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/config", 0777)
+	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/instance", 0777)
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/node_exporter")
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/mysqld_exporter")
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/mongodb_exporter")
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/proxysql_exporter")
+	os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent")
+
+	f, _ := os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent-installer")
+	f.WriteString("#!/bin/sh\n")
+	f.WriteString("echo 'it works'")
+	f.Close()
+	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
+
+	f, _ = os.Create(data.rootDir + pmm.AgentBaseDir + "/config/agent.conf")
+	f.WriteString(`{"UUID":"42","ApiHostname":"somehostname","ApiPath":"/qan-api","ServerUser":"pmm"}`)
+	f.WriteString("\n")
+	f.Close()
+	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
+	{
+		// Create fake api server
+		fapi := fakeapi.New()
+		fapi.AppendRoot()
+		fapi.AppendConsulV1StatusLeader(fapi.Host())
+		clientName, _ := os.Hostname()
+		node := api.CatalogNode{
+			Node: &api.Node{},
+		}
+		fapi.AppendConsulV1CatalogNode(clientName, node)
+		fapi.AppendConsulV1CatalogService()
+		fapi.AppendConsulV1CatalogRegister()
+
+		// Configure pmm
+		cmd := exec.Command(
+			data.bin,
+			"config",
+			"--server",
+			fmt.Sprintf("%s:%s", fapi.Host(), fapi.Port()),
+		)
+		output, err := cmd.CombinedOutput()
+		assert.Nil(t, err, string(output))
+	}
+
+	cmd := exec.Command(
+		data.bin,
+		"add",
+		"linux:metrics",
+		"host1",
+		"too-many-params",
+		"--",
+		"--some-additional-params",
+		"--for-exporter",
+	)
+
+	cmdTest := cmdtest.New(cmd)
+	if err := cmd.Start(); err != nil {
+		log.Fatal(err)
+	}
+	err := cmd.Wait()
+	assert.Error(t, err)
+
+	assert.Equal(t, fmt.Sprintln("Too many parameters. Only service name is allowed but got: host1, too-many-params."), cmdTest.ReadLine())
+
+	assert.Equal(t, "", cmdTest.ReadLine()) // No more data
+}
+
+func testAddMongoDB(t *testing.T, data pmmAdminData) {
 	defer func() {
 		err := os.RemoveAll(data.rootDir)
 		assert.Nil(t, err)
@@ -949,7 +1098,7 @@ func testMongoDB(t *testing.T, data pmmAdminData) {
 	assert.Equal(t, "", cmdTest.ReadLine()) // No more data
 }
 
-func testMongoDBQueries(t *testing.T, data pmmAdminData) {
+func testAddMongoDBQueries(t *testing.T, data pmmAdminData) {
 	defer func() {
 		err := os.RemoveAll(data.rootDir)
 		assert.Nil(t, err)

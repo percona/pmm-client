@@ -86,6 +86,8 @@ func (a *Admin) AddProxySQLMetrics(dsn string) error {
 		fmt.Sprintf("-web.ssl-cert-file=%s", SSLCertFile),
 		fmt.Sprintf("-web.ssl-key-file=%s", SSLKeyFile),
 	}
+	// Add additional args passed to pmm-admin
+	args = append(args, a.Args...)
 
 	// Install and start service via platform service manager.
 	svcConfig := &service.Config{
