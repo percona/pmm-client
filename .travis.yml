@@ -15,7 +15,7 @@ notifications:
 install:
   - go get -u github.com/Masterminds/glide
   - rm -rf vendor/
-  - glide install
+  - glide install --strip-vendor
 
 script:
   # check if vendor dir is correct
