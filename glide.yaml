@@ -25,9 +25,6 @@ import:
 - package: github.com/percona/pmgo
 - package: github.com/beevik/ntp
 testImport:
-- package: github.com/smartystreets/goconvey
-  subpackages:
-  - convey
 - package: github.com/stretchr/testify
   subpackages:
   - assert
