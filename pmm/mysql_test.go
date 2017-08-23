@@ -1,3 +1,20 @@
+/*
+	Copyright (c) 2016, Percona LLC and/or its affiliates. All rights reserved.
+
+	This program is free software: you can redistribute it and/or modify
+	it under the terms of the GNU Affero General Public License as published by
+	the Free Software Foundation, either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	GNU Affero General Public License for more details.
+
+	You should have received a copy of the GNU Affero General Public License
+	along with this program.  If not, see <http://www.gnu.org/licenses/>
+*/
+
 package pmm
 
 import (
@@ -6,7 +23,7 @@ import (
 	"testing"
 
 	"github.com/percona/go-mysql/dsn"
-	"github.com/smartystreets/goconvey/convey"
+	"github.com/stretchr/testify/assert"
 	"gopkg.in/DATA-DOG/go-sqlmock.v1"
 )
 
@@ -25,9 +42,7 @@ func TestMySQLCheck1(t *testing.T) {
 
 	mock.ExpectQuery("SHOW GRANTS FOR 'pmm'@'localhost'").WillReturnError(err)
 
-	convey.Convey("MySQL checks OK", t, func() {
-		convey.So(mysqlCheck(db, []string{"localhost"}), convey.ShouldBeNil)
-	})
+	assert.Nil(t, mysqlCheck(db, []string{"localhost"}))
 
 	// Ensure all SQL queries were executed
 	if err := mock.ExpectationsWereMet(); err != nil {
@@ -50,9 +65,7 @@ func TestMySQLCheck2(t *testing.T) {
 
 	mock.ExpectQuery("SHOW GRANTS FOR 'pmm'@'localhost'").WillReturnError(err)
 
-	convey.Convey("MySQL checks FAIL", t, func() {
-		convey.So(mysqlCheck(db, []string{"localhost"}), convey.ShouldNotBeNil)
-	})
+	assert.NotNil(t, mysqlCheck(db, []string{"localhost"}))
 
 	// Ensure all SQL queries were executed
 	if err := mock.ExpectationsWereMet(); err != nil {
@@ -75,9 +88,7 @@ func TestMySQLCheck3(t *testing.T) {
 
 	mock.ExpectQuery("SHOW GRANTS FOR 'pmm'@'localhost'").WillReturnError(err)
 
-	convey.Convey("MySQL checks FAIL", t, func() {
-		convey.So(mysqlCheck(db, []string{"localhost"}), convey.ShouldNotBeNil)
-	})
+	assert.NotNil(t, mysqlCheck(db, []string{"localhost"}))
 
 	// Ensure all SQL queries were executed
 	if err := mock.ExpectationsWereMet(); err != nil {
@@ -101,9 +112,7 @@ func TestMySQLCheck4(t *testing.T) {
 	rows = sqlmock.NewRows([]string{"col1"}).AddRow("grants...")
 	mock.ExpectQuery("SHOW GRANTS FOR 'pmm'@'localhost'").WillReturnRows(rows)
 
-	convey.Convey("MySQL checks FAIL", t, func() {
-		convey.So(mysqlCheck(db, []string{"localhost"}), convey.ShouldNotBeNil)
-	})
+	assert.NotNil(t, mysqlCheck(db, []string{"localhost"}))
 
 	// Ensure all SQL queries were executed
 	if err := mock.ExpectationsWereMet(); err != nil {
@@ -138,11 +147,9 @@ func TestMakeGrants(t *testing.T) {
 			},
 		},
 	}
-	convey.Convey("Making grants", t, func() {
-		for _, s := range samples {
-			convey.So(makeGrants(s.dsn, s.hosts, s.conn), convey.ShouldResemble, s.grants)
-		}
-	})
+	for _, s := range samples {
+		assert.Equal(t, s.grants, makeGrants(s.dsn, s.hosts, s.conn))
+	}
 }
 
 func TestGetMysqlInfo(t *testing.T) {
@@ -160,16 +167,14 @@ func TestGetMysqlInfo(t *testing.T) {
 	mock.ExpectQuery(sanitizeQuery("SELECT COUNT(*) FROM information_schema.tables")).WillReturnRows(rows)
 
 	res := getMysqlInfo(db, false)
-	expect := map[string]string{
+	expected := map[string]string{
 		"hostname":    "db01",
 		"port":        "3306",
 		"distro":      "MySQL",
 		"version":     "1.2.3",
 		"table_count": "500",
 	}
-	convey.Convey("Get MySQL info", t, func() {
-		convey.So(res, convey.ShouldResemble, expect)
-	})
+	assert.Equal(t, expected, res)
 
 	// Ensure all SQL queries were executed
 	if err := mock.ExpectationsWereMet(); err != nil {
@@ -184,16 +189,14 @@ func TestGeneratePassword(t *testing.T) {
 	r3, _ := regexp.Compile("[[:digit:]]")
 	r4, _ := regexp.Compile("[_,;-]")
 
-	convey.Convey("Password generation", t, func() {
-		convey.So(generatePassword(5), convey.ShouldHaveLength, 5)
-		convey.So(generatePassword(20), convey.ShouldHaveLength, 20)
-		convey.So(generatePassword(20), convey.ShouldNotEqual, generatePassword(20))
-		for i := 0; i < 10; i++ {
-			p := generatePassword(20)
-			c := r.Match([]byte(p)) && r1.Match([]byte(p)) && r2.Match([]byte(p)) && r3.Match([]byte(p)) && r4.Match([]byte(p))
-			convey.So(c, convey.ShouldBeTrue)
-		}
-	})
+	assert.Len(t, generatePassword(5), 5)
+	assert.Len(t, generatePassword(20), 20)
+	assert.NotEqual(t, generatePassword(20), generatePassword(20))
+	for i := 0; i < 10; i++ {
+		p := generatePassword(20)
+		c := r.Match([]byte(p)) && r1.Match([]byte(p)) && r2.Match([]byte(p)) && r3.Match([]byte(p)) && r4.Match([]byte(p))
+		assert.True(t, c)
+	}
 }
 
 func sanitizeQuery(q string) string {
