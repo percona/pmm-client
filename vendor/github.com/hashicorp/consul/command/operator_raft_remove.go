@@ -6,11 +6,10 @@ import (
 	"strings"
 
 	"github.com/hashicorp/consul/api"
-	"github.com/hashicorp/consul/command/base"
 )
 
 type OperatorRaftRemoveCommand struct {
-	base.Command
+	BaseCommand
 }
 
 func (c *OperatorRaftRemoveCommand) Help() string {
@@ -26,7 +25,7 @@ quorum. If the server still shows in the output of the "consul members" command,
 it is preferable to clean up by simply running "consul force-leave" instead of
 this command.
 
-` + c.Command.Help()
+` + c.BaseCommand.Help()
 
 	return strings.TrimSpace(helpText)
 }
@@ -36,47 +35,60 @@ func (c *OperatorRaftRemoveCommand) Synopsis() string {
 }
 
 func (c *OperatorRaftRemoveCommand) Run(args []string) int {
-	f := c.Command.NewFlagSet(c)
+	f := c.BaseCommand.NewFlagSet(c)
 
-	var address string
+	var address, id string
 	f.StringVar(&address, "address", "",
 		"The address to remove from the Raft configuration.")
+	f.StringVar(&id, "id", "",
+		"The ID to remove from the Raft configuration.")
 
-	if err := c.Command.Parse(args); err != nil {
+	if err := c.BaseCommand.Parse(args); err != nil {
 		if err == flag.ErrHelp {
 			return 0
 		}
-		c.Ui.Error(fmt.Sprintf("Failed to parse args: %v", err))
+		c.UI.Error(fmt.Sprintf("Failed to parse args: %v", err))
 		return 1
 	}
 
 	// Set up a client.
-	client, err := c.Command.HTTPClient()
+	client, err := c.BaseCommand.HTTPClient()
 	if err != nil {
-		c.Ui.Error(fmt.Sprintf("Error initializing client: %s", err))
+		c.UI.Error(fmt.Sprintf("Error initializing client: %s", err))
 		return 1
 	}
 
 	// Fetch the current configuration.
-	if err := raftRemovePeers(address, client.Operator()); err != nil {
-		c.Ui.Error(fmt.Sprintf("Error removing peer: %v", err))
+	if err := raftRemovePeers(address, id, client.Operator()); err != nil {
+		c.UI.Error(fmt.Sprintf("Error removing peer: %v", err))
 		return 1
 	}
-	c.Ui.Output(fmt.Sprintf("Removed peer with address %q", address))
+	if address != "" {
+		c.UI.Output(fmt.Sprintf("Removed peer with address %q", address))
+	} else {
+		c.UI.Output(fmt.Sprintf("Removed peer with id %q", id))
+	}
 
 	return 0
 }
 
-func raftRemovePeers(address string, operator *api.Operator) error {
-	// TODO (slackpad) Once we expose IDs, add support for removing
-	// by ID, add support for that.
-	if len(address) == 0 {
-		return fmt.Errorf("an address is required for the peer to remove")
+func raftRemovePeers(address, id string, operator *api.Operator) error {
+	if len(address) == 0 && len(id) == 0 {
+		return fmt.Errorf("an address or id is required for the peer to remove")
+	}
+	if len(address) > 0 && len(id) > 0 {
+		return fmt.Errorf("cannot give both an address and id")
 	}
 
 	// Try to kick the peer.
-	if err := operator.RaftRemovePeerByAddress(address, nil); err != nil {
-		return err
+	if len(address) > 0 {
+		if err := operator.RaftRemovePeerByAddress(address, nil); err != nil {
+			return err
+		}
+	} else {
+		if err := operator.RaftRemovePeerByID(id, nil); err != nil {
+			return err
+		}
 	}
 
 	return nil
