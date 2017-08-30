@@ -1,5 +1,5 @@
-hash: e3e73b0149cf11bf250c90424b6cd6eea22235b134540bbe0ad495b7dac0d474
-updated: 2017-08-30T12:00:07.141754399+03:00
+hash: f507d58e46a6b669b23ec848bae9dbdb6c5ca683228f62d7c3b2d9677c1b96ed
+updated: 2017-08-30T12:39:56.977157527+03:00
 imports:
 - name: github.com/beevik/ntp
   version: 5bdb6758dfe8744ee0ea19066dc70549c3f6185c
@@ -7,6 +7,8 @@ imports:
   version: 570b54cabe6b8eb0bc2dfce68d964677d63b5260
 - name: github.com/go-sql-driver/mysql
   version: a0583e0143b1624142adab07e0e97fe106d99561
+- name: github.com/grpc-ecosystem/grpc-gateway
+  version: 589b126116b5fc961939b3e156c29e4d9d58222f
 - name: github.com/hashicorp/consul
   version: 75ca2cace08e38de8af1731ee8614d0533d5a4d4
   subpackages:
