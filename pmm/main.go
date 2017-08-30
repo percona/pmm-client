@@ -41,8 +41,13 @@ import (
 	"github.com/fatih/color"
 	consul "github.com/hashicorp/consul/api"
 	"github.com/percona/kardianos-service"
+	managed "github.com/percona/pmm-managed/api"
 	"github.com/prometheus/client_golang/api/prometheus"
+	"google.golang.org/grpc"
 )
+
+// FIXME remove this
+const managedAddr = "127.0.0.1:7771"
 
 // Admin main class.
 type Admin struct {
@@ -55,10 +60,11 @@ type Admin struct {
 	qanAPI       *API
 	consulAPI    *consul.Client
 	promQueryAPI prometheus.QueryAPI
+	managedAPI   *managed.Client
 	//promSeriesAPI prometheus.SeriesAPI
 }
 
-// SetAPI setup Consul, QAN, Prometheus APIs and verify connection.
+// SetAPI setups QAN, Consul, Prometheus, pmm-managed clients and verifies connections.
 func (a *Admin) SetAPI() error {
 	// Set default API timeout if unset.
 	if a.apiTimeout == 0 {
@@ -167,6 +173,15 @@ Otherwise, run the following command to reset the config and disable authenticat
 pmm-admin config --server %s %s`, a.Config.ServerAddress, helpText)
 		}
 	}
+
+	// Connect to pmm-managed.
+	// TODO Add authentication when we decide about it.
+	opts := []grpc.DialOption{grpc.WithInsecure()}
+	conn, err := grpc.Dial(managedAddr, opts...) // FIXME remove managedAddr
+	if err != nil {
+		return err
+	}
+	a.managedAPI = managed.NewClient(conn)
 
 	return nil
 }

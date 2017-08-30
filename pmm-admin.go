@@ -18,10 +18,13 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"regexp"
 	"strings"
+	"text/tabwriter"
+	"time"
 
 	"github.com/percona/pmm-client/pmm"
 	"github.com/spf13/cobra"
@@ -409,6 +412,35 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 			fmt.Println("OK, now monitoring ProxySQL metrics using DSN", pmm.SanitizeDSN(flagDSN))
 		},
 	}
+	cmdAddExternalMetrics = &cobra.Command{
+		Use:   "external:metrics [name] [target1] [target2] TODO ...",
+		Short: "TODO short command description",
+		Long:  `TODO long command description`,
+		Run: func(cmd *cobra.Command, args []string) {
+			if !flagDevEnable {
+				fmt.Println("external:metrics is an experimental feature, to enable it re-run the cmd with option --dev-enable")
+				os.Exit(1)
+			}
+			if len(args) < 2 {
+				fmt.Println("external:metrics requires targets TODO")
+				os.Exit(1)
+			}
+
+			exp := &pmm.ExternalMetrics{
+				Name:          admin.ServiceName,
+				Interval:      flagExtInterval,
+				Timeout:       flagExtTimeout,
+				Path:          flagExtPath,
+				Scheme:        flagExtScheme,
+				StatisTargets: args[1:], // first arg is admin.ServiceName
+			}
+			if err := admin.AddExternalMetrics(context.TODO(), exp); err != nil {
+				fmt.Println("TODO Error adding external metrics:", err)
+				os.Exit(1)
+			}
+			fmt.Println("TODO added")
+		},
+	}
 
 	cmdRemove = &cobra.Command{
 		Use:     "remove",
@@ -612,6 +644,23 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 			fmt.Printf("OK, removed ProxySQL metrics %s from monitoring.\n", admin.ServiceName)
 		},
 	}
+	cmdRemoveExternalMetrics = &cobra.Command{
+		Use:   "external:metrics [name]",
+		Short: "TODO short command description",
+		Long:  `TODO long command description`,
+		Run: func(cmd *cobra.Command, args []string) {
+			if !flagDevEnable {
+				fmt.Println("external:metrics is an experimental feature, to enable it re-run the cmd with option --dev-enable")
+				os.Exit(1)
+			}
+
+			if err := admin.RemoveExternalMetrics(context.TODO(), admin.ServiceName); err != nil {
+				fmt.Println("TODO: Error removing external metrics:", err)
+				os.Exit(1)
+			}
+			fmt.Printf("TODO removed\n")
+		},
+	}
 
 	cmdList = &cobra.Command{
 		Use:     "list",
@@ -619,11 +668,27 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 		Short:   "List monitoring services for this system.",
 		Long:    "This command displays the list of monitoring services and their details.",
 		Run: func(cmd *cobra.Command, args []string) {
-			err := admin.List()
-			if err != nil {
+			if err := admin.List(); err != nil {
 				fmt.Println("Error listing instances:", err)
 				os.Exit(1)
 			}
+
+			if !flagDevEnable {
+				return
+			}
+			exts, err := admin.ListExternalMetrics(context.TODO())
+			if err != nil {
+				fmt.Println("Error listing external instances:", err)
+				os.Exit(1)
+			}
+			fmt.Println("TODO External:")
+			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+			fmt.Fprintln(w, "Name\tScrape interval\tScrape timeout\tMetrics path\tScheme\tTargets")
+			for _, ext := range exts {
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
+					ext.Name, ext.Interval, ext.Timeout, ext.Path, ext.Scheme, strings.Join(ext.StatisTargets, ", "))
+			}
+			w.Flush()
 		},
 	}
 
@@ -950,6 +1015,9 @@ despite PMM server is alive or not.
 
 	flagServicePort int
 
+	flagExtInterval, flagExtTimeout time.Duration
+	flagExtPath, flagExtScheme      string
+
 	flagM pmm.MySQLFlags
 	flagC pmm.Config
 )
@@ -982,6 +1050,7 @@ func main() {
 		cmdAddMongoDBMetrics,
 		cmdAddMongoDBQueries,
 		cmdAddProxySQLMetrics,
+		cmdAddExternalMetrics,
 	)
 	cmdRemove.AddCommand(
 		cmdRemoveMySQL,
@@ -992,6 +1061,7 @@ func main() {
 		cmdRemoveMongoDBMetrics,
 		cmdRemoveMongoDBQueries,
 		cmdRemoveProxySQLMetrics,
+		cmdRemoveExternalMetrics,
 	)
 
 	// Flags.
@@ -1057,8 +1127,15 @@ func main() {
 
 	cmdAddProxySQLMetrics.Flags().StringVar(&flagDSN, "dsn", "stats:stats@tcp(localhost:6032)/", "ProxySQL connection DSN")
 
+	cmdAddExternalMetrics.Flags().DurationVar(&flagExtInterval, "interval", 0, "TODO interval flag description")
+	cmdAddExternalMetrics.Flags().DurationVar(&flagExtTimeout, "timeout", 0, "TODO timeout flag description")
+	cmdAddExternalMetrics.Flags().StringVar(&flagExtPath, "path", "", "TODO path flag description")
+	cmdAddExternalMetrics.Flags().StringVar(&flagExtScheme, "scheme", "", "TODO scheme flag description")
+
 	cmdRemove.Flags().BoolVar(&flagAll, "all", false, "remove all monitoring services")
 	cmdRemove.PersistentFlags().BoolVar(&flagDevEnable, "dev-enable", false, "enable experimental features")
+
+	cmdList.PersistentFlags().BoolVar(&flagDevEnable, "dev-enable", false, "enable experimental features")
 
 	cmdStart.Flags().BoolVar(&flagAll, "all", false, "start all monitoring services")
 	cmdStop.Flags().BoolVar(&flagAll, "all", false, "stop all monitoring services")
