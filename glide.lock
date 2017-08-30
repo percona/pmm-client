@@ -1,8 +1,8 @@
-hash: d7db5770e49ff2f84be7a7e0499b46b0c823eb9a7155078a823018c6307d67bc
-updated: 2017-08-24T13:26:52.047058997+03:00
+hash: e3e73b0149cf11bf250c90424b6cd6eea22235b134540bbe0ad495b7dac0d474
+updated: 2017-08-30T12:00:07.141754399+03:00
 imports:
 - name: github.com/beevik/ntp
-  version: cb3dae3a7588ae35829eb5724df611cd75152fba
+  version: 5bdb6758dfe8744ee0ea19066dc70549c3f6185c
 - name: github.com/fatih/color
   version: 570b54cabe6b8eb0bc2dfce68d964677d63b5260
 - name: github.com/go-sql-driver/mysql
@@ -16,13 +16,13 @@ imports:
 - name: github.com/hashicorp/go-rootcerts
   version: 6bb64b370b90e7ef1fa532be9e591a81c3493e00
 - name: github.com/hashicorp/serf
-  version: 050c56d31a1ff2ebc50e3f4810fdff7e7563f6c8
+  version: d6574a5bb1226678d7010325fb6c985db20ee458
   subpackages:
   - coordinate
 - name: github.com/inconshreveable/mousetrap
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
 - name: github.com/kardianos/osext
-  version: 9b883c5eb462dd5cb1b0a7a104fe86bc6b9bd391
+  version: ae77be60afb1dcacde03767a8c37337fad28ac14
 - name: github.com/mattn/go-colorable
   version: 5411d3eea5978e6cdc258b30de592b60df6aba96
   repo: https://github.com/mattn/go-colorable
@@ -32,7 +32,7 @@ imports:
 - name: github.com/mitchellh/go-homedir
   version: b8bc1bf767474819792c23f32d8286a45736f1c6
 - name: github.com/percona/go-mysql
-  version: 2a6037d7d809b18ebd6d735b397f2321879af611
+  version: b561fedcb9dd988e592a6fb88bdf05596e598af1
   subpackages:
   - dsn
 - name: github.com/percona/kardianos-service
@@ -40,7 +40,7 @@ imports:
 - name: github.com/percona/pmgo
   version: 9566dc76df319b856a12f24a3b6852a0c6463eff
 - name: github.com/percona/pmm
-  version: 0af8c6479067bf89905f881e6b118d340f719d6d
+  version: 46da02520e111d26504c5a4fb320a337dc8a830d
   subpackages:
   - proto
   - proto/config
@@ -49,18 +49,22 @@ imports:
   subpackages:
   - api/prometheus
 - name: github.com/prometheus/common
-  version: 3007b6072c17c8d985734e6e19b1dea9174e13d3
+  version: 61f87aac8082fa8c3c5655c7608d7478d46ac2ad
   subpackages:
   - model
 - name: github.com/spf13/cobra
-  version: ee4055870c2d5f7ce112642377e32c9929c3bbaf
+  version: 2df9a531813370438a4d79bfc33e21f58063ed87
 - name: github.com/spf13/pflag
-  version: 9ff6c6923cfffbcd502984b8e0c80539a94968b7
+  version: e57e3eeb33f795204c1ca35f56c44f83227c6e66
 - name: golang.org/x/net
-  version: 6b27048ae5e6ad1ef927e72e437531493de612fe
+  version: 66aacef3dd8a676686c7ae3716979581e8b03c47
   subpackages:
+  - bpf
   - context
   - context/ctxhttp
+  - internal/iana
+  - internal/socket
+  - ipv4
 - name: golang.org/x/sys
   version: e24f485414aeafb646f6fca458b0bf869c0880a1
   repo: https://go.googlesource.com/sys
@@ -82,7 +86,7 @@ imports:
 - name: gopkg.in/tomb.v2
   version: d5d1b5820637886def9eef33e03a27a9f166942c
 - name: gopkg.in/yaml.v2
-  version: a3f3340b5840cee44f372bddb5880fcbc419b46a
+  version: eb3733d160e74a9c7e442f435eb3bea458e1d19f
 testImports:
 - name: github.com/davecgh/go-spew
   version: 6d212800a42e8ab5c146b8ace3490ee17e5225f9
