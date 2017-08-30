@@ -1,5 +1,5 @@
-hash: 3a4a8540dc32e40304718fc45b228c1fe813719d76e12e660ce2e8ff7745597b
-updated: 2017-08-30T13:06:07.985057023+03:00
+hash: f92b3be69706e40dba4a5fdf921139037af174efb6d771584695c1848099dcdf
+updated: 2017-08-30T22:31:24.82970503+03:00
 imports:
 - name: github.com/beevik/ntp
   version: 5bdb6758dfe8744ee0ea19066dc70549c3f6185c
@@ -62,7 +62,7 @@ imports:
   - proto
   - proto/config
 - name: github.com/percona/pmm-managed
-  version: e6600b683b19fadde6a116a04f33ae18354eb99d
+  version: 990a92aebd6d0bc9b72997638dab63a455bae1e0
   subpackages:
   - api
 - name: github.com/prometheus/client_golang

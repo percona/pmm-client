@@ -18,10 +18,10 @@ package prometheus
 
 import (
 	"context"
-	"os"
 
-	"github.com/pkg/errors"
 	"github.com/prometheus/common/model"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type ScrapeJob struct {
@@ -82,11 +82,11 @@ func (svc *Service) GetScrapeJob(ctx context.Context, name string) (*ScrapeJob, 
 			return convertScrapeConfig(sc), nil
 		}
 	}
-	return nil, errors.WithStack(os.ErrNotExist)
+	return nil, status.Newf(codes.NotFound, "scrape job %q not found", name).Err()
 }
 
-// PutScrapeJob creates or replaces existing scrape job.
-func (svc *Service) PutScrapeJob(ctx context.Context, job *ScrapeJob) error {
+// CreateScrapeJob creates a new scrape job.
+func (svc *Service) CreateScrapeJob(ctx context.Context, job *ScrapeJob) error {
 	svc.lock.Lock()
 	defer svc.lock.Unlock()
 
@@ -115,7 +115,19 @@ func (svc *Service) PutScrapeJob(ctx context.Context, job *ScrapeJob) error {
 			Targets: []model.LabelSet{{model.AddressLabel: model.LabelValue(t)}},
 		}
 	}
-	scrapeConfig := &ScrapeConfig{
+
+	var found bool
+	for _, sc := range cfg.ScrapeConfigs {
+		if sc.JobName == job.Name {
+			found = true
+			break
+		}
+	}
+	if found {
+		return status.Newf(codes.AlreadyExists, "scrape job %q already exist", job.Name).Err()
+	}
+
+	cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, &ScrapeConfig{
 		JobName:        job.Name,
 		ScrapeInterval: interval,
 		ScrapeTimeout:  timeout,
@@ -124,21 +136,8 @@ func (svc *Service) PutScrapeJob(ctx context.Context, job *ScrapeJob) error {
 		ServiceDiscoveryConfig: ServiceDiscoveryConfig{
 			StaticConfigs: tg,
 		},
-	}
-
-	var found bool
-	for i, sc := range cfg.ScrapeConfigs {
-		if sc.JobName == job.Name {
-			cfg.ScrapeConfigs[i] = scrapeConfig
-			found = true
-			break
-		}
-	}
-	if !found {
-		cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, scrapeConfig)
-	}
-
-	if err = svc.saveConfig(cfg); err != nil {
+	})
+	if err = svc.saveConfig(ctx, cfg); err != nil {
 		return err
 	}
 	return svc.reload()
@@ -163,10 +162,10 @@ func (svc *Service) DeleteScrapeJob(ctx context.Context, name string) error {
 		}
 	}
 	if !found {
-		return errors.WithStack(os.ErrNotExist)
+		return status.Newf(codes.NotFound, "scrape job %q not found", name).Err()
 	}
 
-	if err = svc.saveConfig(cfg); err != nil {
+	if err = svc.saveConfig(ctx, cfg); err != nil {
 		return err
 	}
 	return svc.reload()

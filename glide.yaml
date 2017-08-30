@@ -35,6 +35,9 @@ import:
   version: ^0.8.1
 - package: github.com/grpc-ecosystem/grpc-gateway
   version: ^1.2.2
+- package: github.com/percona/pmm-managed
+  subpackages:
+  - api
 testImport:
 - package: github.com/stretchr/testify
   version: ^1.1.4
