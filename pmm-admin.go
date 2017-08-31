@@ -413,16 +413,13 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 		},
 	}
 	cmdAddExternalMetrics = &cobra.Command{
-		Use:   "external:metrics [name] [target1] [target2] TODO ...",
+		Use:   "external:metrics name target1 [target2] TODO ...",
 		Short: "TODO short command description",
 		Long:  `TODO long command description`,
+		Args:  cobra.MinimumNArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
 			if !flagDevEnable {
 				fmt.Println("external:metrics is an experimental feature, to enable it re-run the cmd with option --dev-enable")
-				os.Exit(1)
-			}
-			if len(args) < 2 {
-				fmt.Println("external:metrics requires targets TODO")
 				os.Exit(1)
 			}
 
