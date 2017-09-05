@@ -21,17 +21,62 @@ func TestTime(t *testing.T) {
 	t.Logf("%v\n", tm)
 }
 
+func TestTimeFailure(t *testing.T) {
+	local, err := Time("169.254.122.229") // random link-local IPv4 addr that unlikely has ntpd listening at :)
+	assert.NotNil(t, err)
+	remote, err := Time(host)
+	assert.Nil(t, err)
+	diffMinutes := remote.Sub(local).Minutes()
+	assert.True(t, -15 <= diffMinutes && diffMinutes <= 15) // no TZ errors
+}
+
 func TestQuery(t *testing.T) {
 	for version := 2; version <= 4; version++ {
 		testQueryVersion(version, t)
 	}
 }
 
+func TestServerPort(t *testing.T) {
+	tm, err := getTime(host, QueryOptions{Port: 9}) // `discard` service
+	assert.Nil(t, tm)
+	// it may be `read: connection refused`, it may be timeout
+	assert.NotNil(t, err)
+}
+
+func TestTTL(t *testing.T) {
+	tm, err := getTime(host, QueryOptions{TTL: 1}) // pool host is unlikely within LAN
+	assert.Nil(t, tm)
+	assert.NotNil(t, err)
+	tm, err = getTime(host, QueryOptions{TTL: 255}) // max TTL should reach everything
+	assert.NotNil(t, tm)
+	assert.Nil(t, err)
+}
+
+func TestQueryTimeout(t *testing.T) {
+	tm, err := QueryWithOptions(host, QueryOptions{Version: 4, Timeout: time.Nanosecond})
+	assert.Nil(t, tm)
+	assert.NotNil(t, err)
+}
+
+func TestGetTimeTimeout(t *testing.T) {
+	tm, err := getTime(host, QueryOptions{Version: 4, Timeout: time.Nanosecond})
+	assert.Nil(t, tm)
+	assert.NotNil(t, err)
+}
+
+func TestTimeOrdering(t *testing.T) {
+	tm, err := getTime(host, QueryOptions{})
+	now := toNtpTime(time.Now())
+	assert.Nil(t, err)
+	assert.True(t, tm.OriginTime <= now)              // local clock tick forward
+	assert.True(t, tm.ReceiveTime <= tm.TransmitTime) // server clock tick forward
+}
+
 func testQueryVersion(version int, t *testing.T) {
 	t.Logf("[%s] ----------------------", host)
 	t.Logf("[%s] NTP protocol version %d", host, version)
 
-	r, err := Query(host, version)
+	r, err := QueryWithOptions(host, QueryOptions{Version: version})
 	if err != nil {
 		// Don't treat timeouts like errors, because timeouts are common.
 		if strings.Contains(err.Error(), "i/o timeout") {
@@ -54,7 +99,8 @@ func testQueryVersion(version int, t *testing.T) {
 		t.Errorf("[%s] Negative round trip time: %v", host, r.RTT)
 	}
 
-	t.Logf("[%s]       Time: %v", host, r.Time.Local())
+	t.Logf("[%s]       Time: %v", host, r.Time)
+	t.Logf("[%s]    RefTime: %v", host, r.ReferenceTime) // it's displayed in UTC as NTP has no timezones
 	t.Logf("[%s]        RTT: %v", host, r.RTT)
 	t.Logf("[%s]     Offset: %v", host, r.ClockOffset)
 	t.Logf("[%s]       Poll: %v", host, r.Poll)
@@ -64,6 +110,45 @@ func testQueryVersion(version int, t *testing.T) {
 	t.Logf("[%s]  RootDelay: %v", host, r.RootDelay)
 	t.Logf("[%s]   RootDisp: %v", host, r.RootDispersion)
 	t.Logf("[%s]       Leap: %v", host, r.Leap)
+}
+
+func TestShortConversion(t *testing.T) {
+	var ts ntpTimeShort
+
+	ts = 0x00000000
+	assert.Equal(t, 0*time.Nanosecond, ts.Duration())
+
+	ts = 0x00000001
+	assert.Equal(t, 15258*time.Nanosecond, ts.Duration()) // well, it's actually 15258.789, but it's good enough
+
+	ts = 0x00008000
+	assert.Equal(t, 500*time.Millisecond, ts.Duration()) // precise
+
+	ts = 0x0000c000
+	assert.Equal(t, 750*time.Millisecond, ts.Duration()) // precise
+
+	ts = 0x0000ff80
+	assert.Equal(t, time.Second-(1000000000/512)*time.Nanosecond, ts.Duration()) // last precise sub-second value
+
+	ts = 0x00010000
+	assert.Equal(t, 1000*time.Millisecond, ts.Duration()) // precise
+
+	ts = 0x00018000
+	assert.Equal(t, 1500*time.Millisecond, ts.Duration()) // precise
+
+	ts = 0xffff0000
+	assert.Equal(t, 65535*time.Second, ts.Duration()) // precise
+
+	ts = 0xffffff80
+	assert.Equal(t, 65536*time.Second-(1000000000/512)*time.Nanosecond, ts.Duration()) // last precise value
+}
+
+func TestLongConversion(t *testing.T) {
+	ts := []ntpTime{0x0, 0xff800000, 0x1ff800000, 0x80000000ff800000, 0xffffffffff800000}
+
+	for _, v := range ts {
+		assert.Equal(t, v, toNtpTime(v.Time()))
+	}
 }
 
 func abs(d time.Duration) time.Duration {

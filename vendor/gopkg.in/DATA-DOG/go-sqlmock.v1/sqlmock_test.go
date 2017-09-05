@@ -3,6 +3,7 @@ package sqlmock
 import (
 	"database/sql"
 	"fmt"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -11,7 +12,10 @@ import (
 func cancelOrder(db *sql.DB, orderID int) error {
 	tx, _ := db.Begin()
 	_, _ = tx.Query("SELECT * FROM orders {0} FOR UPDATE", orderID)
-	_ = tx.Rollback()
+	err := tx.Rollback()
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -214,7 +218,7 @@ func TestTransactionExpectations(t *testing.T) {
 
 	err = tx.Commit()
 	if err != nil {
-		t.Errorf("an error '%s' was not expected when commiting a transaction", err)
+		t.Errorf("an error '%s' was not expected when committing a transaction", err)
 	}
 
 	// begin and rollback
@@ -394,7 +398,7 @@ func TestWrongExpectations(t *testing.T) {
 		WithArgs(5).
 		WillReturnRows(rs1)
 
-	mock.ExpectCommit().WillReturnError(fmt.Errorf("deadlock occured"))
+	mock.ExpectCommit().WillReturnError(fmt.Errorf("deadlock occurred"))
 	mock.ExpectRollback() // won't be triggered
 
 	var id int
@@ -418,7 +422,7 @@ func TestWrongExpectations(t *testing.T) {
 
 	err = tx.Commit()
 	if err == nil {
-		t.Error("a deadlock error was expected when commiting a transaction", err)
+		t.Error("a deadlock error was expected when committing a transaction", err)
 	}
 
 	if err := mock.ExpectationsWereMet(); err == nil {
@@ -771,5 +775,224 @@ func TestPrepareExpectationNotFulfilled(t *testing.T) {
 
 	if err := mock.ExpectationsWereMet(); err == nil {
 		t.Errorf("was expecting an error, since prepared statement query does not match, but there was none")
+	}
+}
+
+func TestRollbackThrow(t *testing.T) {
+	// Open new mock database
+	db, mock, err := New()
+	if err != nil {
+		fmt.Println("error creating mock database")
+		return
+	}
+	// columns to be used for result
+	columns := []string{"id", "status"}
+	// expect transaction begin
+	mock.ExpectBegin()
+	// expect query to fetch order, match it with regexp
+	mock.ExpectQuery("SELECT (.+) FROM orders (.+) FOR UPDATE").
+		WithArgs(1).
+		WillReturnRows(NewRows(columns).AddRow(1, 1))
+	// expect transaction rollback, since order status is "cancelled"
+	mock.ExpectRollback().WillReturnError(fmt.Errorf("rollback failed"))
+
+	// run the cancel order function
+	someOrderID := 1
+	// call a function which executes expected database operations
+	err = cancelOrder(db, someOrderID)
+	if err == nil {
+		t.Error("an error was expected when rolling back transaction, but got none")
+	}
+
+	// ensure all expectations have been met
+	if err = mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("unmet expectation error: %s", err)
+	}
+	// Output:
+}
+
+func TestUnexpectedCommit(t *testing.T) {
+	// Open new mock database
+	db, mock, err := New()
+	if err != nil {
+		fmt.Println("error creating mock database")
+		return
+	}
+	mock.ExpectBegin()
+	tx, _ := db.Begin()
+	if err := tx.Commit(); err == nil {
+		t.Error("an error was expected when calling commit, but got none")
+	}
+}
+
+func TestUnexpectedCommitOrder(t *testing.T) {
+	// Open new mock database
+	db, mock, err := New()
+	if err != nil {
+		fmt.Println("error creating mock database")
+		return
+	}
+	mock.ExpectBegin()
+	mock.ExpectRollback().WillReturnError(fmt.Errorf("Rollback failed"))
+	tx, _ := db.Begin()
+	if err := tx.Commit(); err == nil {
+		t.Error("an error was expected when calling commit, but got none")
+	}
+}
+
+func TestExpectedCommitOrder(t *testing.T) {
+	// Open new mock database
+	db, mock, err := New()
+	if err != nil {
+		fmt.Println("error creating mock database")
+		return
+	}
+	mock.ExpectCommit().WillReturnError(fmt.Errorf("Commit failed"))
+	if _, err := db.Begin(); err == nil {
+		t.Error("an error was expected when calling begin, but got none")
+	}
+}
+
+func TestUnexpectedRollback(t *testing.T) {
+	// Open new mock database
+	db, mock, err := New()
+	if err != nil {
+		fmt.Println("error creating mock database")
+		return
+	}
+	mock.ExpectBegin()
+	tx, _ := db.Begin()
+	if err := tx.Rollback(); err == nil {
+		t.Error("an error was expected when calling rollback, but got none")
+	}
+}
+
+func TestUnexpectedRollbackOrder(t *testing.T) {
+	// Open new mock database
+	db, mock, err := New()
+	if err != nil {
+		fmt.Println("error creating mock database")
+		return
+	}
+	mock.ExpectBegin()
+
+	tx, _ := db.Begin()
+	if err := tx.Rollback(); err == nil {
+		t.Error("an error was expected when calling rollback, but got none")
+	}
+}
+
+func TestPrepareExec(t *testing.T) {
+	// Open new mock database
+	db, mock, err := New()
+	if err != nil {
+		fmt.Println("error creating mock database")
+		return
+	}
+	defer db.Close()
+	mock.ExpectBegin()
+	ep := mock.ExpectPrepare("INSERT INTO ORDERS\\(ID, STATUS\\) VALUES \\(\\?, \\?\\)")
+	for i := 0; i < 3; i++ {
+		ep.ExpectExec().WillReturnResult(NewResult(1, 1))
+	}
+	mock.ExpectCommit()
+	tx, _ := db.Begin()
+	stmt, err := tx.Prepare("INSERT INTO ORDERS(ID, STATUS) VALUES (?, ?)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stmt.Close()
+	for i := 0; i < 3; i++ {
+		_, err := stmt.Exec(i, "Hello"+strconv.Itoa(i))
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	tx.Commit()
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("there were unfulfilled expections: %s", err)
+	}
+}
+
+func TestPrepareQuery(t *testing.T) {
+	// Open new mock database
+	db, mock, err := New()
+	if err != nil {
+		fmt.Println("error creating mock database")
+		return
+	}
+	defer db.Close()
+	mock.ExpectBegin()
+	ep := mock.ExpectPrepare("SELECT ID, STATUS FROM ORDERS WHERE ID = \\?")
+	ep.ExpectQuery().WithArgs(101).WillReturnRows(NewRows([]string{"ID", "STATUS"}).AddRow(101, "Hello"))
+	mock.ExpectCommit()
+	tx, _ := db.Begin()
+	stmt, err := tx.Prepare("SELECT ID, STATUS FROM ORDERS WHERE ID = ?")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stmt.Close()
+	rows, err := stmt.Query(101)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var (
+			id     int
+			status string
+		)
+		if rows.Scan(&id, &status); id != 101 || status != "Hello" {
+			t.Fatal("wrong query results")
+		}
+
+	}
+	tx.Commit()
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("there were unfulfilled expections: %s", err)
+	}
+}
+
+func TestExpectedCloseError(t *testing.T) {
+	// Open new mock database
+	db, mock, err := New()
+	if err != nil {
+		fmt.Println("error creating mock database")
+		return
+	}
+	mock.ExpectClose().WillReturnError(fmt.Errorf("Close failed"))
+	if err := db.Close(); err == nil {
+		t.Error("an error was expected when calling close, but got none")
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("there were unfulfilled expections: %s", err)
+	}
+}
+
+func TestExpectedCloseOrder(t *testing.T) {
+	// Open new mock database
+	db, mock, err := New()
+	if err != nil {
+		fmt.Println("error creating mock database")
+		return
+	}
+	defer db.Close()
+	mock.ExpectClose().WillReturnError(fmt.Errorf("Close failed"))
+	db.Begin()
+	if err := mock.ExpectationsWereMet(); err == nil {
+		t.Error("expected error on ExpectationsWereMet")
+	}
+}
+
+func TestExpectedBeginOrder(t *testing.T) {
+	// Open new mock database
+	db, mock, err := New()
+	if err != nil {
+		fmt.Println("error creating mock database")
+		return
+	}
+	mock.ExpectBegin().WillReturnError(fmt.Errorf("Begin failed"))
+	if err := db.Close(); err == nil {
+		t.Error("an error was expected when calling close, but got none")
 	}
 }

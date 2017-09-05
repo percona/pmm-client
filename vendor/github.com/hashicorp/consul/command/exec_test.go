@@ -6,34 +6,36 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hashicorp/consul/agent"
 	consulapi "github.com/hashicorp/consul/api"
-	"github.com/hashicorp/consul/command/agent"
-	"github.com/hashicorp/consul/command/base"
-	"github.com/hashicorp/consul/testutil"
+	"github.com/hashicorp/consul/testutil/retry"
 	"github.com/mitchellh/cli"
 )
 
 func testExecCommand(t *testing.T) (*cli.MockUi, *ExecCommand) {
-	ui := new(cli.MockUi)
+	ui := cli.NewMockUi()
 	return ui, &ExecCommand{
-		Command: base.Command{
-			Ui:    ui,
-			Flags: base.FlagSetHTTP,
+		BaseCommand: BaseCommand{
+			UI:    ui,
+			Flags: FlagSetHTTP,
 		},
 	}
 }
 
 func TestExecCommand_implements(t *testing.T) {
+	t.Parallel()
 	var _ cli.Command = &ExecCommand{}
 }
 
 func TestExecCommandRun(t *testing.T) {
-	a1 := testAgent(t)
-	defer a1.Shutdown()
-	waitForLeader(t, a1.httpAddr)
+	t.Parallel()
+	cfg := agent.TestConfig()
+	cfg.DisableRemoteExec = agent.Bool(false)
+	a := agent.NewTestAgent(t.Name(), cfg)
+	defer a.Shutdown()
 
 	ui, c := testExecCommand(t)
-	args := []string{"-http-addr=" + a1.httpAddr, "-wait=10s", "uptime"}
+	args := []string{"-http-addr=" + a.HTTPAddr(), "-wait=500ms", "uptime"}
 
 	code := c.Run(args)
 	if code != 0 {
@@ -46,30 +48,36 @@ func TestExecCommandRun(t *testing.T) {
 }
 
 func TestExecCommandRun_CrossDC(t *testing.T) {
-	a1 := testAgent(t)
+	t.Parallel()
+	cfg1 := agent.TestConfig()
+	cfg1.DisableRemoteExec = agent.Bool(false)
+	a1 := agent.NewTestAgent(t.Name(), cfg1)
 	defer a1.Shutdown()
 
-	a2 := testAgentWithConfig(t, func(c *agent.Config) {
-		c.Datacenter = "dc2"
-	})
-	defer a2.Shutdown()
+	cfg2 := agent.TestConfig()
+	cfg2.Datacenter = "dc2"
+	cfg2.DisableRemoteExec = agent.Bool(false)
+	a2 := agent.NewTestAgent(t.Name(), cfg2)
+	defer a1.Shutdown()
 
 	// Join over the WAN
-	wanAddr := fmt.Sprintf("%s:%d", a1.config.BindAddr, a1.config.Ports.SerfWan)
-	n, err := a2.agent.JoinWAN([]string{wanAddr})
+	wanAddr := fmt.Sprintf("%s:%d", a1.Config.BindAddr, a1.Config.Ports.SerfWan)
+	_, err := a2.JoinWAN([]string{wanAddr})
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	if n != 1 {
-		t.Fatalf("bad %d", n)
-	}
 
-	waitForLeader(t, a1.httpAddr)
-	waitForLeader(t, a2.httpAddr)
+	retry.Run(t, func(r *retry.R) {
+		if got, want := len(a1.WANMembers()), 2; got != want {
+			r.Fatalf("got %d WAN members on a1 want %d", got, want)
+		}
+		if got, want := len(a2.WANMembers()), 2; got != want {
+			r.Fatalf("got %d WAN members on a2 want %d", got, want)
+		}
+	})
 
 	ui, c := testExecCommand(t)
-	args := []string{"-http-addr=" + a1.httpAddr,
-		"-wait=400ms", "-datacenter=dc2", "uptime"}
+	args := []string{"-http-addr=" + a1.HTTPAddr(), "-wait=500ms", "-datacenter=dc2", "uptime"}
 
 	code := c.Run(args)
 	if code != 0 {
@@ -81,26 +89,8 @@ func TestExecCommandRun_CrossDC(t *testing.T) {
 	}
 }
 
-func waitForLeader(t *testing.T, httpAddr string) {
-	client, err := httpClient(httpAddr)
-	if err != nil {
-		t.Fatalf("err: %v", err)
-	}
-	testutil.WaitForResult(func() (bool, error) {
-		_, qm, err := client.Catalog().Nodes(nil)
-		return err == nil && qm.KnownLeader && qm.LastIndex > 0, err
-	}, func(err error) {
-		t.Fatalf("failed to find leader: %v", err)
-	})
-}
-
-func httpClient(addr string) (*consulapi.Client, error) {
-	conf := consulapi.DefaultConfig()
-	conf.Address = addr
-	return consulapi.NewClient(conf)
-}
-
 func TestExecCommand_Validate(t *testing.T) {
+	t.Parallel()
 	conf := &rExecConf{}
 	err := conf.validate()
 	if err != nil {
@@ -136,15 +126,13 @@ func TestExecCommand_Validate(t *testing.T) {
 }
 
 func TestExecCommand_Sessions(t *testing.T) {
-	a1 := testAgent(t)
-	defer a1.Shutdown()
-	waitForLeader(t, a1.httpAddr)
+	t.Parallel()
+	cfg := agent.TestConfig()
+	cfg.DisableRemoteExec = agent.Bool(false)
+	a := agent.NewTestAgent(t.Name(), cfg)
+	defer a.Shutdown()
 
-	client, err := httpClient(a1.httpAddr)
-	if err != nil {
-		t.Fatalf("err: %v", err)
-	}
-
+	client := a.Client()
 	_, c := testExecCommand(t)
 	c.client = client
 
@@ -177,15 +165,13 @@ func TestExecCommand_Sessions(t *testing.T) {
 }
 
 func TestExecCommand_Sessions_Foreign(t *testing.T) {
-	a1 := testAgent(t)
-	defer a1.Shutdown()
-	waitForLeader(t, a1.httpAddr)
+	t.Parallel()
+	cfg := agent.TestConfig()
+	cfg.DisableRemoteExec = agent.Bool(false)
+	a := agent.NewTestAgent(t.Name(), cfg)
+	defer a.Shutdown()
 
-	client, err := httpClient(a1.httpAddr)
-	if err != nil {
-		t.Fatalf("err: %v", err)
-	}
-
+	client := a.Client()
 	_, c := testExecCommand(t)
 	c.client = client
 
@@ -194,14 +180,15 @@ func TestExecCommand_Sessions_Foreign(t *testing.T) {
 	c.conf.localNode = "foo"
 
 	var id string
-	testutil.WaitForResult(func() (bool, error) {
+	retry.Run(t, func(r *retry.R) {
+		var err error
 		id, err = c.createSession()
-		if err != nil && strings.Contains(err.Error(), "Failed to find Consul server") {
-			err = nil
+		if err != nil {
+			r.Fatal(err)
 		}
-		return id != "", err
-	}, func(err error) {
-		t.Fatalf("err: %v", err)
+		if id == "" {
+			r.Fatal("no id")
+		}
 	})
 
 	se, _, err := client.Session().Info(id, nil)
@@ -228,15 +215,13 @@ func TestExecCommand_Sessions_Foreign(t *testing.T) {
 }
 
 func TestExecCommand_UploadDestroy(t *testing.T) {
-	a1 := testAgent(t)
-	defer a1.Shutdown()
-	waitForLeader(t, a1.httpAddr)
+	t.Parallel()
+	cfg := agent.TestConfig()
+	cfg.DisableRemoteExec = agent.Bool(false)
+	a := agent.NewTestAgent(t.Name(), cfg)
+	defer a.Shutdown()
 
-	client, err := httpClient(a1.httpAddr)
-	if err != nil {
-		t.Fatalf("err: %v", err)
-	}
-
+	client := a.Client()
 	_, c := testExecCommand(t)
 	c.client = client
 
@@ -285,15 +270,13 @@ func TestExecCommand_UploadDestroy(t *testing.T) {
 }
 
 func TestExecCommand_StreamResults(t *testing.T) {
-	a1 := testAgent(t)
-	defer a1.Shutdown()
-	waitForLeader(t, a1.httpAddr)
+	t.Parallel()
+	cfg := agent.TestConfig()
+	cfg.DisableRemoteExec = agent.Bool(false)
+	a := agent.NewTestAgent(t.Name(), cfg)
+	defer a.Shutdown()
 
-	client, err := httpClient(a1.httpAddr)
-	if err != nil {
-		t.Fatalf("err: %v", err)
-	}
-
+	client := a.Client()
 	_, c := testExecCommand(t)
 	c.client = client
 	c.conf.prefix = "_rexec"
