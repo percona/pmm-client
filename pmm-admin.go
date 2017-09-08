@@ -366,12 +366,6 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 			} else {
 				fmt.Println("[mongodb:metrics] OK, now monitoring MongoDB metrics using URI", pmm.SanitizeDSN(flagMongoURI))
 			}
-
-			// exit now if we don't want to have experimental features
-			if !flagDevEnable {
-				return
-			}
-
 			err = admin.AddMongoDBQueries(buildInfo, flagMongoURI)
 			if err == pmm.ErrDuplicate {
 				fmt.Println("[mongodb:queries] OK, already monitoring MongoDB queries.")
@@ -418,11 +412,6 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 		Example: `  pmm-admin add mongodb:queries
   pmm-admin add mongodb:queries`,
 		Run: func(cmd *cobra.Command, args []string) {
-			// exit now if we don't want to have experimental features
-			if !flagDevEnable {
-				fmt.Println("mongodb:queries is an experimental feature, to enable it re-run the cmd with option --dev-enable")
-				os.Exit(1)
-			}
 			buildInfo, err := admin.DetectMongoDB(flagMongoURI)
 			if err != nil {
 				fmt.Println(err)
@@ -592,11 +581,6 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 				fmt.Printf("[mongodb:metrics] OK, removed MongoDB metrics %s from monitoring.\n", admin.ServiceName)
 			}
 
-			// exit now if we don't want to have experimental features
-			if !flagDevEnable {
-				return
-			}
-
 			err = admin.RemoveMongoDBQueries()
 			if err == pmm.ErrNoService {
 				fmt.Printf("[mongodb:queries] OK, no MongoDB queries %s under monitoring.\n", admin.ServiceName)
@@ -630,11 +614,6 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 [name] is an optional argument, by default it is set to the client name of this PMM client.
 		`,
 		Run: func(cmd *cobra.Command, args []string) {
-			// exit now if we don't want to have experimental features
-			if !flagDevEnable {
-				fmt.Println("mongodb:queries is an experimental feature, to enable it re-run the cmd with option --dev-enable")
-				os.Exit(1)
-			}
 			if err := admin.RemoveMongoDBQueries(); err != nil {
 				fmt.Printf("Error removing MongoDB queries %s: %s\n", admin.ServiceName, err)
 				os.Exit(1)
@@ -991,7 +970,7 @@ despite PMM server is alive or not.
 
 	flagMongoURI, flagCluster, flagDSN string
 
-	flagVersion, flagAll, flagForce, flagDevEnable bool
+	flagVersion, flagAll, flagForce bool
 
 	flagServicePort int
 
@@ -1055,7 +1034,6 @@ func main() {
 	cmdConfig.Flags().BoolVar(&flagForce, "force", false, "force to set client name on initial setup after uninstall with unreachable server")
 
 	cmdAdd.PersistentFlags().IntVar(&flagServicePort, "service-port", 0, "service port")
-	cmdAdd.PersistentFlags().BoolVar(&flagDevEnable, "dev-enable", false, "enable experimental features")
 
 	cmdAddLinuxMetrics.Flags().BoolVar(&flagForce, "force", false, "force to add another linux:metrics instance with different name for testing purposes")
 
@@ -1103,7 +1081,6 @@ func main() {
 	cmdAddProxySQLMetrics.Flags().StringVar(&flagDSN, "dsn", "stats:stats@tcp(localhost:6032)/", "ProxySQL connection DSN")
 
 	cmdRemove.Flags().BoolVar(&flagAll, "all", false, "remove all monitoring services")
-	cmdRemove.PersistentFlags().BoolVar(&flagDevEnable, "dev-enable", false, "enable experimental features")
 
 	cmdStart.Flags().BoolVar(&flagAll, "all", false, "start all monitoring services")
 	cmdStop.Flags().BoolVar(&flagAll, "all", false, "stop all monitoring services")
