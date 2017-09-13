@@ -1093,6 +1093,9 @@ func testAddMongoDB(t *testing.T, data pmmAdminData) {
 	assert.Equal(t, fmt.Sprintln("[linux:metrics]   OK, now monitoring this system."), cmdTest.ReadLine())
 	assert.Equal(t, fmt.Sprintln("[mongodb:metrics] OK, now monitoring MongoDB metrics using URI localhost:27017"), cmdTest.ReadLine())
 	assert.Equal(t, fmt.Sprintln("[mongodb:queries] OK, now monitoring MongoDB queries using URI localhost:27017"), cmdTest.ReadLine())
+	assert.Equal(t, fmt.Sprintln("[mongodb:queries] It is required for correct operation that profiling of monitored MongoDB databases be enabled."), cmdTest.ReadLine())
+	assert.Equal(t, fmt.Sprintln("[mongodb:queries] Note that profiling is not enabled by default because it may reduce the performance of your MongoDB server."), cmdTest.ReadLine())
+	assert.Equal(t, fmt.Sprintln("[mongodb:queries] For more information read PMM documentation (https://www.percona.com/doc/percona-monitoring-and-management/conf-mongodb.html)."), cmdTest.ReadLine())
 
 	assert.Equal(t, "", cmdTest.ReadLine()) // No more data
 }
@@ -1175,6 +1178,9 @@ func testAddMongoDBQueries(t *testing.T, data pmmAdminData) {
 	assert.Nil(t, err)
 
 	assert.Equal(t, fmt.Sprintln("OK, now monitoring MongoDB queries using URI localhost:27017"), cmdTest.ReadLine())
+	assert.Equal(t, fmt.Sprintln("It is required for correct operation that profiling of monitored MongoDB databases be enabled."), cmdTest.ReadLine())
+	assert.Equal(t, fmt.Sprintln("Note that profiling is not enabled by default because it may reduce the performance of your MongoDB server."), cmdTest.ReadLine())
+	assert.Equal(t, fmt.Sprintln("For more information read PMM documentation (https://www.percona.com/doc/percona-monitoring-and-management/conf-mongodb.html)."), cmdTest.ReadLine())
 
 	assert.Equal(t, "", cmdTest.ReadLine()) // No more data
 }
