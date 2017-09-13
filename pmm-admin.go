@@ -374,6 +374,9 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 				os.Exit(1)
 			} else {
 				fmt.Println("[mongodb:queries] OK, now monitoring MongoDB queries using URI", pmm.SanitizeDSN(flagMongoURI))
+				fmt.Println("[mongodb:queries] It is required for correct operation that profiling of monitored MongoDB databases be enabled.")
+				fmt.Println("[mongodb:queries] Note that profiling is not enabled by default because it may reduce the performance of your MongoDB server.")
+				fmt.Println("[mongodb:queries] For more information read PMM documentation (https://www.percona.com/doc/percona-monitoring-and-management/conf-mongodb.html).")
 			}
 		},
 	}
@@ -422,6 +425,9 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 				os.Exit(1)
 			}
 			fmt.Println("OK, now monitoring MongoDB queries using URI", pmm.SanitizeDSN(flagMongoURI))
+			fmt.Println("It is required for correct operation that profiling of monitored MongoDB databases be enabled.")
+			fmt.Println("Note that profiling is not enabled by default because it may reduce the performance of your MongoDB server.")
+			fmt.Println("For more information read PMM documentation (https://www.percona.com/doc/percona-monitoring-and-management/conf-mongodb.html).")
 		},
 	}
 	cmdAddProxySQLMetrics = &cobra.Command{
