@@ -320,8 +320,8 @@ a new user 'pmm@' automatically using the given (auto-detected) MySQL credential
 	}
 	cmdAddMongoDB = &cobra.Command{
 		Use:   "mongodb [name]",
-		Short: "Add complete monitoring for MongoDB instance (linux and mongodb metrics).",
-		Long: `This command adds the given MongoDB instance to system and metrics monitoring.
+		Short: "Add complete monitoring for MongoDB instance (linux and mongodb metrics, queries).",
+		Long: `This command adds the given MongoDB instance to system, metrics and queries monitoring.
 
 When adding a MongoDB instance, you may provide --uri if the default one does not work for you.
 
