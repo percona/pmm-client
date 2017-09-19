@@ -43,6 +43,14 @@ var (
 				os.Exit(0)
 			}
 
+			if flagFormat != "" {
+				admin.Format = flagFormat
+			}
+
+			if flagJson {
+				admin.Format = "{{ json . }}"
+			}
+
 			if path := pmm.CheckBinaries(); path != "" {
 				fmt.Println("Installation problem, one of the binaries is missing:", path)
 				os.Exit(1)
@@ -974,9 +982,9 @@ despite PMM server is alive or not.
 		},
 	}
 
-	flagMongoURI, flagCluster, flagDSN string
+	flagMongoURI, flagCluster, flagDSN, flagFormat string
 
-	flagVersion, flagAll, flagForce bool
+	flagVersion, flagJson, flagAll, flagForce bool
 
 	flagServicePort int
 
@@ -1086,6 +1094,8 @@ func main() {
 
 	cmdAddProxySQLMetrics.Flags().StringVar(&flagDSN, "dsn", "stats:stats@tcp(localhost:6032)/", "ProxySQL connection DSN")
 
+	cmdList.Flags().StringVar(&flagFormat, "format", "", "print result using a Go template")
+	cmdList.Flags().BoolVar(&flagJson, "json", false, "print result as json")
 	cmdRemove.Flags().BoolVar(&flagAll, "all", false, "remove all monitoring services")
 
 	cmdStart.Flags().BoolVar(&flagAll, "all", false, "start all monitoring services")

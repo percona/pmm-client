@@ -18,6 +18,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -90,19 +91,20 @@ func TestPmmAdmin(t *testing.T) {
 		rootDir: rootDir,
 	}
 	tests := []func(*testing.T, pmmAdminData){
-		testVersion,
-		testConfig,
-		testConfigVerbose,
-		testConfigVerboseServerNotAvailable,
-		testStartStopRestart,
-		testStartStopRestartAllWithNoServices,
-		testStartStopRestartAllWithServices,
-		testStartStopRestartNoServiceFound,
-		testCheckNetwork,
 		testAddMongoDB,
 		testAddMongoDBQueries,
 		testAddLinuxMetricsWithAdditionalArgsOk,
 		testAddLinuxMetricsWithAdditionalArgsFail,
+		testCheckNetwork,
+		testConfig,
+		testConfigVerbose,
+		testConfigVerboseServerNotAvailable,
+		testList,
+		testStartStopRestart,
+		testStartStopRestartAllWithNoServices,
+		testStartStopRestartAllWithServices,
+		testStartStopRestartNoServiceFound,
+		testVersion,
 	}
 	t.Run("pmm-admin", func(t *testing.T) {
 		for _, f := range tests {
@@ -152,12 +154,13 @@ func testConfig(t *testing.T, data pmmAdminData) {
 
 	// Create fake api server
 	fapi := fakeapi.New()
+	defer fapi.Close()
 	u, _ := url.Parse(fapi.URL())
 	clientAddress, _, _ := net.SplitHostPort(u.Host)
 	clientName, _ := os.Hostname()
 	fapi.AppendRoot()
 	fapi.AppendConsulV1StatusLeader(clientAddress)
-	node := api.CatalogNode{
+	node := &api.CatalogNode{
 		Node: &api.Node{},
 	}
 	fapi.AppendConsulV1CatalogNode(clientName, node)
@@ -195,12 +198,13 @@ func testConfigVerbose(t *testing.T, data pmmAdminData) {
 
 	// Create fake api server
 	fapi := fakeapi.New()
+	defer fapi.Close()
 	u, _ := url.Parse(fapi.URL())
 	clientAddress, _, _ := net.SplitHostPort(u.Host)
 	clientName, _ := os.Hostname()
 	fapi.AppendRoot()
 	fapi.AppendConsulV1StatusLeader(clientAddress)
-	node := api.CatalogNode{
+	node := &api.CatalogNode{
 		Node: &api.Node{},
 	}
 	fapi.AppendConsulV1CatalogNode(clientName, node)
@@ -408,6 +412,286 @@ func testStartStopRestartAllWithNoServices(t *testing.T, data pmmAdminData) {
 	})
 }
 
+func testList(t *testing.T, data pmmAdminData) {
+	defer func() {
+		err := os.RemoveAll(data.rootDir)
+		assert.Nil(t, err)
+	}()
+
+	// Create fake api server
+	fapi := fakeapi.New()
+	defer fapi.Close()
+	u, _ := url.Parse(fapi.URL())
+	serverAddress, _, _ := net.SplitHostPort(u.Host)
+	clientName := "test-client-name"
+	fapi.AppendRoot()
+	fapi.AppendConsulV1StatusLeader(serverAddress)
+	node := &api.CatalogNode{
+		Node: &api.Node{},
+	}
+	fapi.AppendConsulV1CatalogNode(clientName, node)
+	fapi.AppendConsulV1KV()
+
+	os.MkdirAll(data.rootDir+pmm.PMMBaseDir, 0777)
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/node_exporter")
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/mysqld_exporter")
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/mongodb_exporter")
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/proxysql_exporter")
+
+	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/bin", 0777)
+	os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent")
+	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/config", 0777)
+	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/instance", 0777)
+
+	f, _ := os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent-installer")
+	f.WriteString("#!/bin/sh\n")
+	f.WriteString("echo 'it works'")
+	f.Close()
+	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
+
+	f, _ = os.Create(data.rootDir + pmm.AgentBaseDir + "/config/agent.conf")
+	f.WriteString(`{"UUID":"42","ApiHostname":"somehostname","ApiPath":"/qan-api","ServerUser":"pmm"}`)
+	f.WriteString("\n")
+	f.Close()
+	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
+
+	pmmConfig := pmm.Config{
+		ServerAddress: fmt.Sprintf("%s:%s", fapi.Host(), fapi.Port()),
+		ClientName:    clientName,
+		ClientAddress: "empty",
+		BindAddress:   "data",
+	}
+	bytes, _ := yaml.Marshal(pmmConfig)
+	ioutil.WriteFile(data.rootDir+pmm.PMMBaseDir+"/pmm.yml", bytes, 0600)
+
+	// Test empty list
+	t.Run("list (empty)", func(t *testing.T) {
+		cmd := exec.Command(
+			data.bin,
+			"list",
+		)
+
+		cmdTest := cmdtest.New(cmd)
+		if err := cmd.Start(); err != nil {
+			log.Fatal(err)
+		}
+		err := cmd.Wait()
+		assert.Nil(t, err)
+
+		expect := `pmm-admin gotest
+
+PMM Server      \| .*
+Client Name     \| test-client-name
+Client Address  \| .*
+Service Manager \| .*
+
+No services under monitoring.
+`
+		got := strings.Join(cmdTest.Output(), "")
+		assert.Regexp(t, expect, got)
+	})
+
+	node.Services = map[string]*api.AgentService{
+		"a": {
+			ID:      "id",
+			Service: "mysql:queries",
+			Port:    0,
+			Tags: []string{
+				fmt.Sprintf("alias_%s", clientName),
+			},
+		},
+		"b": {
+			ID:      "id",
+			Service: "mongodb:queries",
+			Port:    0,
+			Tags: []string{
+				fmt.Sprintf("alias_%s", clientName),
+			},
+		},
+	}
+
+	// create fake system service
+	{
+		dir, extension := pmm.GetServiceDirAndExtension()
+		os.MkdirAll(data.rootDir+dir, 0777)
+		name := fmt.Sprintf("pmm-mysql-queries-0%s", extension)
+		os.Create(data.rootDir + dir + "/" + name)
+	}
+	{
+		dir, extension := pmm.GetServiceDirAndExtension()
+		os.MkdirAll(data.rootDir+dir, 0777)
+		name := fmt.Sprintf("pmm-mongodb-queries-0%s", extension)
+		os.Create(data.rootDir + dir + "/" + name)
+	}
+
+	// Test --help output
+	t.Run("list --help", func(t *testing.T) {
+		cmd := exec.Command(
+			data.bin,
+			"list",
+			"--help",
+		)
+
+		cmdTest := cmdtest.New(cmd)
+		if err := cmd.Start(); err != nil {
+			log.Fatal(err)
+		}
+		err := cmd.Wait()
+		assert.Nil(t, err)
+
+		expect := `This command displays the list of monitoring services and their details.
+
+Usage:
+  pmm-admin list \[flags\]
+
+Aliases:
+  list, ls
+
+Flags:
+      --format string   print result using a Go template
+  -h, --help            help for list
+      --json            print result as json
+
+Global Flags:
+  -c, --config-file string   PMM config file \(default ".*?"\)
+      --verbose              verbose output
+`
+		got := strings.Join(cmdTest.Output(), "")
+		assert.Regexp(t, expect, got)
+	})
+
+	// Test text output
+	t.Run("list", func(t *testing.T) {
+		cmd := exec.Command(
+			data.bin,
+			"list",
+		)
+
+		cmdTest := cmdtest.New(cmd)
+		if err := cmd.Start(); err != nil {
+			log.Fatal(err)
+		}
+		err := cmd.Wait()
+		assert.Nil(t, err)
+
+		expect := `pmm-admin gotest
+
+PMM Server      \| .*
+Client Name     \| test-client-name
+Client Address  \| .*
+Service Manager \| .*
+
+---------------- ----------------- ----------- -------- ------------ --------
+SERVICE TYPE     NAME              LOCAL PORT  RUNNING  DATA SOURCE  OPTIONS\s*
+---------------- ----------------- ----------- -------- ------------ --------
+mongodb:queries  test-client-name  -           YES                 - \s*
+mysql:queries    test-client-name  -           YES                 - \s*
+`
+		got := strings.Join(cmdTest.Output(), "")
+		assert.Regexp(t, expect, got)
+	})
+
+	// Test json output
+	t.Run("list --json", func(t *testing.T) {
+		cmd := exec.Command(
+			data.bin,
+			"list",
+			"--json",
+		)
+
+		cmdTest := cmdtest.New(cmd)
+		if err := cmd.Start(); err != nil {
+			log.Fatal(err)
+		}
+		err := cmd.Wait()
+		assert.Nil(t, err)
+
+		expect := pmm.List{
+			Version: "gotest",
+			ServerInfo: pmm.ServerInfo{
+				ClientName:        "test-client-name",
+				ClientAddress:     "empty",
+				ClientBindAddress: "(data)",
+			},
+			Services: []pmm.ServiceStatus{
+				{
+					Type:    "mongodb:queries",
+					Name:    "test-client-name",
+					Port:    "-",
+					DSN:     "-",
+					Running: true,
+				},
+				{
+					Type:    "mysql:queries",
+					Name:    "test-client-name",
+					Port:    "-",
+					DSN:     "-",
+					Running: true,
+				},
+			},
+		}
+		out := strings.Join(cmdTest.Output(), "")
+		got := pmm.List{}
+		err = json.Unmarshal([]byte(out), &got)
+
+		// we can't really test this data
+		got.Platform = ""
+		got.ServerAddress = ""
+
+		assert.Nil(t, err)
+		assert.Equal(t, expect, got)
+	})
+
+	// Test custom text template with table data ()
+	t.Run("list --format <table data>", func(t *testing.T) {
+		format := `SERVICE TYPE	NAME	LOCAL PORT	RUNNING	DATA SOURCE	OPTIONS
+{{range .Services}}{{.Type}}	{{.Name}}	{{.Port}}	{{if .Running}}YES{{else}}NO{{end}}	{{.DSN}}	{{.Options}}
+{{end}}`
+
+		cmd := exec.Command(
+			data.bin,
+			"list",
+			"--format", format,
+		)
+
+		cmdTest := cmdtest.New(cmd)
+		if err := cmd.Start(); err != nil {
+			log.Fatal(err)
+		}
+		err := cmd.Wait()
+		assert.Nil(t, err)
+
+		expect := `SERVICE TYPE           NAME                    LOCAL PORT        RUNNING        DATA SOURCE        OPTIONS\s*
+mongodb:queries        test-client-name        -                 YES            -\s*
+mysql:queries          test-client-name        -                 YES            -\s*
+`
+		got := strings.Join(cmdTest.Output(), "")
+		assert.Regexp(t, expect, got)
+	})
+
+	// Test custom format that produces just json list
+	t.Run("list --format '{{json .Services'}}", func(t *testing.T) {
+		format := `{{json .Services}}`
+
+		cmd := exec.Command(
+			data.bin,
+			"list",
+			"--format", format,
+		)
+
+		cmdTest := cmdtest.New(cmd)
+		if err := cmd.Start(); err != nil {
+			log.Fatal(err)
+		}
+		err := cmd.Wait()
+		assert.Nil(t, err)
+
+		expect := `[{"Type":"mongodb:queries","Name":"test-client-name","Port":"-","Running":true,"DSN":"-","Options":"","SSL":"","Password":""},{"Type":"mysql:queries","Name":"test-client-name","Port":"-","Running":true,"DSN":"-","Options":"","SSL":"","Password":""}]`
+		got := strings.Join(cmdTest.Output(), "")
+		assert.JSONEq(t, expect, got)
+	})
+}
+
 func testStartStopRestart(t *testing.T, data pmmAdminData) {
 	defer func() {
 		err := os.RemoveAll(data.rootDir)
@@ -418,12 +702,13 @@ func testStartStopRestart(t *testing.T, data pmmAdminData) {
 
 	// Create fake api server
 	fapi := fakeapi.New()
+	defer fapi.Close()
 	u, _ := url.Parse(fapi.URL())
 	serverAddress, _, _ := net.SplitHostPort(u.Host)
 	clientName := "test-client-name"
 	fapi.AppendRoot()
 	fapi.AppendConsulV1StatusLeader(serverAddress)
-	node := api.CatalogNode{
+	node := &api.CatalogNode{
 		Node: &api.Node{},
 		Services: map[string]*api.AgentService{
 			"a": {
@@ -667,10 +952,11 @@ func testStartStopRestartNoServiceFound(t *testing.T, data pmmAdminData) {
 
 	// Create fake api server
 	fapi := fakeapi.New()
+	defer fapi.Close()
 	fapi.AppendRoot()
 	fapi.AppendConsulV1StatusLeader(fapi.Host())
 	clientName, _ := os.Hostname()
-	node := api.CatalogNode{
+	node := &api.CatalogNode{
 		Node: &api.Node{},
 	}
 	fapi.AppendConsulV1CatalogNode(clientName, node)
@@ -775,12 +1061,13 @@ func testCheckNetwork(t *testing.T, data pmmAdminData) {
 
 	// Create fake api server
 	fapi := fakeapi.New()
+	defer fapi.Close()
 	fapi.AppendRoot()
 	fapi.AppendPrometheusAPIV1Query()
 	fapi.AppendQanAPIPing()
 	fapi.AppendConsulV1StatusLeader(fapi.Host())
 	clientName, _ := os.Hostname()
-	node := api.CatalogNode{
+	node := &api.CatalogNode{
 		Node: &api.Node{},
 	}
 	fapi.AppendConsulV1CatalogNode(clientName, node)
@@ -896,10 +1183,11 @@ func testAddLinuxMetricsWithAdditionalArgsOk(t *testing.T, data pmmAdminData) {
 	{
 		// Create fake api server
 		fapi := fakeapi.New()
+		defer fapi.Close()
 		fapi.AppendRoot()
 		fapi.AppendConsulV1StatusLeader(fapi.Host())
 		clientName, _ := os.Hostname()
-		node := api.CatalogNode{
+		node := &api.CatalogNode{
 			Node: &api.Node{},
 		}
 		fapi.AppendConsulV1CatalogNode(clientName, node)
@@ -969,10 +1257,11 @@ func testAddLinuxMetricsWithAdditionalArgsFail(t *testing.T, data pmmAdminData) 
 	{
 		// Create fake api server
 		fapi := fakeapi.New()
+		defer fapi.Close()
 		fapi.AppendRoot()
 		fapi.AppendConsulV1StatusLeader(fapi.Host())
 		clientName, _ := os.Hostname()
-		node := api.CatalogNode{
+		node := &api.CatalogNode{
 			Node: &api.Node{},
 		}
 		fapi.AppendConsulV1CatalogNode(clientName, node)
@@ -1043,10 +1332,11 @@ func testAddMongoDB(t *testing.T, data pmmAdminData) {
 	{
 		// Create fake api server
 		fapi := fakeapi.New()
+		defer fapi.Close()
 		fapi.AppendRoot()
 		fapi.AppendConsulV1StatusLeader(fapi.Host())
 		clientName, _ := os.Hostname()
-		node := api.CatalogNode{
+		node := &api.CatalogNode{
 			Node: &api.Node{},
 		}
 		fapi.AppendConsulV1CatalogNode(clientName, node)
@@ -1130,10 +1420,11 @@ func testAddMongoDBQueries(t *testing.T, data pmmAdminData) {
 	{
 		// Create fake api server
 		fapi := fakeapi.New()
+		defer fapi.Close()
 		fapi.AppendRoot()
 		fapi.AppendConsulV1StatusLeader(fapi.Host())
 		clientName, _ := os.Hostname()
-		node := api.CatalogNode{
+		node := &api.CatalogNode{
 			Node: &api.Node{},
 		}
 		fapi.AppendConsulV1CatalogNode(clientName, node)

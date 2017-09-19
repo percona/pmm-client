@@ -18,6 +18,7 @@
 package fakeapi
 
 import (
+	"context"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -27,6 +28,7 @@ import (
 type FakeApi struct {
 	testServer *httptest.Server
 	serveMux   *http.ServeMux
+	ctx        context.Context
 }
 
 func New() *FakeApi {
@@ -37,6 +39,7 @@ func New() *FakeApi {
 }
 
 func (f *FakeApi) Close() {
+	f.ctx = nil
 	f.testServer.Close()
 }
 

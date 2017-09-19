@@ -18,11 +18,15 @@
 package fakeapi
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
+	"path"
 	"time"
 
+	"github.com/hashicorp/consul/agent/structs"
 	"github.com/hashicorp/consul/api"
 	"github.com/percona/pmm/proto"
 )
@@ -84,7 +88,7 @@ func (f *FakeApi) AppendConsulV1StatusLeader(xRemoteIP string) {
 	})
 }
 
-func (f *FakeApi) AppendConsulV1CatalogNode(name string, node api.CatalogNode) {
+func (f *FakeApi) AppendConsulV1CatalogNode(name string, node *api.CatalogNode) {
 	f.Append("/v1/catalog/node/"+name, func(w http.ResponseWriter, r *http.Request) {
 		data, _ := json.Marshal(node)
 		w.WriteHeader(http.StatusOK)
@@ -94,18 +98,71 @@ func (f *FakeApi) AppendConsulV1CatalogNode(name string, node api.CatalogNode) {
 
 func (f *FakeApi) AppendConsulV1CatalogService() {
 	f.Append("/v1/catalog/service/", func(w http.ResponseWriter, r *http.Request) {
-		out := []api.CatalogService{}
-		data, _ := json.Marshal(out)
-		w.WriteHeader(http.StatusOK)
-		w.Write(data)
+		switch r.Method {
+		case "GET":
+			out := []api.CatalogService{}
+			rrs := f.ctx.Value("/v1/catalog/register").(map[string]structs.RegisterRequest)
+			p := path.Base(r.URL.Path)
+			rrsToAdd := map[string]structs.RegisterRequest{}
+			if p == "register" {
+				rrsToAdd = rrs
+			} else if rr, ok := rrs[p]; ok {
+				rrsToAdd = map[string]structs.RegisterRequest{
+					p: rr,
+				}
+			}
+			for _, rr := range rrsToAdd {
+				cs := api.CatalogService{}
+				cs.ServiceID = rr.Service.ID
+				cs.ServiceName = rr.Service.Service
+				cs.ServiceAddress = rr.Service.Address
+				cs.ServiceTags = rr.Service.Tags
+				cs.ServicePort = rr.Service.Port
+				cs.ServiceEnableTagOverride = rr.Service.EnableTagOverride
+				out = append(out, cs)
+			}
+			data, _ := json.Marshal(out)
+			w.WriteHeader(http.StatusOK)
+			w.Write(data)
+		default:
+			w.WriteHeader(600)
+		}
 	})
 }
 
 func (f *FakeApi) AppendConsulV1CatalogRegister() {
+	v := map[string]structs.RegisterRequest{}
+	f.ctx = context.WithValue(f.ctx, "/v1/catalog/register", v)
 	f.Append("/v1/catalog/register", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case "PUT":
+			body, err := ioutil.ReadAll(r.Body)
+			if err != nil {
+				panic(fmt.Sprintf("error reading body: %s", err))
+			}
+
+			rr := structs.RegisterRequest{}
+			err = json.Unmarshal(body, &rr)
+			if err != nil {
+				panic(fmt.Sprintf("error unmarshaling body: %s", err))
+			}
+			v[rr.Service.Service] = rr
+
 			w.WriteHeader(http.StatusOK)
+		default:
+			w.WriteHeader(600)
+		}
+	})
+}
+
+func (f *FakeApi) AppendConsulV1KV() {
+	f.Append("/v1/kv/", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case "GET":
+			out := api.KVPairs{}
+			data, _ := json.Marshal(out)
+			w.WriteHeader(http.StatusOK)
+			w.Write(data)
 		default:
 			w.WriteHeader(600)
 		}

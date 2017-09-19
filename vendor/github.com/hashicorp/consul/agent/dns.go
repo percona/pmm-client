@@ -272,41 +272,31 @@ func (d *DNSServer) addSOA(msg *dns.Msg) {
 // nameservers returns the names and ip addresses of up to three random servers
 // in the current cluster which serve as authoritative name servers for zone.
 func (d *DNSServer) nameservers(edns bool) (ns []dns.RR, extra []dns.RR) {
-	// get server names and store them in a map to randomize the output
-	servers := map[string]net.IP{}
-	for name, addr := range d.agent.delegate.ServerAddrs() {
-		host, _, err := net.SplitHostPort(addr)
-		if err != nil {
-			d.logger.Printf("[WARN] Unable to parse address %v, got error: %v", addr, err)
-			continue
-		}
-
-		ip := net.ParseIP(host)
-		if ip == nil {
-			continue
-		}
-
-		// Use "NODENAME.node.DC.DOMAIN" as a unique name for the server
-		// since we use that name in other places as well.
-		// 'name' is "NODENAME.DC" so we need to split it
-		// to construct the server name.
-		lastdot := strings.LastIndexByte(name, '.')
-		nodeName, dc := name[:lastdot], name[lastdot:]
-		if InvalidDnsRe.MatchString(nodeName) {
-			d.logger.Printf("[WARN] dns: Node name %q is not a valid dns host name, will not be added to NS record", nodeName)
-			continue
-		}
-		fqdn := nodeName + ".node" + dc + "." + d.domain
-		fqdn = dns.Fqdn(strings.ToLower(fqdn))
-
-		servers[fqdn] = ip
+	out, err := d.lookupServiceNodes(d.agent.config.Datacenter, structs.ConsulServiceName, "")
+	if err != nil {
+		d.logger.Printf("[WARN] dns: Unable to get list of servers: %s", err)
+		return nil, nil
 	}
 
-	if len(servers) == 0 {
+	if len(out.Nodes) == 0 {
+		d.logger.Printf("[WARN] dns: no servers found")
 		return
 	}
 
-	for name, ip := range servers {
+	// shuffle the nodes to randomize the output
+	out.Nodes.Shuffle()
+
+	for _, o := range out.Nodes {
+		name, addr, dc := o.Node.Node, o.Node.Address, o.Node.Datacenter
+
+		if InvalidDnsRe.MatchString(name) {
+			d.logger.Printf("[WARN] dns: Skipping invalid node %q for NS records", name)
+			continue
+		}
+
+		fqdn := name + ".node." + dc + "." + d.domain
+		fqdn = dns.Fqdn(strings.ToLower(fqdn))
+
 		// NS record
 		nsrr := &dns.NS{
 			Hdr: dns.RR_Header{
@@ -315,12 +305,12 @@ func (d *DNSServer) nameservers(edns bool) (ns []dns.RR, extra []dns.RR) {
 				Class:  dns.ClassINET,
 				Ttl:    uint32(d.config.NodeTTL / time.Second),
 			},
-			Ns: name,
+			Ns: fqdn,
 		}
 		ns = append(ns, nsrr)
 
 		// A or AAAA glue record
-		glue := d.formatNodeRecord(ip.String(), name, dns.TypeANY, d.config.NodeTTL, edns)
+		glue := d.formatNodeRecord(addr, fqdn, dns.TypeANY, d.config.NodeTTL, edns)
 		extra = append(extra, glue...)
 
 		// don't provide more than 3 servers
@@ -679,9 +669,8 @@ func trimUDPResponse(config *DNSConfig, req, resp *dns.Msg) (trimmed bool) {
 	return len(resp.Answer) < numAnswers
 }
 
-// serviceLookup is used to handle a service query
-func (d *DNSServer) serviceLookup(network, datacenter, service, tag string, req, resp *dns.Msg) {
-	// Make an RPC request
+// lookupServiceNodes returns nodes with a given service.
+func (d *DNSServer) lookupServiceNodes(datacenter, service, tag string) (structs.IndexedCheckServiceNodes, error) {
 	args := structs.ServiceSpecificRequest{
 		Datacenter:  datacenter,
 		ServiceName: service,
@@ -692,37 +681,40 @@ func (d *DNSServer) serviceLookup(network, datacenter, service, tag string, req,
 			AllowStale: *d.config.AllowStale,
 		},
 	}
+
 	var out structs.IndexedCheckServiceNodes
-RPC:
 	if err := d.agent.RPC("Health.ServiceNodes", &args, &out); err != nil {
-		d.logger.Printf("[ERR] dns: rpc error: %v", err)
-		resp.SetRcode(req, dns.RcodeServerFailure)
-		return
+		return structs.IndexedCheckServiceNodes{}, err
 	}
 
-	// Verify that request is not too stale, redo the request
-	if args.AllowStale {
-		if out.LastContact > d.config.MaxStale {
-			args.AllowStale = false
-			d.logger.Printf("[WARN] dns: Query results too stale, re-requesting")
-			goto RPC
-		} else if out.LastContact > staleCounterThreshold {
-			metrics.IncrCounter([]string{"consul", "dns", "stale_queries"}, 1)
-		}
+	if args.AllowStale && out.LastContact > staleCounterThreshold {
+		metrics.IncrCounter([]string{"consul", "dns", "stale_queries"}, 1)
 	}
 
-	// Determine the TTL
-	var ttl time.Duration
-	if d.config.ServiceTTL != nil {
-		var ok bool
-		ttl, ok = d.config.ServiceTTL[service]
-		if !ok {
-			ttl = d.config.ServiceTTL["*"]
+	// redo the request the response was too stale
+	if args.AllowStale && out.LastContact > d.config.MaxStale {
+		args.AllowStale = false
+		d.logger.Printf("[WARN] dns: Query results too stale, re-requesting")
+
+		if err := d.agent.RPC("Health.ServiceNodes", &args, &out); err != nil {
+			return structs.IndexedCheckServiceNodes{}, err
 		}
 	}
 
 	// Filter out any service nodes due to health checks
 	out.Nodes = out.Nodes.Filter(d.config.OnlyPassing)
+
+	return out, nil
+}
+
+// serviceLookup is used to handle a service query
+func (d *DNSServer) serviceLookup(network, datacenter, service, tag string, req, resp *dns.Msg) {
+	out, err := d.lookupServiceNodes(datacenter, service, tag)
+	if err != nil {
+		d.logger.Printf("[ERR] dns: rpc error: %v", err)
+		resp.SetRcode(req, dns.RcodeServerFailure)
+		return
+	}
 
 	// If we have no nodes, return not found!
 	if len(out.Nodes) == 0 {
@@ -733,6 +725,16 @@ RPC:
 
 	// Perform a random shuffle
 	out.Nodes.Shuffle()
+
+	// Determine the TTL
+	var ttl time.Duration
+	if d.config.ServiceTTL != nil {
+		var ok bool
+		ttl, ok = d.config.ServiceTTL[service]
+		if !ok {
+			ttl = d.config.ServiceTTL["*"]
+		}
+	}
 
 	// Add various responses depending on the request
 	qType := req.Question[0].Qtype
@@ -776,6 +778,7 @@ func (d *DNSServer) preparedQueryLookup(network, datacenter, query string, req, 
 		// relative to ourself on the server side.
 		Agent: structs.QuerySource{
 			Datacenter: d.agent.config.Datacenter,
+			Segment:    d.agent.config.Segment,
 			Node:       d.agent.config.NodeName,
 		},
 	}

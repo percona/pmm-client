@@ -1,41 +1,67 @@
-hash: 3a4a8540dc32e40304718fc45b228c1fe813719d76e12e660ce2e8ff7745597b
-updated: 2017-08-30T13:06:07.985057023+03:00
+hash: e98c045e8580a72eaf955b2af719b548a809a17955f3f1e9c227c0d5c328c2fb
+updated: 2017-09-20T03:16:10.264596382+02:00
 imports:
+- name: github.com/armon/go-metrics
+  version: 0a12dc6f6b9da6da644031a1b9b5a85478c5ee27
+- name: github.com/armon/go-radix
+  version: 1fca145dffbcaa8fe914309b1ec0cfc67500fe61
 - name: github.com/beevik/ntp
   version: 5bdb6758dfe8744ee0ea19066dc70549c3f6185c
+- name: github.com/docker/cli
+  version: 9e162fb011d8fd79b38d9cba868d8abdc740efba
+  subpackages:
+  - templates
 - name: github.com/fatih/color
   version: 570b54cabe6b8eb0bc2dfce68d964677d63b5260
 - name: github.com/go-sql-driver/mysql
   version: a0583e0143b1624142adab07e0e97fe106d99561
-- name: github.com/golang/protobuf
-  version: ab9f9a6dab164b7d1246e0e688b0ab7b94d8553e
-  subpackages:
-  - jsonpb
-  - proto
-  - protoc-gen-go/descriptor
-  - ptypes
-  - ptypes/any
-  - ptypes/duration
-  - ptypes/struct
-  - ptypes/timestamp
-- name: github.com/grpc-ecosystem/grpc-gateway
-  version: 589b126116b5fc961939b3e156c29e4d9d58222f
-  subpackages:
-  - runtime
-  - runtime/internal
-  - utilities
 - name: github.com/hashicorp/consul
-  version: 75ca2cace08e38de8af1731ee8614d0533d5a4d4
+  version: 112c0603d3d6fb23ab5f15e8fdb1a761da8eaf9a
   subpackages:
+  - acl
+  - agent/structs
   - api
+  - types
+- name: github.com/hashicorp/errwrap
+  version: 7554cd9344cec97297fa6649b055a8c98c2a1e55
 - name: github.com/hashicorp/go-cleanhttp
   version: 3573b8b52aa7b37b9358d966a898feb387f62437
+- name: github.com/hashicorp/go-immutable-radix
+  version: 8aac2701530899b64bdea735a1de8da899815220
+- name: github.com/hashicorp/go-msgpack
+  version: fa3f63826f7c23912c15263591e65d54d080b458
+  subpackages:
+  - codec
+- name: github.com/hashicorp/go-multierror
+  version: 83588e72410abfbe4df460eeb6f30841ae47d4c4
 - name: github.com/hashicorp/go-rootcerts
   version: 6bb64b370b90e7ef1fa532be9e591a81c3493e00
+- name: github.com/hashicorp/go-sockaddr
+  version: 41949a141473f6340abc6ba0fcd0f89da6f6f837
+- name: github.com/hashicorp/golang-lru
+  version: 0a025b7e63adc15a622f29b0b2c4c3848243bbf6
+  subpackages:
+  - simplelru
+- name: github.com/hashicorp/hcl
+  version: 68e816d1c783414e79bc65b3994d9ab6b0a722ab
+  subpackages:
+  - hcl/ast
+  - hcl/parser
+  - hcl/scanner
+  - hcl/strconv
+  - hcl/token
+  - json/parser
+  - json/scanner
+  - json/token
+- name: github.com/hashicorp/memberlist
+  version: 687988a0b5daaf7ed5051e5e374aef27f8254822
+- name: github.com/hashicorp/raft
+  version: 0a6e1b039ba3d8057e9f16c919d2afb813884f74
 - name: github.com/hashicorp/serf
   version: d6574a5bb1226678d7010325fb6c985db20ee458
   subpackages:
   - coordinate
+  - serf
 - name: github.com/inconshreveable/mousetrap
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
 - name: github.com/kardianos/osext
@@ -46,6 +72,8 @@ imports:
 - name: github.com/mattn/go-isatty
   version: 57fdcb988a5c543893cc61bce354a6e24ab70022
   repo: https://github.com/mattn/go-isatty
+- name: github.com/miekg/dns
+  version: e4205768578dc90c2669e75a2f8a8bf77e3083a4
 - name: github.com/mitchellh/go-homedir
   version: b8bc1bf767474819792c23f32d8286a45736f1c6
 - name: github.com/percona/go-mysql
@@ -61,10 +89,6 @@ imports:
   subpackages:
   - proto
   - proto/config
-- name: github.com/percona/pmm-managed
-  version: e6600b683b19fadde6a116a04f33ae18354eb99d
-  subpackages:
-  - api
 - name: github.com/prometheus/client_golang
   version: c5b7fccd204277076155f10851dad72b76a49317
   subpackages:
@@ -73,6 +97,8 @@ imports:
   version: 61f87aac8082fa8c3c5655c7608d7478d46ac2ad
   subpackages:
   - model
+- name: github.com/sean-/seed
+  version: e2103e2c35297fb7e17febb81e49b312087a2372
 - name: github.com/spf13/cobra
   version: 2df9a531813370438a4d79bfc33e21f58063ed87
 - name: github.com/spf13/pflag
@@ -83,15 +109,9 @@ imports:
   - bpf
   - context
   - context/ctxhttp
-  - http2
-  - http2/hpack
-  - idna
   - internal/iana
   - internal/socket
-  - internal/timeseries
   - ipv4
-  - lex/httplex
-  - trace
 - name: golang.org/x/sys
   version: e24f485414aeafb646f6fca458b0bf869c0880a1
   repo: https://go.googlesource.com/sys
@@ -102,35 +122,6 @@ imports:
   - windows/svc
   - windows/svc/eventlog
   - windows/svc/mgr
-- name: golang.org/x/text
-  version: 18c65dde6afd36dbc39197ca72008895b8dfbfb6
-  subpackages:
-  - secure/bidirule
-  - transform
-  - unicode/bidi
-  - unicode/norm
-- name: google.golang.org/genproto
-  version: ee236bd376b077c7a89f260c026c4735b195e459
-  subpackages:
-  - googleapis/api/annotations
-  - googleapis/rpc/status
-- name: google.golang.org/grpc
-  version: 47d8591b1269253c642633a67ffeb276aab0b601
-  subpackages:
-  - codes
-  - connectivity
-  - credentials
-  - grpclb/grpc_lb_v1/messages
-  - grpclog
-  - internal
-  - keepalive
-  - metadata
-  - naming
-  - peer
-  - stats
-  - status
-  - tap
-  - transport
 - name: gopkg.in/mgo.v2
   version: 3f83fa5005286a7fe593b055f0d7771a7dce4655
   subpackages:
