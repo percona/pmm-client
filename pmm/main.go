@@ -48,6 +48,7 @@ import (
 type Admin struct {
 	ServiceName  string
 	ServicePort  int
+	Args         []string // Args defines additional arguments to pass through to *_exporter or qan-agent
 	Config       *Config
 	Verbose      bool
 	serverURL    string

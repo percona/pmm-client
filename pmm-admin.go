@@ -132,9 +132,30 @@ run 'pmm-admin repair' to remove orphaned services. Otherwise, please reinstall 
 			cmd.Root().PersistentPreRun(cmd.Root(), args)
 			admin.ServiceName = admin.Config.ClientName
 			admin.ServicePort = flagServicePort
-			if len(args) > 0 {
-				admin.ServiceName = args[0]
+
+			// Check if we have double dash "--"
+			i := cmd.ArgsLenAtDash()
+			if i == -1 {
+				// If "--" is not present then first argument is Service Name and rest we pass through
+				if len(args) >= 1 {
+					admin.ServiceName, admin.Args = args[0], args[1:]
+				}
+			} else {
+				// If "--" is present then we split arguments into command and exporter arguments
+				// exporter arguments
+				admin.Args = args[i:]
+
+				// cmd arguments
+				args = args[:i]
+				if len(args) > 1 {
+					fmt.Printf("Too many parameters. Only service name is allowed but got: %s.\n", strings.Join(args, ", "))
+					os.Exit(1)
+				}
+				if len(args) == 1 {
+					admin.ServiceName = args[0]
+				}
 			}
+
 			if match, _ := regexp.MatchString(pmm.NameRegex, admin.ServiceName); !match {
 				fmt.Println("Service name must be 2 to 60 characters long, contain only letters, numbers and symbols _ - . :")
 				os.Exit(1)
@@ -158,6 +179,18 @@ Table statistics is automatically disabled when there are more than 10000 tables
   pmm-admin add mysql --password abc123 --create-user
   pmm-admin add mysql --password abc123 --port 3307 instance3307`,
 		Run: func(cmd *cobra.Command, args []string) {
+			// Passing additional arguments doesn't make sense because this command enables multiple monitors.
+			if len(admin.Args) > 0 {
+				fmt.Printf("We can't determine which monitor should receive additional flags: %s.\n", strings.Join(admin.Args, ", "))
+				fmt.Println("To pass additional arguments to specific exporter you need to add it separately e.g.:")
+				fmt.Println("pmm-admin add linux:metrics -- ", strings.Join(admin.Args, ", "))
+				fmt.Println("or")
+				fmt.Println("pmm-admin add mysql:metrics -- ", strings.Join(admin.Args, ", "))
+				fmt.Println("or")
+				fmt.Println("pmm-admin add mysql:queries -- ", strings.Join(admin.Args, ", "))
+				os.Exit(1)
+			}
+
 			// Check --query-source flag.
 			if flagM.QuerySource != "auto" && flagM.QuerySource != "slowlog" && flagM.QuerySource != "perfschema" {
 				fmt.Println("Flag --query-source can take the following values: auto, slowlog, perfschema.")
@@ -203,7 +236,7 @@ Table statistics is automatically disabled when there are more than 10000 tables
 		},
 	}
 	cmdAddLinuxMetrics = &cobra.Command{
-		Use:   "linux:metrics [name]",
+		Use:   "linux:metrics [name] [-- exporter_args]",
 		Short: "Add this system to metrics monitoring.",
 		Long: `This command adds this system to linux metrics monitoring.
 
@@ -222,7 +255,7 @@ However, you can add another one with the different name just for testing purpos
 		},
 	}
 	cmdAddMySQLMetrics = &cobra.Command{
-		Use:   "mysql:metrics [name]",
+		Use:   "mysql:metrics [name] [-- exporter_args]",
 		Short: "Add MySQL instance to metrics monitoring.",
 		Long: `This command adds the given MySQL instance to metrics monitoring.
 
@@ -287,8 +320,8 @@ a new user 'pmm@' automatically using the given (auto-detected) MySQL credential
 	}
 	cmdAddMongoDB = &cobra.Command{
 		Use:   "mongodb [name]",
-		Short: "Add complete monitoring for MongoDB instance (linux and mongodb metrics).",
-		Long: `This command adds the given MongoDB instance to system and metrics monitoring.
+		Short: "Add complete monitoring for MongoDB instance (linux and mongodb metrics, queries).",
+		Long: `This command adds the given MongoDB instance to system, metrics and queries monitoring.
 
 When adding a MongoDB instance, you may provide --uri if the default one does not work for you.
 
@@ -297,6 +330,18 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 		Example: `  pmm-admin add mongodb
   pmm-admin add mongodb --cluster bare-metal`,
 		Run: func(cmd *cobra.Command, args []string) {
+			// Passing additional arguments doesn't make sense because this command enables multiple monitors.
+			if len(admin.Args) > 0 {
+				fmt.Printf("We can't determine which monitor should receive additional flags: %s.\n", strings.Join(admin.Args, ", "))
+				fmt.Println("To pass additional arguments to specific exporter you need to add it separately e.g.:")
+				fmt.Println("pmm-admin add linux:metrics -- ", strings.Join(admin.Args, ", "))
+				fmt.Println("or")
+				fmt.Println("pmm-admin add mongodb:metrics -- ", strings.Join(admin.Args, ", "))
+				fmt.Println("or")
+				fmt.Println("pmm-admin add mongodb:queries -- ", strings.Join(admin.Args, ", "))
+				os.Exit(1)
+			}
+
 			err := admin.AddLinuxMetrics(flagForce)
 			if err == pmm.ErrOneLinux {
 				fmt.Println("[linux:metrics]   OK, already monitoring this system.")
@@ -321,12 +366,6 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 			} else {
 				fmt.Println("[mongodb:metrics] OK, now monitoring MongoDB metrics using URI", pmm.SanitizeDSN(flagMongoURI))
 			}
-
-			// exit now if we don't want to have experimental features
-			if !flagDevEnable {
-				return
-			}
-
 			err = admin.AddMongoDBQueries(buildInfo, flagMongoURI)
 			if err == pmm.ErrDuplicate {
 				fmt.Println("[mongodb:queries] OK, already monitoring MongoDB queries.")
@@ -335,11 +374,14 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 				os.Exit(1)
 			} else {
 				fmt.Println("[mongodb:queries] OK, now monitoring MongoDB queries using URI", pmm.SanitizeDSN(flagMongoURI))
+				fmt.Println("[mongodb:queries] It is required for correct operation that profiling of monitored MongoDB databases be enabled.")
+				fmt.Println("[mongodb:queries] Note that profiling is not enabled by default because it may reduce the performance of your MongoDB server.")
+				fmt.Println("[mongodb:queries] For more information read PMM documentation (https://www.percona.com/doc/percona-monitoring-and-management/conf-mongodb.html).")
 			}
 		},
 	}
 	cmdAddMongoDBMetrics = &cobra.Command{
-		Use:   "mongodb:metrics [name]",
+		Use:   "mongodb:metrics [name] [-- exporter_args]",
 		Short: "Add MongoDB instance to metrics monitoring.",
 		Long: `This command adds the given MongoDB instance to metrics monitoring.
 
@@ -373,11 +415,6 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 		Example: `  pmm-admin add mongodb:queries
   pmm-admin add mongodb:queries`,
 		Run: func(cmd *cobra.Command, args []string) {
-			// exit now if we don't want to have experimental features
-			if !flagDevEnable {
-				fmt.Println("mongodb:queries is an experimental feature, to enable it re-run the cmd with option --dev-enable")
-				os.Exit(1)
-			}
 			buildInfo, err := admin.DetectMongoDB(flagMongoURI)
 			if err != nil {
 				fmt.Println(err)
@@ -388,10 +425,13 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 				os.Exit(1)
 			}
 			fmt.Println("OK, now monitoring MongoDB queries using URI", pmm.SanitizeDSN(flagMongoURI))
+			fmt.Println("It is required for correct operation that profiling of monitored MongoDB databases be enabled.")
+			fmt.Println("Note that profiling is not enabled by default because it may reduce the performance of your MongoDB server.")
+			fmt.Println("For more information read PMM documentation (https://www.percona.com/doc/percona-monitoring-and-management/conf-mongodb.html).")
 		},
 	}
 	cmdAddProxySQLMetrics = &cobra.Command{
-		Use:   "proxysql:metrics [name]",
+		Use:   "proxysql:metrics [name] [-- exporter_args]",
 		Short: "Add ProxySQL instance to metrics monitoring.",
 		Long: `This command adds the given ProxySQL instance to metrics monitoring.
 
@@ -547,11 +587,6 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 				fmt.Printf("[mongodb:metrics] OK, removed MongoDB metrics %s from monitoring.\n", admin.ServiceName)
 			}
 
-			// exit now if we don't want to have experimental features
-			if !flagDevEnable {
-				return
-			}
-
 			err = admin.RemoveMongoDBQueries()
 			if err == pmm.ErrNoService {
 				fmt.Printf("[mongodb:queries] OK, no MongoDB queries %s under monitoring.\n", admin.ServiceName)
@@ -585,11 +620,6 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 [name] is an optional argument, by default it is set to the client name of this PMM client.
 		`,
 		Run: func(cmd *cobra.Command, args []string) {
-			// exit now if we don't want to have experimental features
-			if !flagDevEnable {
-				fmt.Println("mongodb:queries is an experimental feature, to enable it re-run the cmd with option --dev-enable")
-				os.Exit(1)
-			}
 			if err := admin.RemoveMongoDBQueries(); err != nil {
 				fmt.Printf("Error removing MongoDB queries %s: %s\n", admin.ServiceName, err)
 				os.Exit(1)
@@ -946,7 +976,7 @@ despite PMM server is alive or not.
 
 	flagMongoURI, flagCluster, flagDSN string
 
-	flagVersion, flagAll, flagForce, flagDevEnable bool
+	flagVersion, flagAll, flagForce bool
 
 	flagServicePort int
 
@@ -1010,7 +1040,6 @@ func main() {
 	cmdConfig.Flags().BoolVar(&flagForce, "force", false, "force to set client name on initial setup after uninstall with unreachable server")
 
 	cmdAdd.PersistentFlags().IntVar(&flagServicePort, "service-port", 0, "service port")
-	cmdAdd.PersistentFlags().BoolVar(&flagDevEnable, "dev-enable", false, "enable experimental features")
 
 	cmdAddLinuxMetrics.Flags().BoolVar(&flagForce, "force", false, "force to add another linux:metrics instance with different name for testing purposes")
 
@@ -1058,7 +1087,6 @@ func main() {
 	cmdAddProxySQLMetrics.Flags().StringVar(&flagDSN, "dsn", "stats:stats@tcp(localhost:6032)/", "ProxySQL connection DSN")
 
 	cmdRemove.Flags().BoolVar(&flagAll, "all", false, "remove all monitoring services")
-	cmdRemove.PersistentFlags().BoolVar(&flagDevEnable, "dev-enable", false, "enable experimental features")
 
 	cmdStart.Flags().BoolVar(&flagAll, "all", false, "start all monitoring services")
 	cmdStop.Flags().BoolVar(&flagAll, "all", false, "stop all monitoring services")

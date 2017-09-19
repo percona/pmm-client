@@ -120,6 +120,7 @@ func (a *Admin) AddMongoDBQueries(buildInfo mgo.BuildInfo, uri string) error {
 			DisplayName: "PMM MongoDB Query Analytics agent",
 			Description: "PMM MongoDB Query Analytics agent",
 			Executable:  fmt.Sprintf("%s/bin/percona-qan-agent", AgentBaseDir),
+			Arguments:   a.Args,
 		}
 		if err := installService(svcConfig); err != nil {
 			return err
