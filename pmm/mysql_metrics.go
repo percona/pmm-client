@@ -73,6 +73,9 @@ func (a *Admin) AddMySQLMetrics(info map[string]string, mf MySQLFlags) error {
 	if mf.DisableProcesslist {
 		optsToDisable = append(optsToDisable, "processlist")
 	}
+	if mf.DisableMyRocks {
+		optsToDisable = append(optsToDisable, "myrocks")
+	}
 	tags := []string{fmt.Sprintf("alias_%s", a.ServiceName), "scheme_https"}
 
 	// Add service to Consul.
