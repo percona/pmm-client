@@ -71,6 +71,7 @@ var mysqldExporterArgs = []string{
 	"-collect.perf_schema.tableiowaits=true",
 	"-collect.perf_schema.tablelocks=true",
 	"-collect.slave_status=true",
+	"-collect.engine_rocksdb_status=true",
 	//"-collect.engine_innodb_status=true",
 	//"-collect.engine_tokudb_status=true",
 	//"-collect.info_schema.clientstats=true",
@@ -91,6 +92,7 @@ var mysqldExporterDisableArgs = map[string][]string{
 	"userstats":   {"-collect.info_schema.userstats="},
 	"binlogstats": {"-collect.binlog_size="},
 	"processlist": {"-collect.info_schema.processlist="},
+	"myrocks":     {"-collect.engine_rocksdb_status="},
 }
 
 type Errors []error
