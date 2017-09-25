@@ -50,6 +50,7 @@ type MySQLFlags struct {
 	DisableTableStatsLimit uint16
 	DisableUserStats       bool
 	DisableBinlogStats     bool
+	DisableEventsWaits     bool
 	DisableProcesslist     bool
 	DisableQueryExamples   bool
 }

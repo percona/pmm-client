@@ -70,6 +70,9 @@ func (a *Admin) AddMySQLMetrics(info map[string]string, mf MySQLFlags) error {
 	if mf.DisableBinlogStats {
 		optsToDisable = append(optsToDisable, "binlogstats")
 	}
+	if mf.DisableEventsWaits {
+		optsToDisable = append(optsToDisable, "eventswaits")
+	}
 	if mf.DisableProcesslist {
 		optsToDisable = append(optsToDisable, "processlist")
 	}

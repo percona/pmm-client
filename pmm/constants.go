@@ -88,6 +88,10 @@ var mysqldExporterDisableArgs = map[string][]string{
 		"-collect.perf_schema.tableiowaits=",
 		"-collect.perf_schema.tablelocks=",
 	},
+	"eventswaits": {
+		"-collect.perf_schema.eventswaits=",
+		"-collect.perf_schema.file_events=",
+	},
 	"userstats":   {"-collect.info_schema.userstats="},
 	"binlogstats": {"-collect.binlog_size="},
 	"processlist": {"-collect.info_schema.processlist="},
