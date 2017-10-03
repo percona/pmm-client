@@ -238,7 +238,7 @@ func testConfigVerbose(t *testing.T, data pmmAdminData) {
 <\s*
 < "127.0.0.1:8300"
 .+ request:
-> GET /v1/catalog/node/kdz-mbp.local HTTP/1.1
+> GET /v1/catalog/node/`+clientName+` HTTP/1.1
 > Host: ` + u.Host + `
 > User-Agent: Go-http-client/1.1
 > Accept-Encoding: gzip
@@ -306,7 +306,7 @@ func testConfigVerboseServerNotAvailable(t *testing.T, data pmmAdminData) {
 >\s*
 >\s*
 Unable to connect to PMM server by address: xyz
-Get http://xyz: dial tcp: lookup xyz: no such host
+Get http://xyz: dial tcp: lookup xyz.*: no such host
 
 * Check if the configured address is correct.
 * If server is running on non-default port, ensure it was specified along with the address.
@@ -549,7 +549,7 @@ func testStartStopRestartAllWithServices(t *testing.T, data pmmAdminData) {
 		assert.Nil(t, err)
 		expected := `OK, all services already started. Run 'pmm-admin list' to see monitoring services.
 Unable to connect to PMM server by address: just
-Get http://just: dial tcp: lookup just: no such host
+Get http://just: dial tcp: lookup just.*: no such host
 
 * Check if the configured address is correct.
 * If server is running on non-default port, ensure it was specified along with the address.
@@ -583,7 +583,7 @@ Get http://just: dial tcp: lookup just: no such host
 		assert.Nil(t, err)
 		expected := `OK, restarted ` + fmt.Sprintf("%d", numOfServices) + ` services.
 Unable to connect to PMM server by address: just
-Get http://just: dial tcp: lookup just: no such host
+Get http://just: dial tcp: lookup just.*: no such host
 
 * Check if the configured address is correct.
 * If server is running on non-default port, ensure it was specified along with the address.
