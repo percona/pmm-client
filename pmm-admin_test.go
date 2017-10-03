@@ -21,7 +21,6 @@ import (
 	"bufio"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net"
 	"net/url"
 	"os"
@@ -33,7 +32,6 @@ import (
 
 	"github.com/hashicorp/consul/api"
 	"github.com/percona/pmm-client/pmm"
-	"github.com/percona/pmm-client/test/cmdtest"
 	"github.com/percona/pmm-client/test/fakeapi"
 	"github.com/percona/pmm/proto"
 	"github.com/stretchr/testify/assert"
@@ -129,19 +127,14 @@ func testVersion(t *testing.T, data pmmAdminData) {
 		data.bin,
 		"--version",
 	)
-
-	cmdTest := cmdtest.New(cmd)
-	if err := cmd.Start(); err != nil {
-		log.Fatal(err)
-	}
-	err := cmd.Wait()
+	output, err := cmd.CombinedOutput()
 	assert.Nil(t, err)
 
 	// sanity check that version number was changed with ldflag for this test build
 	assert.Equal(t, "EXPERIMENTAL", pmm.Version)
-	assert.Equal(t, "gotest\n", cmdTest.ReadLine())
+	expected := `gotest`
 
-	assert.Equal(t, "", cmdTest.ReadLine()) // No more data
+	assertRegexpLines(t, expected, string(output))
 }
 
 func testHelp(t *testing.T, data pmmAdminData) {
@@ -233,20 +226,16 @@ func testConfig(t *testing.T, data pmmAdminData) {
 		u.Host,
 	)
 
-	cmdTest := cmdtest.New(cmd)
-	if err := cmd.Start(); err != nil {
-		log.Fatal(err)
-	}
-	err := cmd.Wait()
+	output, err := cmd.CombinedOutput()
 	assert.Nil(t, err)
 
-	assert.Equal(t, "OK, PMM server is alive.\n", cmdTest.ReadLine())
-	assert.Equal(t, "\n", cmdTest.ReadLine())
-	assert.Equal(t, fmt.Sprintf("%-15s | %s \n", "PMM Server", u.Host), cmdTest.ReadLine())
-	assert.Equal(t, fmt.Sprintf("%-15s | %s\n", "Client Name", clientName), cmdTest.ReadLine())
-	assert.Equal(t, fmt.Sprintf("%-15s | %s \n", "Client Address", clientAddress), cmdTest.ReadLine())
+	expected := `OK, PMM server is alive.
 
-	assert.Equal(t, []string{}, cmdTest.Output()) // No more data
+` + fmt.Sprintf("%-15s | %s ", "PMM Server", u.Host) + `
+` + fmt.Sprintf("%-15s | %s", "Client Name", clientName) + `
+` + fmt.Sprintf("%-15s | %s ", "Client Address", clientAddress) + `
+`
+	assertRegexpLines(t, expected, string(output))
 }
 
 func testConfigVerbose(t *testing.T, data pmmAdminData) {
@@ -277,86 +266,78 @@ func testConfigVerbose(t *testing.T, data pmmAdminData) {
 		u.Host,
 	)
 
-	cmdTest := cmdtest.New(cmd)
-	if err := cmd.Start(); err != nil {
-		log.Fatal(err)
-	}
-	err := cmd.Wait()
+	output, err := cmd.CombinedOutput()
 	assert.Nil(t, err)
 
 	// with --verbose flag we should have bunch of http requests to server
-	// api
-	assert.Regexp(t, ".+ request:\n", cmdTest.ReadLine())
-	assert.Equal(t, "> GET / HTTP/1.1\n", cmdTest.ReadLine())
-	assert.Regexp(t, "> Host: .+\n", cmdTest.ReadLine())
-	assert.Equal(t, "> User-Agent: Go-http-client/1.1\n", cmdTest.ReadLine())
-	assert.Equal(t, "> Accept-Encoding: gzip\n", cmdTest.ReadLine())
-	assert.Equal(t, "> \n", cmdTest.ReadLine())
-	assert.Equal(t, "> \n", cmdTest.ReadLine())
-	assert.Regexp(t, ".+ response:\n", cmdTest.ReadLine())
-	assert.Equal(t, "< HTTP/1.1 200 OK\n", cmdTest.ReadLine())
-	assert.Equal(t, "< Content-Type: text/plain; charset=utf-8\n", cmdTest.ReadLine())
-	assert.Regexp(t, "< Date: .+\n", cmdTest.ReadLine())
-	assert.Equal(t, "< Content-Length: 0\n", cmdTest.ReadLine())
-	assert.Equal(t, "< \n", cmdTest.ReadLine())
-	assert.Equal(t, "< \n", cmdTest.ReadLine())
-	assert.Regexp(t, ".+ request:\n", cmdTest.ReadLine())
-	assert.Equal(t, "> GET /v1/status/leader HTTP/1.1\n", cmdTest.ReadLine())
-	assert.Regexp(t, "> Host: .+\n", cmdTest.ReadLine())
-	assert.Equal(t, "> User-Agent: Go-http-client/1.1\n", cmdTest.ReadLine())
-	assert.Equal(t, "> Accept-Encoding: gzip\n", cmdTest.ReadLine())
-	assert.Equal(t, "> \n", cmdTest.ReadLine())
-	assert.Equal(t, "> \n", cmdTest.ReadLine())
-	assert.Regexp(t, ".+ response:\n", cmdTest.ReadLine())
-	assert.Equal(t, "< HTTP/1.1 200 OK\n", cmdTest.ReadLine())
-	assert.Equal(t, "< Content-Length: 16\n", cmdTest.ReadLine())
-	assert.Equal(t, "< Content-Type: text/plain; charset=utf-8\n", cmdTest.ReadLine())
-	assert.Regexp(t, "< Date: .+\n", cmdTest.ReadLine())
-	assert.Equal(t, "< X-Remote-Ip: 127.0.0.1\n", cmdTest.ReadLine())
-	assert.Regexp(t, "< X-Server-Time: .+\n", cmdTest.ReadLine())
-	assert.Equal(t, "< \n", cmdTest.ReadLine())
-	assert.Equal(t, "< \"127.0.0.1:8300\"\n", cmdTest.ReadLine())
+	expected := `.+ request:
+> GET / HTTP/1.1
+> Host: ` + u.Host + `
+> User-Agent: Go-http-client/1.1
+> Accept-Encoding: gzip
+>\s*
+>\s*
+.+ response:
+< HTTP/1.1 200 OK
+< Content-Type: text/plain; charset=utf-8
+< Date: .*
+< Content-Length: 0
+<\s*
+<\s*
+.+ request:
+> GET /v1/status/leader HTTP/1.1
+> Host: ` + u.Host + `
+> User-Agent: Go-http-client/1.1
+> Accept-Encoding: gzip
+>\s*
+>\s*
+.+ response:
+< HTTP/1.1 200 OK
+< Content-Length: 16
+< Content-Type: text/plain; charset=utf-8
+< Date: .*
+< X-Remote-Ip: 127.0.0.1
+< X-Server-Time: .*
+<\s*
+< "127.0.0.1:8300"
+.+ request:
+> GET /v1/catalog/node/`+clientName+` HTTP/1.1
+> Host: ` + u.Host + `
+> User-Agent: Go-http-client/1.1
+> Accept-Encoding: gzip
+>\s*
+>\s*
+.+ response:
+< HTTP/1.1 200 OK
+< Content-Length: 140
+< Content-Type: text/plain; charset=utf-8
+< Date: .*
+<\s*
+< {"Node":{"ID":"","Node":"","Address":"","Datacenter":"","TaggedAddresses":null,"Meta":null,"CreateIndex":0,"ModifyIndex":0},"Services":null}
+.+ request:
+> GET /v1/status/leader HTTP/1.1
+> Host: ` + u.Host + `
+> User-Agent: Go-http-client/1.1
+> Accept-Encoding: gzip
+>\s*
+>\s*
+.+ response:
+< HTTP/1.1 200 OK
+< Content-Length: 16
+< Content-Type: text/plain; charset=utf-8
+< Date: .*
+< X-Remote-Ip: 127.0.0.1
+< X-Server-Time: .*
+<\s*
+< "127.0.0.1:8300"
+OK, PMM server is alive.
 
-	// consul
-	assert.Regexp(t, ".+ request:\n", cmdTest.ReadLine())
-	assert.Regexp(t, "> GET /v1/catalog/node/.+ HTTP/1.1\n", cmdTest.ReadLine())
-	assert.Regexp(t, "> Host: .+\n", cmdTest.ReadLine())
-	assert.Equal(t, "> User-Agent: Go-http-client/1.1\n", cmdTest.ReadLine())
-	assert.Equal(t, "> Accept-Encoding: gzip\n", cmdTest.ReadLine())
-	assert.Equal(t, "> \n", cmdTest.ReadLine())
-	assert.Equal(t, "> \n", cmdTest.ReadLine())
-	assert.Regexp(t, ".+ response:\n", cmdTest.ReadLine())
-	assert.Equal(t, "< HTTP/1.1 200 OK\n", cmdTest.ReadLine())
-	assert.Equal(t, "< Content-Length: 140\n", cmdTest.ReadLine())
-	assert.Equal(t, "< Content-Type: text/plain; charset=utf-8\n", cmdTest.ReadLine())
-	assert.Regexp(t, "< Date: .+\n", cmdTest.ReadLine())
-	assert.Equal(t, "< \n", cmdTest.ReadLine())
-	assert.Equal(t, "< {\"Node\":{\"ID\":\"\",\"Node\":\"\",\"Address\":\"\",\"Datacenter\":\"\",\"TaggedAddresses\":null,\"Meta\":null,\"CreateIndex\":0,\"ModifyIndex\":0},\"Services\":null}\n", cmdTest.ReadLine())
-	assert.Regexp(t, ".+ request:\n", cmdTest.ReadLine())
-	assert.Equal(t, "> GET /v1/status/leader HTTP/1.1\n", cmdTest.ReadLine())
-	assert.Regexp(t, "> Host: .+\n", cmdTest.ReadLine())
-	assert.Equal(t, "> User-Agent: Go-http-client/1.1\n", cmdTest.ReadLine())
-	assert.Equal(t, "> Accept-Encoding: gzip\n", cmdTest.ReadLine())
-	assert.Equal(t, "> \n", cmdTest.ReadLine())
-	assert.Equal(t, "> \n", cmdTest.ReadLine())
-	assert.Regexp(t, ".+ response:\n", cmdTest.ReadLine())
-	assert.Equal(t, "< HTTP/1.1 200 OK\n", cmdTest.ReadLine())
-	assert.Equal(t, "< Content-Length: 16\n", cmdTest.ReadLine())
-	assert.Equal(t, "< Content-Type: text/plain; charset=utf-8\n", cmdTest.ReadLine())
-	assert.Regexp(t, "< Date: .+\n", cmdTest.ReadLine())
-	assert.Equal(t, "< X-Remote-Ip: 127.0.0.1\n", cmdTest.ReadLine())
-	assert.Regexp(t, "< X-Server-Time: .+\n", cmdTest.ReadLine())
-	assert.Equal(t, "< \n", cmdTest.ReadLine())
-	assert.Equal(t, "< \"127.0.0.1:8300\"\n", cmdTest.ReadLine())
+PMM Server      | ` + u.Host + `
+Client Name     | ` + clientName + `
+Client Address  | ` + clientAddress + `
+`
 
-	// stdout
-	assert.Equal(t, "OK, PMM server is alive.\n", cmdTest.ReadLine())
-	assert.Equal(t, "\n", cmdTest.ReadLine())
-	assert.Equal(t, fmt.Sprintf("%-15s | %s \n", "PMM Server", u.Host), cmdTest.ReadLine())
-	assert.Equal(t, fmt.Sprintf("%-15s | %s\n", "Client Name", clientName), cmdTest.ReadLine())
-	assert.Equal(t, fmt.Sprintf("%-15s | %s \n", "Client Address", clientAddress), cmdTest.ReadLine())
-
-	assert.Equal(t, []string{}, cmdTest.Output()) // No more data
+	assertRegexpLines(t, expected, string(output))
 }
 
 func testConfigVerboseServerNotAvailable(t *testing.T, data pmmAdminData) {
@@ -375,32 +356,27 @@ func testConfigVerboseServerNotAvailable(t *testing.T, data pmmAdminData) {
 		"xyz",
 	)
 
-	cmdTest := cmdtest.New(cmd)
-	if err := cmd.Start(); err != nil {
-		log.Fatal(err)
-	}
-	err := cmd.Wait()
+	output, err := cmd.CombinedOutput()
 	assert.Error(t, err)
 
 	// with --verbose flag we should have bunch of http requests to server
 	// however api is unavailable, so `--verbose` prints only request...
-	assert.Regexp(t, ".+ request:\n", cmdTest.ReadLine())
-	assert.Equal(t, "> GET / HTTP/1.1\n", cmdTest.ReadLine())
-	assert.Regexp(t, "> Host: .+\n", cmdTest.ReadLine())
-	assert.Equal(t, "> User-Agent: Go-http-client/1.1\n", cmdTest.ReadLine())
-	assert.Equal(t, "> Accept-Encoding: gzip\n", cmdTest.ReadLine())
-	assert.Equal(t, "> \n", cmdTest.ReadLine())
-	assert.Equal(t, "> \n", cmdTest.ReadLine())
-	// ... and then error message
-	assert.Equal(t, "Unable to connect to PMM server by address: xyz\n", cmdTest.ReadLine())
-	assert.Regexp(t, "Get http://xyz: dial tcp: lookup xyz.*: no such host\n", cmdTest.ReadLine())
-	assert.Equal(t, "\n", cmdTest.ReadLine())
-	assert.Equal(t, "* Check if the configured address is correct.\n", cmdTest.ReadLine())
-	assert.Equal(t, "* If server is running on non-default port, ensure it was specified along with the address.\n", cmdTest.ReadLine())
-	assert.Equal(t, "* If server is enabled for SSL or self-signed SSL, enable the corresponding option.\n", cmdTest.ReadLine())
-	assert.Equal(t, "* You may also check the firewall settings.\n", cmdTest.ReadLine())
+	expected := `.* request:
+> GET / HTTP/1.1
+> Host: xyz
+> User-Agent: Go-http-client/1.1
+> Accept-Encoding: gzip
+>\s*
+>\s*
+Unable to connect to PMM server by address: xyz
+Get http://xyz: dial tcp: lookup xyz.*: no such host
 
-	assert.Equal(t, []string{}, cmdTest.Output()) // No more data
+* Check if the configured address is correct.
+* If server is running on non-default port, ensure it was specified along with the address.
+* If server is enabled for SSL or self-signed SSL, enable the corresponding option.
+* You may also check the firewall settings.
+`
+	assertRegexpLines(t, expected, string(output))
 }
 
 func testStartStopRestartAllWithNoServices(t *testing.T, data pmmAdminData) {
@@ -457,16 +433,10 @@ func testStartStopRestartAllWithNoServices(t *testing.T, data pmmAdminData) {
 					"--all",
 				)
 
-				cmdTest := cmdtest.New(cmd)
-				if err := cmd.Start(); err != nil {
-					log.Fatal(err)
-				}
-				err := cmd.Wait()
+				output, err := cmd.CombinedOutput()
 				assert.Nil(t, err)
-
-				assert.Equal(t, "OK, no services found.\n", cmdTest.ReadLine())
-
-				assert.Equal(t, []string{}, cmdTest.Output()) // No more data
+				expected := `OK, no services found.`
+				assertRegexpLines(t, expected, string(output))
 			})
 		}
 	})
@@ -549,16 +519,10 @@ func testStartStopRestart(t *testing.T, data pmmAdminData) {
 			svcName,
 		)
 
-		cmdTest := cmdtest.New(cmd)
-		if err := cmd.Start(); err != nil {
-			log.Fatal(err)
-		}
-		err := cmd.Wait()
+		output, err := cmd.CombinedOutput()
 		assert.Nil(t, err)
-
-		assert.Equal(t, fmt.Sprintf("OK, service %s already %s for %s.\n", svcName, "started", clientName), cmdTest.ReadLine())
-
-		assert.Equal(t, []string{}, cmdTest.Output()) // No more data
+		expected := fmt.Sprintf("OK, service %s already %s for %s.", svcName, "started", clientName)
+		assertRegexpLines(t, expected, string(output))
 	})
 
 	t.Run("stop", func(t *testing.T) {
@@ -568,16 +532,10 @@ func testStartStopRestart(t *testing.T, data pmmAdminData) {
 			svcName,
 		)
 
-		cmdTest := cmdtest.New(cmd)
-		if err := cmd.Start(); err != nil {
-			log.Fatal(err)
-		}
-		err := cmd.Wait()
+		output, err := cmd.CombinedOutput()
 		assert.Nil(t, err)
-
-		assert.Equal(t, fmt.Sprintf("OK, %s %s service for %s.\n", "stopped", svcName, clientName), cmdTest.ReadLine())
-
-		assert.Equal(t, []string{}, cmdTest.Output()) // No more data
+		expected := fmt.Sprintf("OK, %s %s service for %s.", "stopped", svcName, clientName)
+		assertRegexpLines(t, expected, string(output))
 	})
 
 	t.Run("restart", func(t *testing.T) {
@@ -587,16 +545,10 @@ func testStartStopRestart(t *testing.T, data pmmAdminData) {
 			svcName,
 		)
 
-		cmdTest := cmdtest.New(cmd)
-		if err := cmd.Start(); err != nil {
-			log.Fatal(err)
-		}
-		err := cmd.Wait()
+		output, err := cmd.CombinedOutput()
 		assert.Nil(t, err)
-
-		assert.Equal(t, fmt.Sprintf("OK, %s %s service for %s.\n", "restarted", svcName, clientName), cmdTest.ReadLine())
-
-		assert.Equal(t, []string{}, cmdTest.Output()) // No more data
+		expected := fmt.Sprintf("OK, %s %s service for %s.", "restarted", svcName, clientName)
+		assertRegexpLines(t, expected, string(output))
 	})
 }
 
@@ -656,24 +608,18 @@ func testStartStopRestartAllWithServices(t *testing.T, data pmmAdminData) {
 			"--all",
 		)
 
-		cmdTest := cmdtest.New(cmd)
-		if err := cmd.Start(); err != nil {
-			log.Fatal(err)
-		}
-		err := cmd.Wait()
+		output, err := cmd.CombinedOutput()
 		assert.Nil(t, err)
+		expected := `OK, all services already started. Run 'pmm-admin list' to see monitoring services.
+Unable to connect to PMM server by address: just
+Get http://just: dial tcp: lookup just.*: no such host
 
-		assert.Equal(t, fmt.Sprintf("OK, all services already %s. Run 'pmm-admin list' to see monitoring services.\n", "started"), cmdTest.ReadLine())
-
-		assert.Regexp(t, "Unable to connect to PMM server by address: .*\n", cmdTest.ReadLine())
-		assert.Regexp(t, "Get http://.*: dial tcp: lookup .*: no such host\n", cmdTest.ReadLine())
-		assert.Equal(t, "\n", cmdTest.ReadLine())
-		assert.Equal(t, "* Check if the configured address is correct.\n", cmdTest.ReadLine())
-		assert.Equal(t, "* If server is running on non-default port, ensure it was specified along with the address.\n", cmdTest.ReadLine())
-		assert.Equal(t, "* If server is enabled for SSL or self-signed SSL, enable the corresponding option.\n", cmdTest.ReadLine())
-		assert.Equal(t, "* You may also check the firewall settings.\n", cmdTest.ReadLine())
-
-		assert.Equal(t, []string{}, cmdTest.Output()) // No more data
+* Check if the configured address is correct.
+* If server is running on non-default port, ensure it was specified along with the address.
+* If server is enabled for SSL or self-signed SSL, enable the corresponding option.
+* You may also check the firewall settings.
+`
+		assertRegexpLines(t, expected, string(output))
 	})
 
 	t.Run("stop", func(t *testing.T) {
@@ -683,16 +629,10 @@ func testStartStopRestartAllWithServices(t *testing.T, data pmmAdminData) {
 			"--all",
 		)
 
-		cmdTest := cmdtest.New(cmd)
-		if err := cmd.Start(); err != nil {
-			log.Fatal(err)
-		}
-		err := cmd.Wait()
+		output, err := cmd.CombinedOutput()
 		assert.Nil(t, err)
-
-		assert.Equal(t, fmt.Sprintf("OK, %s %d services.\n", "stopped", numOfServices), cmdTest.ReadLine())
-
-		assert.Equal(t, []string{}, cmdTest.Output()) // No more data
+		expected := fmt.Sprintf("OK, %s %d services.\n", "stopped", numOfServices)
+		assertRegexpLines(t, expected, string(output))
 	})
 
 	t.Run("restart", func(t *testing.T) {
@@ -702,24 +642,18 @@ func testStartStopRestartAllWithServices(t *testing.T, data pmmAdminData) {
 			"--all",
 		)
 
-		cmdTest := cmdtest.New(cmd)
-		if err := cmd.Start(); err != nil {
-			log.Fatal(err)
-		}
-		err := cmd.Wait()
+		output, err := cmd.CombinedOutput()
 		assert.Nil(t, err)
+		expected := `OK, restarted ` + fmt.Sprintf("%d", numOfServices) + ` services.
+Unable to connect to PMM server by address: just
+Get http://just: dial tcp: lookup just.*: no such host
 
-		assert.Equal(t, fmt.Sprintf("OK, %s %d services.\n", "restarted", numOfServices), cmdTest.ReadLine())
-
-		assert.Regexp(t, "Unable to connect to PMM server by address: .*\n", cmdTest.ReadLine())
-		assert.Regexp(t, "Get http://.*: dial tcp: lookup .*: no such host\n", cmdTest.ReadLine())
-		assert.Equal(t, "\n", cmdTest.ReadLine())
-		assert.Equal(t, "* Check if the configured address is correct.\n", cmdTest.ReadLine())
-		assert.Equal(t, "* If server is running on non-default port, ensure it was specified along with the address.\n", cmdTest.ReadLine())
-		assert.Equal(t, "* If server is enabled for SSL or self-signed SSL, enable the corresponding option.\n", cmdTest.ReadLine())
-		assert.Equal(t, "* You may also check the firewall settings.\n", cmdTest.ReadLine())
-
-		assert.Equal(t, []string{}, cmdTest.Output()) // No more data
+* Check if the configured address is correct.
+* If server is running on non-default port, ensure it was specified along with the address.
+* If server is enabled for SSL or self-signed SSL, enable the corresponding option.
+* You may also check the firewall settings.
+`
+		assertRegexpLines(t, expected, string(output))
 	})
 }
 
@@ -780,16 +714,10 @@ func testStartStopRestartNoServiceFound(t *testing.T, data pmmAdminData) {
 			svcName,
 		)
 
-		cmdTest := cmdtest.New(cmd)
-		if err := cmd.Start(); err != nil {
-			log.Fatal(err)
-		}
-		err := cmd.Wait()
+		output, err := cmd.CombinedOutput()
 		assert.Error(t, err)
-
-		assert.Equal(t, fmt.Sprintf("Error %s %s service for %s: no service found.\n", "starting", svcName, clientName), cmdTest.ReadLine())
-
-		assert.Equal(t, []string{}, cmdTest.Output()) // No more data
+		expected := fmt.Sprintf("Error %s %s service for %s: no service found.\n", "starting", svcName, clientName)
+		assertRegexpLines(t, expected, string(output))
 	})
 
 	t.Run("stop", func(t *testing.T) {
@@ -799,16 +727,10 @@ func testStartStopRestartNoServiceFound(t *testing.T, data pmmAdminData) {
 			svcName,
 		)
 
-		cmdTest := cmdtest.New(cmd)
-		if err := cmd.Start(); err != nil {
-			log.Fatal(err)
-		}
-		err := cmd.Wait()
+		output, err := cmd.CombinedOutput()
 		assert.Error(t, err)
-
-		assert.Equal(t, fmt.Sprintf("Error %s %s service for %s: no service found.\n", "stopping", svcName, clientName), cmdTest.ReadLine())
-
-		assert.Equal(t, []string{}, cmdTest.Output()) // No more data
+		expected := fmt.Sprintf("Error %s %s service for %s: no service found.\n", "stopping", svcName, clientName)
+		assertRegexpLines(t, expected, string(output))
 	})
 
 	t.Run("restart", func(t *testing.T) {
@@ -818,16 +740,10 @@ func testStartStopRestartNoServiceFound(t *testing.T, data pmmAdminData) {
 			svcName,
 		)
 
-		cmdTest := cmdtest.New(cmd)
-		if err := cmd.Start(); err != nil {
-			log.Fatal(err)
-		}
-		err := cmd.Wait()
+		output, err := cmd.CombinedOutput()
 		assert.Error(t, err)
-
-		assert.Equal(t, fmt.Sprintf("Error %s %s service for %s: no service found.\n", "restarting", svcName, clientName), cmdTest.ReadLine())
-
-		assert.Equal(t, []string{}, cmdTest.Output()) // No more data
+		expected := fmt.Sprintf("Error %s %s service for %s: no service found.\n", "restarting", svcName, clientName)
+		assertRegexpLines(t, expected, string(output))
 	})
 }
 
@@ -839,6 +755,7 @@ func testCheckNetwork(t *testing.T, data pmmAdminData) {
 
 	// Create fake api server
 	fapi := fakeapi.New()
+	u, _ := url.Parse(fapi.URL())
 	fapi.AppendRoot()
 	fapi.AppendPrometheusAPIV1Query()
 	fapi.AppendQanAPIPing()
@@ -889,44 +806,39 @@ func testCheckNetwork(t *testing.T, data pmmAdminData) {
 			"check-network",
 		)
 
-		cmdTest := cmdtest.New(cmd)
-		if err := cmd.Start(); err != nil {
-			log.Fatal(err)
-		}
-		err := cmd.Wait()
+		output, err := cmd.CombinedOutput()
 		assert.Nil(t, err)
+		expected := `PMM Network Status
 
-		assert.Equal(t, "PMM Network Status\n", cmdTest.ReadLine())
-		assert.Equal(t, "\n", cmdTest.ReadLine())
-		assert.Regexp(t, "Server Address | .*\n", cmdTest.ReadLine())
-		assert.Regexp(t, "Client Address | .*\n", cmdTest.ReadLine())
-		assert.Equal(t, "\n", cmdTest.ReadLine())
-		assert.Equal(t, "* System Time\n", cmdTest.ReadLine())
-		assert.Regexp(t, "NTP Server (0.pool.ntp.org)         | .*\n", cmdTest.ReadLine())
-		assert.Regexp(t, "PMM Server                          | .*\n", cmdTest.ReadLine())
-		assert.Regexp(t, "PMM Client                          | .*\n", cmdTest.ReadLine())
-		assert.Equal(t, "PMM Server Time Drift               | OK\n", cmdTest.ReadLine())
-		assert.Equal(t, "PMM Client Time Drift               | OK\n", cmdTest.ReadLine())
-		assert.Equal(t, "PMM Client to PMM Server Time Drift | OK\n", cmdTest.ReadLine())
-		assert.Equal(t, "\n", cmdTest.ReadLine())
-		assert.Equal(t, "* Connection: Client --> Server\n", cmdTest.ReadLine())
-		assert.Equal(t, "-------------------- -------      \n", cmdTest.ReadLine())
-		assert.Equal(t, "SERVER SERVICE       STATUS       \n", cmdTest.ReadLine())
-		assert.Equal(t, "-------------------- -------      \n", cmdTest.ReadLine())
-		assert.Equal(t, "Consul API           OK           \n", cmdTest.ReadLine())
-		assert.Equal(t, "Prometheus API       OK           \n", cmdTest.ReadLine())
-		assert.Equal(t, "Query Analytics API  OK           \n", cmdTest.ReadLine())
-		assert.Equal(t, "\n", cmdTest.ReadLine())
-		assert.Regexp(t, "Connection duration | .*         \n", cmdTest.ReadLine())
-		assert.Regexp(t, "Request duration    | .*         \n", cmdTest.ReadLine())
-		assert.Regexp(t, "Full round trip     | .*         \n", cmdTest.ReadLine())
-		assert.Equal(t, "\n", cmdTest.ReadLine())
-		assert.Equal(t, "\n", cmdTest.ReadLine())
-		assert.Equal(t, "* Connection: Client <-- Server\n", cmdTest.ReadLine())
-		assert.Equal(t, "No metric endpoints registered.\n", cmdTest.ReadLine())
-		assert.Equal(t, "\n", cmdTest.ReadLine())
+Server Address | ` + u.Host + `
+Client Address | localhost
 
-		assert.Equal(t, []string{}, cmdTest.Output()) // No more data
+* System Time
+NTP Server (0.pool.ntp.org)         | .*
+PMM Server                          | .*
+PMM Client                          | .*
+PMM Server Time Drift               | OK
+PMM Client Time Drift               | OK
+PMM Client to PMM Server Time Drift | OK
+
+* Connection: Client --> Server
+-------------------- -------\s*
+SERVER SERVICE       STATUS \s*
+-------------------- -------\s*
+Consul API           OK     \s*
+Prometheus API       OK     \s*
+Query Analytics API  OK     \s*
+
+Connection duration | .*
+Request duration    | .*
+Full round trip     | .*
+
+
+* Connection: Client <-- Server
+No metric endpoints registered.
+
+`
+		assertRegexpLines(t, expected, string(output))
 	}
 }
 
@@ -991,16 +903,10 @@ func testAddLinuxMetricsWithAdditionalArgsOk(t *testing.T, data pmmAdminData) {
 		"--for-exporter",
 	)
 
-	cmdTest := cmdtest.New(cmd)
-	if err := cmd.Start(); err != nil {
-		log.Fatal(err)
-	}
-	err := cmd.Wait()
+	output, err := cmd.CombinedOutput()
 	assert.Nil(t, err)
-
-	assert.Equal(t, fmt.Sprintln("OK, now monitoring this system."), cmdTest.ReadLine())
-
-	assert.Equal(t, "", cmdTest.ReadLine()) // No more data
+	expected := `OK, now monitoring this system.`
+	assertRegexpLines(t, expected, string(output))
 }
 
 func testAddLinuxMetricsWithAdditionalArgsFail(t *testing.T, data pmmAdminData) {
@@ -1065,16 +971,10 @@ func testAddLinuxMetricsWithAdditionalArgsFail(t *testing.T, data pmmAdminData) 
 		"--for-exporter",
 	)
 
-	cmdTest := cmdtest.New(cmd)
-	if err := cmd.Start(); err != nil {
-		log.Fatal(err)
-	}
-	err := cmd.Wait()
+	output, err := cmd.CombinedOutput()
 	assert.Error(t, err)
-
-	assert.Equal(t, fmt.Sprintln("Too many parameters. Only service name is allowed but got: host1, too-many-params."), cmdTest.ReadLine())
-
-	assert.Equal(t, "", cmdTest.ReadLine()) // No more data
+	expected := `Too many parameters. Only service name is allowed but got: host1, too-many-params.`
+	assertRegexpLines(t, expected, string(output))
 }
 
 func testAddMongoDB(t *testing.T, data pmmAdminData) {
@@ -1147,21 +1047,16 @@ func testAddMongoDB(t *testing.T, data pmmAdminData) {
 		"mongodb",
 	)
 
-	cmdTest := cmdtest.New(cmd)
-	if err := cmd.Start(); err != nil {
-		log.Fatal(err)
-	}
-	err := cmd.Wait()
+	output, err := cmd.CombinedOutput()
 	assert.Nil(t, err)
-
-	assert.Equal(t, fmt.Sprintln("[linux:metrics]   OK, now monitoring this system."), cmdTest.ReadLine())
-	assert.Equal(t, fmt.Sprintln("[mongodb:metrics] OK, now monitoring MongoDB metrics using URI localhost:27017"), cmdTest.ReadLine())
-	assert.Equal(t, fmt.Sprintln("[mongodb:queries] OK, now monitoring MongoDB queries using URI localhost:27017"), cmdTest.ReadLine())
-	assert.Equal(t, fmt.Sprintln("[mongodb:queries] It is required for correct operation that profiling of monitored MongoDB databases be enabled."), cmdTest.ReadLine())
-	assert.Equal(t, fmt.Sprintln("[mongodb:queries] Note that profiling is not enabled by default because it may reduce the performance of your MongoDB server."), cmdTest.ReadLine())
-	assert.Equal(t, fmt.Sprintln("[mongodb:queries] For more information read PMM documentation (https://www.percona.com/doc/percona-monitoring-and-management/conf-mongodb.html)."), cmdTest.ReadLine())
-
-	assert.Equal(t, "", cmdTest.ReadLine()) // No more data
+	expected := `\[linux:metrics\]   OK, now monitoring this system.
+\[mongodb:metrics\] OK, now monitoring MongoDB metrics using URI localhost:27017
+\[mongodb:queries\] OK, now monitoring MongoDB queries using URI localhost:27017
+\[mongodb:queries\] It is required for correct operation that profiling of monitored MongoDB databases be enabled.
+\[mongodb:queries\] Note that profiling is not enabled by default because it may reduce the performance of your MongoDB server.
+\[mongodb:queries\] For more information read PMM documentation \(https://www.percona.com/doc/percona-monitoring-and-management/conf-mongodb.html\).
+`
+	assertRegexpLines(t, expected, string(output))
 }
 
 func testAddMongoDBQueries(t *testing.T, data pmmAdminData) {
@@ -1234,19 +1129,50 @@ func testAddMongoDBQueries(t *testing.T, data pmmAdminData) {
 		"mongodb:queries",
 	)
 
-	cmdTest := cmdtest.New(cmd)
-	if err := cmd.Start(); err != nil {
-		log.Fatal(err)
-	}
-	err := cmd.Wait()
+	output, err := cmd.CombinedOutput()
 	assert.Nil(t, err)
+	expected := `OK, now monitoring MongoDB queries using URI localhost:27017
+It is required for correct operation that profiling of monitored MongoDB databases be enabled.
+Note that profiling is not enabled by default because it may reduce the performance of your MongoDB server.
+For more information read PMM documentation \(https://www.percona.com/doc/percona-monitoring-and-management/conf-mongodb.html\).
+`
+	assertRegexpLines(t, expected, string(output))
+}
 
-	assert.Equal(t, fmt.Sprintln("OK, now monitoring MongoDB queries using URI localhost:27017"), cmdTest.ReadLine())
-	assert.Equal(t, fmt.Sprintln("It is required for correct operation that profiling of monitored MongoDB databases be enabled."), cmdTest.ReadLine())
-	assert.Equal(t, fmt.Sprintln("Note that profiling is not enabled by default because it may reduce the performance of your MongoDB server."), cmdTest.ReadLine())
-	assert.Equal(t, fmt.Sprintln("For more information read PMM documentation (https://www.percona.com/doc/percona-monitoring-and-management/conf-mongodb.html)."), cmdTest.ReadLine())
+// assertRegexpLines matches regexp line by line to corresponding line of text
+func assertRegexpLines(t *testing.T, rx string, str string, msgAndArgs ...interface{}) bool {
+	expectedScanner := bufio.NewScanner(strings.NewReader(rx))
+	defer func() {
+		if err := expectedScanner.Err(); err != nil {
+			t.Fatal(err)
+		}
+	}()
 
-	assert.Equal(t, "", cmdTest.ReadLine()) // No more data
+	actualScanner := bufio.NewScanner(strings.NewReader(str))
+	defer func() {
+		if err := actualScanner.Err(); err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	ok := true
+	for {
+		asOk := actualScanner.Scan()
+		esOk := expectedScanner.Scan()
+
+		switch {
+		case asOk && esOk:
+			ok = ok && assert.Regexp(t, "^"+expectedScanner.Text()+"$", actualScanner.Text(), msgAndArgs...)
+		case asOk:
+			t.Errorf("didn't expect more lines but got: %s", actualScanner.Text())
+			ok = false
+		case esOk:
+			t.Errorf("didn't got line but expected it to match against: %s", expectedScanner.Text())
+			ok = false
+		default:
+			return ok
+		}
+	}
 }
 
 func assertRegexpLines(t *testing.T, rx string, str string, msgAndArgs ...interface{}) bool {
