@@ -18,6 +18,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -94,6 +95,7 @@ func TestPmmAdmin(t *testing.T) {
 		testConfig,
 		testConfigVerbose,
 		testConfigVerboseServerNotAvailable,
+		testHelp,
 		testStartStopRestart,
 		testStartStopRestartAllWithNoServices,
 		testStartStopRestartAllWithServices,
@@ -140,6 +142,68 @@ func testVersion(t *testing.T, data pmmAdminData) {
 	assert.Equal(t, "gotest\n", cmdTest.ReadLine())
 
 	assert.Equal(t, "", cmdTest.ReadLine()) // No more data
+}
+
+func testHelp(t *testing.T, data pmmAdminData) {
+	defer func() {
+		err := os.RemoveAll(data.rootDir)
+		assert.Nil(t, err)
+	}()
+
+	expected := `Usage:
+  pmm-admin \[flags\]
+  pmm-admin \[command\]
+
+Available Commands:
+  config         Configure PMM Client.
+  add            Add service to monitoring.
+  remove         Remove service from monitoring.
+  list           List monitoring services for this system.
+  info           Display PMM Client information \(works offline\).
+  check-network  Check network connectivity between client and server.
+  ping           Check if PMM server is alive.
+  start          Start monitoring service.
+  stop           Stop monitoring service.
+  restart        Restart monitoring service.
+  show-passwords Show PMM Client password information \(works offline\).
+  purge          Purge metrics data on PMM server.
+  repair         Repair installation.
+  uninstall      Removes all monitoring services with the best effort.
+  help           Help about any command
+
+Flags:
+  -c, --config-file string   PMM config file \(default ".*"\)
+  -h, --help                 help for pmm-admin
+      --verbose              verbose output
+  -v, --version              show version
+
+Use "pmm-admin \[command\] --help" for more information about a command.
+`
+	t.Run("command", func(t *testing.T) {
+		cmd := exec.Command(
+			data.bin,
+			"help",
+		)
+
+		output, err := cmd.CombinedOutput()
+		assert.Nil(t, err)
+
+		actual := string(output)
+		assertRegexpLines(t, expected, actual)
+	})
+
+	t.Run("flag", func(t *testing.T) {
+		cmd := exec.Command(
+			data.bin,
+			"--help",
+		)
+
+		output, err := cmd.CombinedOutput()
+		assert.Nil(t, err)
+
+		actual := string(output)
+		assertRegexpLines(t, expected, actual)
+	})
 }
 
 func testConfig(t *testing.T, data pmmAdminData) {
@@ -1183,4 +1247,41 @@ func testAddMongoDBQueries(t *testing.T, data pmmAdminData) {
 	assert.Equal(t, fmt.Sprintln("For more information read PMM documentation (https://www.percona.com/doc/percona-monitoring-and-management/conf-mongodb.html)."), cmdTest.ReadLine())
 
 	assert.Equal(t, "", cmdTest.ReadLine()) // No more data
+}
+
+func assertRegexpLines(t *testing.T, rx string, str string, msgAndArgs ...interface{}) bool {
+	t.Helper()
+
+	expectedScanner := bufio.NewScanner(strings.NewReader(rx))
+	defer func() {
+		if err := expectedScanner.Err(); err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	actualScanner := bufio.NewScanner(strings.NewReader(str))
+	defer func() {
+		if err := actualScanner.Err(); err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	ok := true
+	for {
+		asOk := actualScanner.Scan()
+		esOk := expectedScanner.Scan()
+
+		switch {
+		case asOk && esOk:
+			ok = ok && assert.Regexp(t, expectedScanner.Text(), actualScanner.Text(), msgAndArgs...)
+		case asOk:
+			t.Errorf("didn't expect more lines but got: %s", actualScanner.Text())
+			ok = false
+		case esOk:
+			t.Errorf("didn't got line but expected it to match against: %s", expectedScanner.Text())
+			ok = false
+		default:
+			return ok
+		}
+	}
 }
