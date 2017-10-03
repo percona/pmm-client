@@ -73,7 +73,7 @@ type List struct {
 	Services []ServiceStatus
 }
 
-// Table prints
+// Table formats *List.Services as table and returns result as string
 func (l *List) Table() string {
 	// Print table.
 	maxTypeLen := len("SERVICE TYPE")
@@ -120,6 +120,7 @@ func (l *List) Table() string {
 	return out
 }
 
+// Format formats *List with provided format template and returns result as string.
 func (l *List) Format(format string) string {
 	b := &bytes.Buffer{}
 	w := tabwriter.NewWriter(b, 8, 8, 8, ' ', 0)
@@ -155,7 +156,7 @@ const (
 {{if .Services}}{{.Table}}{{end}}`
 )
 
-// List get all services from Consul.
+// List prints to stdout all services from Consul.
 func (a *Admin) List() error {
 	l := &List{
 		Version:    Version,
