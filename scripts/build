@@ -42,9 +42,7 @@ go build -ldflags "-X github.com/percona/qan-agent/agent/release.VERSION=$VERSIO
 
 printf "Building node_exporter...\t"
 cd $GOPATH/src/github.com/prometheus/node_exporter
-git remote add fork github.com/percona/node_exporter || true
-cd $GOPATH/src/github.com/percona/node_exporter
-make build
+make
 mv ./node_exporter $SOURCE_DIR/distro/bin/node_exporter
 
 printf "Building mysqld_exporter...\t"
@@ -59,12 +57,12 @@ go build -ldflags "-X $importpath/version.Version=$VERSION -X $importpath/versio
 
 printf "Building mongodb_exporter...\t"
 cd $GOPATH/src/github.com/percona/mongodb_exporter
-make build
+make
 mv ./mongodb_exporter $SOURCE_DIR/distro/bin/mongodb_exporter
 
 printf "Building proxysql_exporter...\t"
 cd $GOPATH/src/github.com/percona/proxysql_exporter
-make build
+make
 mv ./proxysql_exporter $SOURCE_DIR/distro/bin/proxysql_exporter
 
 # Prepare tarball dir.
