@@ -301,7 +301,7 @@ func testConfigVerbose(t *testing.T, data pmmAdminData) {
 <\s*
 < "127.0.0.1:8300"
 .+ request:
-> GET /v1/catalog/node/`+clientName+` HTTP/1.1
+> GET /v1/catalog/node/` + clientName + ` HTTP/1.1
 > Host: ` + u.Host + `
 > User-Agent: Go-http-client/1.1
 > Accept-Encoding: gzip
@@ -1163,41 +1163,6 @@ func assertRegexpLines(t *testing.T, rx string, str string, msgAndArgs ...interf
 		switch {
 		case asOk && esOk:
 			ok = ok && assert.Regexp(t, "^"+expectedScanner.Text()+"$", actualScanner.Text(), msgAndArgs...)
-		case asOk:
-			t.Errorf("didn't expect more lines but got: %s", actualScanner.Text())
-			ok = false
-		case esOk:
-			t.Errorf("didn't got line but expected it to match against: %s", expectedScanner.Text())
-			ok = false
-		default:
-			return ok
-		}
-	}
-}
-
-func assertRegexpLines(t *testing.T, rx string, str string, msgAndArgs ...interface{}) bool {
-	expectedScanner := bufio.NewScanner(strings.NewReader(rx))
-	defer func() {
-		if err := expectedScanner.Err(); err != nil {
-			t.Fatal(err)
-		}
-	}()
-
-	actualScanner := bufio.NewScanner(strings.NewReader(str))
-	defer func() {
-		if err := actualScanner.Err(); err != nil {
-			t.Fatal(err)
-		}
-	}()
-
-	ok := true
-	for {
-		asOk := actualScanner.Scan()
-		esOk := expectedScanner.Scan()
-
-		switch {
-		case asOk && esOk:
-			ok = ok && assert.Regexp(t, expectedScanner.Text(), actualScanner.Text(), msgAndArgs...)
 		case asOk:
 			t.Errorf("didn't expect more lines but got: %s", actualScanner.Text())
 			ok = false
