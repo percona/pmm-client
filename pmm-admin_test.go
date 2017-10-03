@@ -1250,8 +1250,6 @@ func testAddMongoDBQueries(t *testing.T, data pmmAdminData) {
 }
 
 func assertRegexpLines(t *testing.T, rx string, str string, msgAndArgs ...interface{}) bool {
-	t.Helper()
-
 	expectedScanner := bufio.NewScanner(strings.NewReader(rx))
 	defer func() {
 		if err := expectedScanner.Err(); err != nil {
