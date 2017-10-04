@@ -36,6 +36,12 @@ var (
 			// NOTE: this function pre-runs with every command or sub-command with
 			// the only exception "pmm-admin config" which bypasses it.
 
+			// Skip pre-run for "help" command.
+			// You should always be able to get help even if pmm is not configured yet.
+			if cmd.Name() == "help" {
+				return
+			}
+
 			// The version flag will not run anywhere else than on rootCmd as this flag is not persistent
 			// and we want it only here without any additional checks.
 			if flagVersion {

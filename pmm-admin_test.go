@@ -98,6 +98,7 @@ func TestPmmAdmin(t *testing.T) {
 		testConfig,
 		testConfigVerbose,
 		testConfigVerboseServerNotAvailable,
+		testHelp,
 		testList,
 		testStartStopRestart,
 		testStartStopRestartAllWithNoServices,
@@ -136,6 +137,68 @@ func testVersion(t *testing.T, data pmmAdminData) {
 	expected := `gotest`
 
 	assertRegexpLines(t, expected, string(output))
+}
+
+func testHelp(t *testing.T, data pmmAdminData) {
+	defer func() {
+		err := os.RemoveAll(data.rootDir)
+		assert.Nil(t, err)
+	}()
+
+	expected := `Usage:
+  pmm-admin \[flags\]
+  pmm-admin \[command\]
+
+Available Commands:
+  config         Configure PMM Client.
+  add            Add service to monitoring.
+  remove         Remove service from monitoring.
+  list           List monitoring services for this system.
+  info           Display PMM Client information \(works offline\).
+  check-network  Check network connectivity between client and server.
+  ping           Check if PMM server is alive.
+  start          Start monitoring service.
+  stop           Stop monitoring service.
+  restart        Restart monitoring service.
+  show-passwords Show PMM Client password information \(works offline\).
+  purge          Purge metrics data on PMM server.
+  repair         Repair installation.
+  uninstall      Removes all monitoring services with the best effort.
+  help           Help about any command
+
+Flags:
+  -c, --config-file string   PMM config file \(default ".*"\)
+  -h, --help                 help for pmm-admin
+      --verbose              verbose output
+  -v, --version              show version
+
+Use "pmm-admin \[command\] --help" for more information about a command.
+`
+	t.Run("command", func(t *testing.T) {
+		cmd := exec.Command(
+			data.bin,
+			"help",
+		)
+
+		output, err := cmd.CombinedOutput()
+		assert.Nil(t, err)
+
+		actual := string(output)
+		assertRegexpLines(t, expected, actual)
+	})
+
+	t.Run("flag", func(t *testing.T) {
+		cmd := exec.Command(
+			data.bin,
+			"--help",
+		)
+
+		output, err := cmd.CombinedOutput()
+		assert.Nil(t, err)
+
+		actual := string(output)
+		assertRegexpLines(t, expected, actual)
+	})
 }
 
 func testConfig(t *testing.T, data pmmAdminData) {
