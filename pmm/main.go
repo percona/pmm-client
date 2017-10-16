@@ -38,6 +38,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/docker/cli/templates"
 	"github.com/fatih/color"
 	consul "github.com/hashicorp/consul/api"
 	"github.com/percona/kardianos-service"
@@ -51,6 +52,7 @@ type Admin struct {
 	Args         []string // Args defines additional arguments to pass through to *_exporter or qan-agent
 	Config       *Config
 	Verbose      bool
+	Format       string
 	serverURL    string
 	apiTimeout   time.Duration
 	qanAPI       *API
@@ -182,8 +184,43 @@ func (a *Admin) PrintInfo() {
 	fmt.Printf("%-15s | %s/%s\n\n", "Runtime Info", runtime.GOOS, runtime.GOARCH)
 }
 
+const (
+	ServerInfoTemplate = `{{define "ServerInfo"}}{{printf "%-15s | %s %s" "PMM Server" .ServerAddress .ServerSecurity}}
+{{printf "%-15s | %s" "Client Name" .ClientName}}
+{{printf "%-15s | %s %s" "Client Address" .ClientAddress .ClientBindAddress}}{{end}}`
+
+	DefaultServerInfoTemplate = `{{template "ServerInfo" .}}
+`
+)
+
+type ServerInfo struct {
+	ServerAddress     string
+	ServerSecurity    string
+	ClientName        string
+	ClientAddress     string
+	ClientBindAddress string
+}
+
 // ServerInfo print server info.
-func (a *Admin) ServerInfo() {
+func (a *Admin) ServerInfo() error {
+	serverInfo := a.serverInfo()
+
+	tmpl, err := templates.Parse(DefaultServerInfoTemplate)
+	if err != nil {
+		return err
+	}
+	tmpl, err = tmpl.Parse(ServerInfoTemplate)
+	if err != nil {
+		return err
+	}
+	if err := tmpl.Execute(os.Stdout, serverInfo); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (a *Admin) serverInfo() ServerInfo {
 	var labels []string
 	if a.Config.ServerInsecureSSL {
 		labels = append(labels, "insecure SSL")
@@ -203,9 +240,13 @@ func (a *Admin) ServerInfo() {
 		bindAddress = fmt.Sprintf("(%s)", a.Config.BindAddress)
 	}
 
-	fmt.Printf("%-15s | %s %s\n", "PMM Server", a.Config.ServerAddress, securityInfo)
-	fmt.Printf("%-15s | %s\n", "Client Name", a.Config.ClientName)
-	fmt.Printf("%-15s | %s %s\n", "Client Address", a.Config.ClientAddress, bindAddress)
+	return ServerInfo{
+		ServerAddress:     a.Config.ServerAddress,
+		ServerSecurity:    securityInfo,
+		ClientName:        a.Config.ClientName,
+		ClientAddress:     a.Config.ClientAddress,
+		ClientBindAddress: bindAddress,
+	}
 }
 
 // StartStopMonitoring start/stop system service by its metric type and name.

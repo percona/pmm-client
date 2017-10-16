@@ -18,20 +18,23 @@
 package pmm
 
 import (
+	"bytes"
 	"fmt"
 	"sort"
 	"strings"
+	"text/tabwriter"
 
+	"github.com/docker/cli/templates"
 	consul "github.com/hashicorp/consul/api"
 	"github.com/percona/kardianos-service"
 )
 
 // Service status description.
-type instanceStatus struct {
+type ServiceStatus struct {
 	Type     string
 	Name     string
 	Port     string
-	Status   bool
+	Running  bool
 	DSN      string
 	Options  string
 	SSL      string
@@ -39,7 +42,7 @@ type instanceStatus struct {
 }
 
 // Sort rows of formatted table output (list, check-networks commands).
-type sortOutput []instanceStatus
+type sortOutput []ServiceStatus
 
 func (s sortOutput) Len() int {
 	return len(s)
@@ -50,32 +53,144 @@ func (s sortOutput) Swap(i, j int) {
 }
 
 func (s sortOutput) Less(i, j int) bool {
-	if strings.Compare(s[i].Port, s[j].Port) == -1 {
-		return true
+	if s[i].Port != s[j].Port {
+		return s[i].Port < s[j].Port
+	}
+	if s[i].Name != s[j].Name {
+		return s[i].Name < s[j].Name
+	}
+	if s[i].Type != s[j].Type {
+		return s[i].Type < s[j].Type
 	}
 	return false
 }
 
-// List get all services from Consul.
+type List struct {
+	Version string
+	ServerInfo
+	Platform string
+	Err      string
+	Services []ServiceStatus
+}
+
+// Table formats *List.Services as table and returns result as string
+func (l *List) Table() string {
+	// Print table.
+	maxTypeLen := len("SERVICE TYPE")
+	maxNameLen := len("NAME")
+	maxDSNlen := len("DATA SOURCE")
+	maxOptsLen := len("OPTIONS")
+	for _, in := range l.Services {
+		if len(in.Type) > maxTypeLen {
+			maxTypeLen = len(in.Type)
+		}
+		if len(in.Name) > maxNameLen {
+			maxNameLen = len(in.Name)
+		}
+		if len(in.DSN) > maxDSNlen {
+			maxDSNlen = len(in.DSN)
+		}
+		if len(in.Options) > maxOptsLen {
+			maxOptsLen = len(in.Options)
+		}
+	}
+	maxTypeLen++
+	maxNameLen++
+	maxDSNlen++
+	maxOptsLen++
+	maxStatusLen := 8
+
+	out := ""
+
+	fmtPattern := "%%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds\n"
+	linefmt := fmt.Sprintf(fmtPattern, maxTypeLen, maxNameLen, 11, maxStatusLen, maxDSNlen, maxOptsLen)
+
+	out = out + fmt.Sprintf(linefmt, strings.Repeat("-", maxTypeLen), strings.Repeat("-", maxNameLen), strings.Repeat("-", 11),
+		strings.Repeat("-", maxStatusLen), strings.Repeat("-", maxDSNlen), strings.Repeat("-", maxOptsLen))
+	out = out + fmt.Sprintf(linefmt, "SERVICE TYPE", "NAME", "LOCAL PORT", "RUNNING", "DATA SOURCE", "OPTIONS")
+	out = out + fmt.Sprintf(linefmt, strings.Repeat("-", maxTypeLen), strings.Repeat("-", maxNameLen), strings.Repeat("-", 11),
+		strings.Repeat("-", maxStatusLen), strings.Repeat("-", maxDSNlen), strings.Repeat("-", maxOptsLen))
+
+	maxStatusLen += 11
+	linefmt = fmt.Sprintf(fmtPattern, maxTypeLen, maxNameLen, 11, maxStatusLen, maxDSNlen, maxOptsLen)
+	for _, i := range l.Services {
+		out = out + fmt.Sprintf(linefmt, i.Type, i.Name, i.Port, colorStatus("YES", "NO", i.Running), i.DSN, i.Options)
+	}
+
+	return out
+}
+
+// Format formats *List with provided format template and returns result as string.
+func (l *List) Format(format string) string {
+	b := &bytes.Buffer{}
+	w := tabwriter.NewWriter(b, 8, 8, 8, ' ', 0)
+
+	if format == "" {
+		format = DefaultListTemplate
+	}
+
+	tmpl, err := templates.Parse(format)
+	if err != nil {
+		return err.Error()
+	}
+	tmpl, err = tmpl.Parse(ServerInfoTemplate)
+	if err != nil {
+		return err.Error()
+	}
+	if err := tmpl.Execute(w, l); err != nil {
+		return err.Error()
+	}
+
+	w.Flush()
+
+	return b.String()
+}
+
+const (
+	DefaultListTemplate = `pmm-admin {{.Version}}
+
+{{template "ServerInfo" .ServerInfo}}
+{{printf "%-15s | %s" "Service Manager" .Platform}}
+{{if .Err}}
+{{.Err}}{{end}}
+{{if .Services}}{{.Table}}{{end}}`
+)
+
+// List prints to stdout all services from Consul.
 func (a *Admin) List() error {
-	fmt.Printf("pmm-admin %s\n\n", Version)
-	a.ServerInfo()
-	fmt.Printf("%-15s | %s\n\n", "Service Manager", service.Platform())
+	l := &List{
+		Version:    Version,
+		Platform:   service.Platform(),
+		ServerInfo: a.serverInfo(),
+	}
+
+	defer func() {
+		fmt.Print(l.Format(a.Format))
+	}()
 
 	node, _, err := a.consulAPI.Catalog().Node(a.Config.ClientName, nil)
 	if err != nil || node == nil {
-		fmt.Printf("%s '%s'.\n\n", noMonitoring, a.Config.ClientName)
+		l.Err = fmt.Sprintf("%s '%s'.", noMonitoring, a.Config.ClientName)
 		return nil
 	}
 
 	if len(node.Services) == 0 {
-		fmt.Print("No services under monitoring.\n\n")
+		l.Err = fmt.Sprint("No services under monitoring.")
 		return nil
 	}
 
+	// Get service data
+	svcTable := a.getSVCTable(node)
+	sort.Sort(sortOutput(svcTable))
+	l.Services = svcTable
+
+	return nil
+}
+
+func (a *Admin) getSVCTable(node *consul.CatalogNode) []ServiceStatus {
 	// Parse all services except mysql:queries.
 	var queryServices []*consul.AgentService
-	var svcTable []instanceStatus
+	var svcTable []ServiceStatus
 	for _, svc := range node.Services {
 		// When server hostname == client name, we have to exclude consul.
 		if svc.Service == "consul" {
@@ -118,11 +233,11 @@ func (a *Admin) List() error {
 			opts = append(opts, tag)
 		}
 
-		row := instanceStatus{
+		row := ServiceStatus{
 			Type:    svc.Service,
 			Name:    name,
 			Port:    fmt.Sprintf("%d", svc.Port),
-			Status:  status,
+			Running: status,
 			DSN:     dsn,
 			Options: strings.Join(opts, ", "),
 		}
@@ -163,11 +278,11 @@ func (a *Admin) List() error {
 					}
 				}
 			}
-			row := instanceStatus{
+			row := ServiceStatus{
 				Type:    queryService.Service,
 				Name:    name,
 				Port:    "-",
-				Status:  status,
+				Running: status,
 				DSN:     dsn,
 				Options: strings.Join(opts, ", "),
 			}
@@ -175,47 +290,5 @@ func (a *Admin) List() error {
 		}
 	}
 
-	// Print table.
-	maxTypeLen := len("SERVICE TYPE")
-	maxNameLen := len("NAME")
-	maxDSNlen := len("DATA SOURCE")
-	maxOptsLen := len("OPTIONS")
-	for _, in := range svcTable {
-		if len(in.Type) > maxTypeLen {
-			maxTypeLen = len(in.Type)
-		}
-		if len(in.Name) > maxNameLen {
-			maxNameLen = len(in.Name)
-		}
-		if len(in.DSN) > maxDSNlen {
-			maxDSNlen = len(in.DSN)
-		}
-		if len(in.Options) > maxOptsLen {
-			maxOptsLen = len(in.Options)
-		}
-	}
-	maxTypeLen++
-	maxNameLen++
-	maxDSNlen++
-	maxOptsLen++
-	maxStatusLen := 8
-
-	fmtPattern := "%%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds\n"
-	linefmt := fmt.Sprintf(fmtPattern, maxTypeLen, maxNameLen, 11, maxStatusLen, maxDSNlen, maxOptsLen)
-
-	fmt.Printf(linefmt, strings.Repeat("-", maxTypeLen), strings.Repeat("-", maxNameLen), strings.Repeat("-", 11),
-		strings.Repeat("-", maxStatusLen), strings.Repeat("-", maxDSNlen), strings.Repeat("-", maxOptsLen))
-	fmt.Printf(linefmt, "SERVICE TYPE", "NAME", "LOCAL PORT", "RUNNING", "DATA SOURCE", "OPTIONS")
-	fmt.Printf(linefmt, strings.Repeat("-", maxTypeLen), strings.Repeat("-", maxNameLen), strings.Repeat("-", 11),
-		strings.Repeat("-", maxStatusLen), strings.Repeat("-", maxDSNlen), strings.Repeat("-", maxOptsLen))
-
-	sort.Sort(sortOutput(svcTable))
-	maxStatusLen += 11
-	linefmt = fmt.Sprintf(fmtPattern, maxTypeLen, maxNameLen, 11, maxStatusLen, maxDSNlen, maxOptsLen)
-	for _, i := range svcTable {
-		fmt.Printf(linefmt, i.Type, i.Name, i.Port, colorStatus("YES", "NO", i.Status), i.DSN, i.Options)
-	}
-	fmt.Println()
-
-	return nil
+	return svcTable
 }

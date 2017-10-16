@@ -418,6 +418,10 @@ func TestDecodeConfig(t *testing.T) {
 			c:  &Config{LeaveOnTerm: Bool(true)},
 		},
 		{
+			in: `{"limits": {"rpc_rate": 100, "rpc_max_burst": 50}}}`,
+			c:  &Config{Limits: Limits{RPCRate: 100, RPCMaxBurst: 50}},
+		},
+		{
 			in: `{"log_level":"a"}`,
 			c:  &Config{LogLevel: "a"},
 		},
@@ -1359,6 +1363,10 @@ func TestMergeConfig(t *testing.T) {
 	}
 
 	b := &Config{
+		Limits: Limits{
+			RPCRate:     100,
+			RPCMaxBurst: 50,
+		},
 		Performance: Performance{
 			RaftMultiplier: 99,
 		},
@@ -1400,6 +1408,15 @@ func TestMergeConfig(t *testing.T) {
 			DNS:   "127.0.0.1",
 			HTTP:  "127.0.0.2",
 			HTTPS: "127.0.0.4",
+		},
+		Segment: "alpha",
+		Segments: []NetworkSegment{
+			{
+				Name:      "alpha",
+				Bind:      "127.0.0.1",
+				Port:      1234,
+				Advertise: "127.0.0.2",
+			},
 		},
 		Server:         true,
 		LeaveOnTerm:    Bool(true),

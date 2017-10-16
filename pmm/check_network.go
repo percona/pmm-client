@@ -150,7 +150,7 @@ func (a *Admin) CheckNetwork() error {
 	}
 
 	// Check Prometheus endpoint status.
-	svcTable := []instanceStatus{}
+	svcTable := []ServiceStatus{}
 	errStatus := false
 	for _, svc := range node.Services {
 		if !strings.HasSuffix(svc.Service, ":metrics") {
@@ -166,8 +166,8 @@ func (a *Admin) CheckNetwork() error {
 
 		}
 
-		status := checkPromTargetStatus(promData.String(), name, strings.Split(svc.Service, ":")[0])
-		if !status {
+		running := checkPromTargetStatus(promData.String(), name, strings.Split(svc.Service, ":")[0])
+		if !running {
 			errStatus = true
 		}
 
@@ -182,11 +182,11 @@ func (a *Admin) CheckNetwork() error {
 			}
 		}
 
-		row := instanceStatus{
+		row := ServiceStatus{
 			Type:     svc.Service,
 			Name:     name,
 			Port:     fmt.Sprintf("%d", svc.Port),
-			Status:   status,
+			Running:  running,
 			SSL:      sslVal,
 			Password: protectedVal,
 		}
@@ -231,10 +231,10 @@ func (a *Admin) CheckNetwork() error {
 		}
 		if a.Config.ClientAddress != a.Config.BindAddress {
 			fmt.Printf(linefmt, i.Type, i.Name, a.Config.ClientAddress+"-->"+a.Config.BindAddress+":"+i.Port,
-				colorStatus("OK", "DOWN", i.Status), i.SSL, i.Password)
+				colorStatus("OK", "DOWN", i.Running), i.SSL, i.Password)
 		} else {
 			fmt.Printf(linefmt, i.Type, i.Name, a.Config.ClientAddress+":"+i.Port,
-				colorStatus("OK", "DOWN", i.Status), i.SSL, i.Password)
+				colorStatus("OK", "DOWN", i.Running), i.SSL, i.Password)
 		}
 
 	}

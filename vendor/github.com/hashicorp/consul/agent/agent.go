@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/armon/go-metrics"
+	"github.com/hashicorp/consul/acl"
 	"github.com/hashicorp/consul/agent/consul"
 	"github.com/hashicorp/consul/agent/structs"
 	"github.com/hashicorp/consul/agent/systemd"
@@ -30,8 +31,8 @@ import (
 	"github.com/hashicorp/consul/types"
 	"github.com/hashicorp/consul/watch"
 	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/memberlist"
 	"github.com/hashicorp/raft"
-	"github.com/hashicorp/serf/coordinate"
 	"github.com/hashicorp/serf/serf"
 	"github.com/shirou/gopsutil/host"
 )
@@ -55,14 +56,15 @@ const (
 // consul.Client and consul.Server.
 type delegate interface {
 	Encrypted() bool
-	GetLANCoordinate() (*coordinate.Coordinate, error)
+	GetLANCoordinate() (lib.CoordinateSet, error)
 	Leave() error
 	LANMembers() []serf.Member
+	LANMembersAllSegments() ([]serf.Member, error)
+	LANSegmentMembers(segment string) ([]serf.Member, error)
 	LocalMember() serf.Member
 	JoinLAN(addrs []string) (n int, err error)
 	RemoveFailedNode(node string) error
 	RPC(method string, args interface{}, reply interface{}) error
-	ServerAddrs() map[string]string
 	SnapshotRPC(args *structs.SnapshotRequest, in io.Reader, out io.Writer, replyFn structs.SnapshotReplyFn) error
 	Shutdown() error
 	Stats() map[string]map[string]string
@@ -340,8 +342,8 @@ func (a *Agent) Start() error {
 	}
 
 	// start retry join
-	go a.retryJoin()
-	go a.retryJoinWan()
+	go a.retryJoinLAN()
+	go a.retryJoinWAN()
 
 	return nil
 }
@@ -647,6 +649,14 @@ func (a *Agent) consulConfig() (*consul.Config, error) {
 	if a.config.AdvertiseAddrs.RPC != nil {
 		base.RPCAdvertise = a.config.AdvertiseAddrs.RPC
 	}
+	base.Segment = a.config.Segment
+	if len(a.config.Segments) > 0 {
+		segments, err := a.segmentConfig()
+		if err != nil {
+			return nil, err
+		}
+		base.Segments = segments
+	}
 	if a.config.Bootstrap {
 		base.Bootstrap = true
 	}
@@ -714,6 +724,14 @@ func (a *Agent) consulConfig() (*consul.Config, error) {
 		base.RPCAdvertise = base.RPCAddr
 	}
 
+	// Rate limiting for RPC calls.
+	if a.config.Limits.RPCRate > 0 {
+		base.RPCRate = a.config.Limits.RPCRate
+	}
+	if a.config.Limits.RPCMaxBurst > 0 {
+		base.RPCMaxBurst = a.config.Limits.RPCMaxBurst
+	}
+
 	// set the src address for outgoing rpc connections
 	// Use port 0 so that outgoing connections use a random port.
 	if !ipaddr.IsAny(base.RPCAddr.IP) {
@@ -755,12 +773,65 @@ func (a *Agent) consulConfig() (*consul.Config, error) {
 	// Setup the loggers
 	base.LogOutput = a.LogOutput
 
-	// This will set up the LAN keyring, as well as the WAN for servers.
+	// This will set up the LAN keyring, as well as the WAN and any segments
+	// for servers.
 	if err := a.setupKeyrings(base); err != nil {
 		return nil, fmt.Errorf("Failed to configure keyring: %v", err)
 	}
 
 	return base, nil
+}
+
+// Setup the serf and memberlist config for any defined network segments.
+func (a *Agent) segmentConfig() ([]consul.NetworkSegment, error) {
+	var segments []consul.NetworkSegment
+	config := a.config
+
+	for _, segment := range config.Segments {
+		serfConf := consul.DefaultConfig().SerfLANConfig
+
+		if segment.Advertise != "" {
+			serfConf.MemberlistConfig.AdvertiseAddr = segment.Advertise
+		} else {
+			serfConf.MemberlistConfig.AdvertiseAddr = a.config.AdvertiseAddr
+		}
+		if segment.Bind != "" {
+			serfConf.MemberlistConfig.BindAddr = segment.Bind
+		} else {
+			serfConf.MemberlistConfig.BindAddr = a.config.BindAddr
+		}
+		serfConf.MemberlistConfig.AdvertisePort = segment.Port
+		serfConf.MemberlistConfig.BindPort = segment.Port
+
+		if config.ReconnectTimeoutLan != 0 {
+			serfConf.ReconnectTimeout = config.ReconnectTimeoutLan
+		}
+		if config.EncryptVerifyIncoming != nil {
+			serfConf.MemberlistConfig.GossipVerifyIncoming = *config.EncryptVerifyIncoming
+		}
+		if config.EncryptVerifyOutgoing != nil {
+			serfConf.MemberlistConfig.GossipVerifyOutgoing = *config.EncryptVerifyOutgoing
+		}
+
+		var rpcAddr *net.TCPAddr
+		if segment.RPCListener {
+			rpcAddr = &net.TCPAddr{
+				IP:   net.ParseIP(segment.Bind),
+				Port: a.config.Ports.Server,
+			}
+		}
+
+		segments = append(segments, consul.NetworkSegment{
+			Name:       segment.Name,
+			Bind:       serfConf.MemberlistConfig.BindAddr,
+			Port:       segment.Port,
+			Advertise:  serfConf.MemberlistConfig.AdvertiseAddr,
+			RPCAddr:    rpcAddr,
+			SerfConfig: serfConf,
+		})
+	}
+
+	return segments, nil
 }
 
 // makeRandomID will generate a random UUID for a node.
@@ -877,8 +948,8 @@ func (a *Agent) setupNodeID(config *Config) error {
 	return nil
 }
 
-// setupKeyrings is used to initialize and load keyrings during agent startup
-func (a *Agent) setupKeyrings(config *consul.Config) error {
+// setupBaseKeyrings configures the LAN and WAN keyrings.
+func (a *Agent) setupBaseKeyrings(config *consul.Config) error {
 	// If the keyring file is disabled then just poke the provided key
 	// into the in-memory keyring.
 	if a.config.DisableKeyringFile {
@@ -937,6 +1008,34 @@ LOAD:
 	return nil
 }
 
+// setupKeyrings is used to initialize and load keyrings during agent startup.
+func (a *Agent) setupKeyrings(config *consul.Config) error {
+	// First set up the LAN and WAN keyrings.
+	if err := a.setupBaseKeyrings(config); err != nil {
+		return err
+	}
+
+	// If there's no LAN keyring then there's nothing else to set up for
+	// any segments.
+	lanKeyring := config.SerfLANConfig.MemberlistConfig.Keyring
+	if lanKeyring == nil {
+		return nil
+	}
+
+	// Copy the initial state of the LAN keyring into each segment config.
+	// Segments don't have their own keyring file, they rely on the LAN
+	// holding the state so things can't get out of sync.
+	k, pk := lanKeyring.GetKeys(), lanKeyring.GetPrimaryKey()
+	for _, segment := range config.Segments {
+		keyring, err := memberlist.NewKeyring(k, pk)
+		if err != nil {
+			return err
+		}
+		segment.SerfConfig.MemberlistConfig.Keyring = keyring
+	}
+	return nil
+}
+
 // registerEndpoint registers a handler for the consul RPC server
 // under a unique name while making it accessible under the provided
 // name. This allows overwriting handlers for the golang net/rpc
@@ -956,7 +1055,7 @@ func (a *Agent) registerEndpoint(name string, handler interface{}) error {
 // RPC is used to make an RPC call to the Consul servers
 // This allows the agent to implement the Consul.Interface
 func (a *Agent) RPC(method string, args interface{}, reply interface{}) error {
-	a.endpointsLock.Lock()
+	a.endpointsLock.RLock()
 	// fast path: only translate if there are overrides
 	if len(a.endpoints) > 0 {
 		p := strings.SplitN(method, ".", 2)
@@ -964,7 +1063,7 @@ func (a *Agent) RPC(method string, args interface{}, reply interface{}) error {
 			method = e + "." + p[1]
 		}
 	}
-	a.endpointsLock.Unlock()
+	a.endpointsLock.RUnlock()
 	return a.delegate.RPC(method, args, reply)
 }
 
@@ -1154,15 +1253,16 @@ func (a *Agent) ResumeSync() {
 	a.state.Resume()
 }
 
-// GetLANCoordinate returns the coordinate of this node in the local pool (assumes coordinates
-// are enabled, so check that before calling).
-func (a *Agent) GetLANCoordinate() (*coordinate.Coordinate, error) {
+// GetLANCoordinate returns the coordinates of this node in the local pools
+// (assumes coordinates are enabled, so check that before calling).
+func (a *Agent) GetLANCoordinate() (lib.CoordinateSet, error) {
 	return a.delegate.GetLANCoordinate()
 }
 
 // sendCoordinate is a long-running loop that periodically sends our coordinate
 // to the server. Closing the agent's shutdownChannel will cause this to exit.
 func (a *Agent) sendCoordinate() {
+OUTER:
 	for {
 		rate := a.config.SyncCoordinateRateTarget
 		min := a.config.SyncCoordinateIntervalMin
@@ -1182,26 +1282,29 @@ func (a *Agent) sendCoordinate() {
 				continue
 			}
 
-			c, err := a.GetLANCoordinate()
+			cs, err := a.GetLANCoordinate()
 			if err != nil {
 				a.logger.Printf("[ERR] agent: Failed to get coordinate: %s", err)
 				continue
 			}
 
-			req := structs.CoordinateUpdateRequest{
-				Datacenter:   a.config.Datacenter,
-				Node:         a.config.NodeName,
-				Coord:        c,
-				WriteRequest: structs.WriteRequest{Token: a.tokens.AgentToken()},
-			}
-			var reply struct{}
-			if err := a.RPC("Coordinate.Update", &req, &reply); err != nil {
-				if strings.Contains(err.Error(), permissionDenied) {
-					a.logger.Printf("[WARN] agent: Coordinate update blocked by ACLs")
-				} else {
-					a.logger.Printf("[ERR] agent: Coordinate update error: %v", err)
+			for segment, coord := range cs {
+				req := structs.CoordinateUpdateRequest{
+					Datacenter:   a.config.Datacenter,
+					Node:         a.config.NodeName,
+					Segment:      segment,
+					Coord:        coord,
+					WriteRequest: structs.WriteRequest{Token: a.tokens.AgentToken()},
 				}
-				continue
+				var reply struct{}
+				if err := a.RPC("Coordinate.Update", &req, &reply); err != nil {
+					if acl.IsErrPermissionDenied(err) {
+						a.logger.Printf("[WARN] agent: Coordinate update blocked by ACLs")
+					} else {
+						a.logger.Printf("[ERR] agent: Coordinate update error: %v", err)
+					}
+					continue OUTER
+				}
 			}
 		case <-a.shutdownCh:
 			return
@@ -2104,6 +2207,8 @@ func (a *Agent) loadMetadata(conf *Config) error {
 	for key, value := range conf.Meta {
 		a.state.metadata[key] = value
 	}
+
+	a.state.metadata[structs.MetaSegmentKey] = conf.Segment
 
 	a.state.changeMade()
 

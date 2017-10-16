@@ -23,6 +23,15 @@ import (
 	"github.com/hashicorp/consul/watch"
 	"github.com/hashicorp/go-sockaddr/template"
 	"github.com/mitchellh/mapstructure"
+	"golang.org/x/time/rate"
+)
+
+const (
+	// SegmentLimit is the maximum number of network segments that may be declared.
+	SegmentLimit = 64
+
+	// SegmentNameLimit is the maximum segment name length.
+	SegmentNameLimit = 64
 )
 
 // Ports is used to simplify the configuration by
@@ -193,6 +202,20 @@ type RetryJoinAzure struct {
 	SecretAccessKey string `mapstructure:"secret_access_key" json:"-"`
 }
 
+// Limits is used to configure limits enforced by the agent.
+type Limits struct {
+	// RPCRate and RPCMaxBurst control how frequently RPC calls are allowed
+	// to happen. In any large enough time interval, rate limiter limits the
+	// rate to RPCRate tokens per second, with a maximum burst size of
+	// RPCMaxBurst events. As a special case, if RPCRate == Inf (the infinite
+	// rate), RPCMaxBurst is ignored.
+	//
+	// See https://en.wikipedia.org/wiki/Token_bucket for more about token
+	// buckets.
+	RPCRate     rate.Limit `mapstructure:"rpc_rate"`
+	RPCMaxBurst int        `mapstructure:"rpc_max_burst"`
+}
+
 // Performance is used to tune the performance of Consul's subsystems.
 type Performance struct {
 	// RaftMultiplier is an integer multiplier used to scale Raft timing
@@ -342,6 +365,26 @@ type Autopilot struct {
 	UpgradeVersionTag string `mapstructure:"upgrade_version_tag"`
 }
 
+// (Enterprise-only) NetworkSegment is the configuration for a network segment, which is an
+// isolated serf group on the LAN.
+type NetworkSegment struct {
+	// Name is the name of the segment.
+	Name string `mapstructure:"name"`
+
+	// Bind is the bind address for this segment.
+	Bind string `mapstructure:"bind"`
+
+	// Port is the port for this segment.
+	Port int `mapstructure:"port"`
+
+	// RPCListener is whether to bind a separate RPC listener on the bind address
+	// for this segment.
+	RPCListener bool `mapstructure:"rpc_listener"`
+
+	// Advertise is the advertise address of this segment.
+	Advertise string `mapstructure:"advertise"`
+}
+
 // Config is the configuration that can be set for an Agent.
 // Some of this is configurable as CLI flags, but most must
 // be set using a configuration file.
@@ -349,6 +392,9 @@ type Config struct {
 	// DevMode enables a fast-path mode of operation to bring up an in-memory
 	// server with minimal configuration. Useful for developing Consul.
 	DevMode bool `mapstructure:"-"`
+
+	// Limits is used to configure limits enforced by the agent.
+	Limits Limits `mapstructure:"limits"`
 
 	// Performance is used to tune the performance of Consul's subsystems.
 	Performance Performance `mapstructure:"performance"`
@@ -464,6 +510,13 @@ type Config struct {
 
 	// Address configurations
 	Addresses AddressConfig
+
+	// (Enterprise-only) NetworkSegment is the network segment for this client to join.
+	Segment string `mapstructure:"segment"`
+
+	// (Enterprise-only) Segments is the list of network segments for this server to
+	// initialize.
+	Segments []NetworkSegment `mapstructure:"segments"`
 
 	// Tagged addresses. These are used to publish a set of addresses for
 	// for a node, which can be used by the remote agent. We currently
@@ -921,6 +974,10 @@ type dirEnts []os.FileInfo
 // DefaultConfig is used to return a sane default configuration
 func DefaultConfig() *Config {
 	return &Config{
+		Limits: Limits{
+			RPCRate:     rate.Inf,
+			RPCMaxBurst: 1000,
+		},
 		Bootstrap:       false,
 		BootstrapExpect: 0,
 		Server:          false,
@@ -1378,6 +1435,11 @@ func DecodeConfig(r io.Reader) (*Config, error) {
 		result.AdvertiseAddrs.RPC = addr
 	}
 
+	// Validate segment config.
+	if err := ValidateSegments(&result); err != nil {
+		return nil, err
+	}
+
 	// Enforce the max Raft multiplier.
 	if result.Performance.RaftMultiplier > consul.MaxRaftMultiplier {
 		return nil, fmt.Errorf("Performance.RaftMultiplier must be <= %d", consul.MaxRaftMultiplier)
@@ -1424,6 +1486,11 @@ func DecodeConfig(r io.Reader) (*Config, error) {
 		default:
 			return nil, fmt.Errorf("Filter rule must begin with either '+' or '-': %q", rule)
 		}
+	}
+
+	// Validate node meta fields
+	if err := structs.ValidateMetadata(result.Meta, false); err != nil {
+		return nil, fmt.Errorf("Failed to parse node metadata: %v", err)
 	}
 
 	return &result, nil
@@ -1593,6 +1660,13 @@ func DecodeCheckDefinition(raw interface{}) (*structs.CheckDefinition, error) {
 // configuration.
 func MergeConfig(a, b *Config) *Config {
 	var result Config = *a
+
+	if b.Limits.RPCRate > 0 {
+		result.Limits.RPCRate = b.Limits.RPCRate
+	}
+	if b.Limits.RPCMaxBurst > 0 {
+		result.Limits.RPCMaxBurst = b.Limits.RPCMaxBurst
+	}
 
 	// Propagate non-default performance settings
 	if b.Performance.RaftMultiplier > 0 {
@@ -1860,6 +1934,12 @@ func MergeConfig(a, b *Config) *Config {
 	}
 	if b.Addresses.RPC != "" {
 		result.Addresses.RPC = b.Addresses.RPC
+	}
+	if b.Segment != "" {
+		result.Segment = b.Segment
+	}
+	if len(b.Segments) > 0 {
+		result.Segments = append(result.Segments, b.Segments...)
 	}
 	if b.EnableUI {
 		result.EnableUI = true
@@ -2204,6 +2284,10 @@ func (c *Config) ResolveTmplAddrs() (err error) {
 	parse(&c.ClientAddr, true, "Client address")
 	parse(&c.SerfLanBindAddr, false, "Serf LAN address")
 	parse(&c.SerfWanBindAddr, false, "Serf WAN address")
+	for i, segment := range c.Segments {
+		parse(&c.Segments[i].Bind, false, fmt.Sprintf("Segment %q bind address", segment.Name))
+		parse(&c.Segments[i].Advertise, false, fmt.Sprintf("Segment %q advertise address", segment.Name))
+	}
 
 	return
 }
