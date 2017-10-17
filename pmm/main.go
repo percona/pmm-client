@@ -43,6 +43,8 @@ import (
 	consul "github.com/hashicorp/consul/api"
 	"github.com/percona/kardianos-service"
 	"github.com/prometheus/client_golang/api/prometheus"
+
+	"github.com/percona/pmm-client/pmm/managed"
 )
 
 // Admin main class.
@@ -58,10 +60,11 @@ type Admin struct {
 	qanAPI       *API
 	consulAPI    *consul.Client
 	promQueryAPI prometheus.QueryAPI
+	managedAPI   *managed.Client
 	//promSeriesAPI prometheus.SeriesAPI
 }
 
-// SetAPI setup Consul, QAN, Prometheus APIs and verify connection.
+// SetAPI setups QAN, Consul, Prometheus, pmm-managed clients and verifies connections.
 func (a *Admin) SetAPI() error {
 	// Set default API timeout if unset.
 	if a.apiTimeout == 0 {
@@ -170,6 +173,9 @@ Otherwise, run the following command to reset the config and disable authenticat
 pmm-admin config --server %s %s`, a.Config.ServerAddress, helpText)
 		}
 	}
+
+	// TODO add username and password if they are present
+	a.managedAPI = managed.NewClient(a.Config.ServerAddress, scheme, a.Config.ServerInsecureSSL)
 
 	return nil
 }
