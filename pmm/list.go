@@ -129,7 +129,7 @@ func (l *List) ExternalTable() string {
 	fmt.Fprintln(w, "Name\tScrape interval\tScrape timeout\tMetrics path\tScheme\tInstances")
 	for _, ext := range l.ExternalServices {
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
-			ext.Name, ext.Interval, ext.Timeout, ext.Path, ext.Scheme, strings.Join(ext.StaticTargets, ", "))
+			ext.JobName, ext.ScrapeInterval, ext.ScrapeTimeout, ext.MetricsPath, ext.Scheme, strings.Join(ext.StaticTargets, ", "))
 	}
 	w.Flush()
 	return buf.String()

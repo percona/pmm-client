@@ -24,18 +24,21 @@ import (
 	"github.com/percona/pmm-client/pmm/managed"
 )
 
+// ExternalMetrics represents external Prometheus exporter configuration: job and targets.
+// Field names are used for JSON output, so do not rename them.
+// JSON output uses Prometheus and pmm-managed API terms; TUI uses terms aligned with other commands.
 type ExternalMetrics struct {
-	Name          string
-	Interval      time.Duration
-	Timeout       time.Duration
-	Path          string
-	Scheme        string
-	StaticTargets []string
+	JobName        string
+	ScrapeInterval time.Duration // nanoseconds in JSON
+	ScrapeTimeout  time.Duration // nanoseconds in JSON
+	MetricsPath    string
+	Scheme         string
+	StaticTargets  []string
 }
 
 // ListExternalMetrics returns external Prometheus exporters.
 func (a *Admin) ListExternalMetrics(ctx context.Context) ([]ExternalMetrics, error) {
-	resp, err := a.managedAPI.ScrapeConfigsList()
+	resp, err := a.managedAPI.ScrapeConfigsList(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -58,12 +61,12 @@ func (a *Admin) ListExternalMetrics(ctx context.Context) ([]ExternalMetrics, err
 			}
 		}
 		res[i] = ExternalMetrics{
-			Name:          sc.JobName,
-			Interval:      interval,
-			Timeout:       timeout,
-			Path:          sc.MetricsPath,
-			Scheme:        sc.Scheme,
-			StaticTargets: targets,
+			JobName:        sc.JobName,
+			ScrapeInterval: interval,
+			ScrapeTimeout:  timeout,
+			MetricsPath:    sc.MetricsPath,
+			Scheme:         sc.Scheme,
+			StaticTargets:  targets,
 		}
 	}
 	return res, nil
@@ -76,12 +79,12 @@ func (a *Admin) AddExternalMetrics(ctx context.Context, ext *ExternalMetrics) er
 		sc[0].Targets = append(sc[0].Targets, t)
 	}
 
-	return a.managedAPI.ScrapeConfigsCreate(&managed.APIScrapeConfigsCreateRequest{
+	return a.managedAPI.ScrapeConfigsCreate(ctx, &managed.APIScrapeConfigsCreateRequest{
 		ScrapeConfig: &managed.APIScrapeConfig{
-			JobName:        ext.Name,
-			ScrapeInterval: ext.Interval.String(),
-			ScrapeTimeout:  ext.Timeout.String(),
-			MetricsPath:    ext.Path,
+			JobName:        ext.JobName,
+			ScrapeInterval: ext.ScrapeInterval.String(),
+			ScrapeTimeout:  ext.ScrapeTimeout.String(),
+			MetricsPath:    ext.MetricsPath,
 			Scheme:         ext.Scheme,
 			StaticConfigs:  sc,
 		},
@@ -90,5 +93,21 @@ func (a *Admin) AddExternalMetrics(ctx context.Context, ext *ExternalMetrics) er
 
 // RemoveExternalMetrics removes external Prometheus scrape job and targets.
 func (a *Admin) RemoveExternalMetrics(ctx context.Context, name string) error {
-	return a.managedAPI.ScrapeConfigsDelete(name)
+	return a.managedAPI.ScrapeConfigsDelete(ctx, name)
+}
+
+// AddExternalInstances adds targets to existing scrape job.
+func (a *Admin) AddExternalInstances(ctx context.Context, name string, targets []string) error {
+	return a.managedAPI.ScrapeConfigsAddStaticTargets(ctx, &managed.APIScrapeConfigsAddStaticTargetsRequest{
+		JobName: name,
+		Targets: targets,
+	})
+}
+
+// RemoveExternalInstances removes targets from existing scrape job.
+func (a *Admin) RemoveExternalInstances(ctx context.Context, name string, targets []string) error {
+	return a.managedAPI.ScrapeConfigsRemoveStaticTargets(ctx, &managed.APIScrapeConfigsRemoveStaticTargetsRequest{
+		JobName: name,
+		Targets: targets,
+	})
 }

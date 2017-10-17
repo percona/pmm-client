@@ -467,23 +467,41 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 	}
 	cmdAddExternalMetrics = &cobra.Command{
 		Use:   "external:metrics name [instance1] [instance2] ...",
-		Short: "Add external Prometheus exporters to metrics monitoring.",
-		Long:  `This command adds the given external Prometheus exporter to metrics monitoring.`,
-		Args:  cobra.MinimumNArgs(1),
+		Short: "Add external Prometheus exporters job to metrics monitoring.",
+		Long: `This command adds external Prometheus exporters job with given name to metrics monitoring.
+
+An optional list of instances (scrape targets) can be provided.
+		`,
+		Args: cobra.MinimumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			exp := &pmm.ExternalMetrics{
-				Name:          admin.ServiceName,
-				Interval:      flagExtInterval,
-				Timeout:       flagExtTimeout,
-				Path:          flagExtPath,
-				Scheme:        flagExtScheme,
-				StaticTargets: args[1:], // first arg is admin.ServiceName
+				JobName:        admin.ServiceName,
+				ScrapeInterval: flagExtInterval,
+				ScrapeTimeout:  flagExtTimeout,
+				MetricsPath:    flagExtPath,
+				Scheme:         flagExtScheme,
+				StaticTargets:  args[1:], // first arg is admin.ServiceName
 			}
 			if err := admin.AddExternalMetrics(context.TODO(), exp); err != nil {
 				fmt.Println("Error adding external metrics:", err)
 				os.Exit(1)
 			}
 			fmt.Println("External metrics added.")
+		},
+	}
+	cmdAddExternalInstances = &cobra.Command{
+		Use:   "external:instances name [instance1] [instance2] ...",
+		Short: "Add external Prometheus exporters instances to existing metrics monitoring job.",
+		Long: `This command adds external Prometheus exporters instances (scrape targets) to existing metrics monitoring job.
+		`,
+		Args: cobra.MinimumNArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			targets := args[1:] // first arg is admin.ServiceName
+			if err := admin.AddExternalInstances(context.TODO(), admin.ServiceName, targets); err != nil {
+				fmt.Println("Error adding external instances:", err)
+				os.Exit(1)
+			}
+			fmt.Println("External instances added.")
 		},
 	}
 
@@ -684,12 +702,28 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 		Use:   "external:metrics name",
 		Short: "Remove external Prometheus exporters from metrics monitoring.",
 		Long:  `This command removes the given external Prometheus exporter to metrics monitoring.`,
+		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			if err := admin.RemoveExternalMetrics(context.TODO(), admin.ServiceName); err != nil {
 				fmt.Println("Error removing external metrics:", err)
 				os.Exit(1)
 			}
 			fmt.Println("External metrics removed.")
+		},
+	}
+	cmdRemoveExternalInstances = &cobra.Command{
+		Use:   "external:instances name [instance1] [instance2] ...",
+		Short: "Remove external Prometheus exporters instances from existing metrics monitoring job.",
+		Long: `This command removes external Prometheus exporters instances (scrape targets) from existing metrics monitoring job.
+		`,
+		Args: cobra.MinimumNArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			targets := args[1:] // first arg is admin.ServiceName
+			if err := admin.RemoveExternalInstances(context.TODO(), admin.ServiceName, targets); err != nil {
+				fmt.Println("Error removing external instances:", err)
+				os.Exit(1)
+			}
+			fmt.Println("External instances removed.")
 		},
 	}
 
@@ -1065,6 +1099,7 @@ func main() {
 		cmdAddMongoDBQueries,
 		cmdAddProxySQLMetrics,
 		cmdAddExternalMetrics,
+		cmdAddExternalInstances,
 	)
 	cmdRemove.AddCommand(
 		cmdRemoveMySQL,
@@ -1076,6 +1111,7 @@ func main() {
 		cmdRemoveMongoDBQueries,
 		cmdRemoveProxySQLMetrics,
 		cmdRemoveExternalMetrics,
+		cmdRemoveExternalInstances,
 	)
 
 	// Flags.

@@ -19,6 +19,7 @@ package managed
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -73,7 +74,7 @@ func NewClient(host string, scheme string, user *url.Userinfo, insecureSSL bool)
 	}
 }
 
-func (c *Client) do(method string, urlPath string, body interface{}, res interface{}) error {
+func (c *Client) do(ctx context.Context, method string, urlPath string, body interface{}, res interface{}) error {
 	var reqBody io.Reader
 	if body != nil {
 		b, err := json.Marshal(body)
@@ -93,6 +94,7 @@ func (c *Client) do(method string, urlPath string, body interface{}, res interfa
 	if err != nil {
 		return err
 	}
+	req = req.WithContext(ctx)
 
 	resp, err := c.client.Do(req)
 	if err != nil {
@@ -119,27 +121,26 @@ func (c *Client) do(method string, urlPath string, body interface{}, res interfa
 	return json.Unmarshal(b, res)
 }
 
-func (c *Client) ScrapeConfigsList() (*APIScrapeConfigsListResponse, error) {
+func (c *Client) ScrapeConfigsList(ctx context.Context) (*APIScrapeConfigsListResponse, error) {
 	res := new(APIScrapeConfigsListResponse)
-	if err := c.do("GET", "/v0/scrape-configs", nil, res); err != nil {
+	if err := c.do(ctx, "GET", "/v0/scrape-configs", nil, res); err != nil {
 		return nil, err
 	}
 	return res, nil
 }
 
-func (c *Client) ScrapeConfigsCreate(req *APIScrapeConfigsCreateRequest) error {
-	return c.do("POST", "/v0/scrape-configs", req, nil)
+func (c *Client) ScrapeConfigsCreate(ctx context.Context, req *APIScrapeConfigsCreateRequest) error {
+	return c.do(ctx, "POST", "/v0/scrape-configs", req, nil)
 }
 
-func (c *Client) ScrapeConfigsDelete(jobName string) error {
-	u := url.URL{Path: path.Join("/v0/scrape-configs", jobName)}
-	return c.do("DELETE", u.String(), nil, nil)
+func (c *Client) ScrapeConfigsDelete(ctx context.Context, jobName string) error {
+	return c.do(ctx, "DELETE", "/v0/scrape-configs/"+jobName, nil, nil)
 }
 
-func (c *Client) ScrapeConfigsAddStaticTargets() error {
-	return nil
+func (c *Client) ScrapeConfigsAddStaticTargets(ctx context.Context, req *APIScrapeConfigsAddStaticTargetsRequest) error {
+	return c.do(ctx, "POST", "/v0/scrape-configs/"+req.JobName+"/static-targets", req, nil)
 }
 
-func (c *Client) ScrapeConfigsRemoveStaticTargets() error {
-	return nil
+func (c *Client) ScrapeConfigsRemoveStaticTargets(ctx context.Context, req *APIScrapeConfigsRemoveStaticTargetsRequest) error {
+	return c.do(ctx, "DELETE", "/v0/scrape-configs/"+req.JobName+"/static-targets", req, nil)
 }

@@ -83,3 +83,19 @@ type APIScrapeConfigsCreateRequest struct {
 	// scrape config
 	ScrapeConfig *APIScrapeConfig `json:"scrape_config,omitempty"`
 }
+
+type APIScrapeConfigsAddStaticTargetsRequest struct {
+	// job name
+	JobName string `json:"job_name,omitempty"`
+
+	// Hostnames or IPs followed by an optional port number: "1.2.3.4:9090"
+	Targets []string `json:"targets"`
+}
+
+type APIScrapeConfigsRemoveStaticTargetsRequest struct {
+	// job name
+	JobName string `json:"job_name,omitempty"`
+
+	// Hostnames or IPs followed by an optional port number: "1.2.3.4:9090"
+	Targets []string `json:"targets"`
+}
