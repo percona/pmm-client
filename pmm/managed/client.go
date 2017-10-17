@@ -44,12 +44,13 @@ type Client struct {
 	client   *http.Client
 	host     string
 	scheme   string
+	user     *url.Userinfo
 	basePath string
 }
 
 const debug = false
 
-func NewClient(host string, scheme string, insecureSSL bool) *Client {
+func NewClient(host string, scheme string, user *url.Userinfo, insecureSSL bool) *Client {
 	transport := &http.Transport{}
 	if insecureSSL {
 		transport.TLSClientConfig = &tls.Config{
@@ -67,6 +68,7 @@ func NewClient(host string, scheme string, insecureSSL bool) *Client {
 		client:   client,
 		host:     host,
 		scheme:   scheme,
+		user:     user,
 		basePath: "/managed",
 	}
 }
@@ -83,6 +85,7 @@ func (c *Client) do(method string, urlPath string, body interface{}, res interfa
 
 	u := url.URL{
 		Scheme: c.scheme,
+		User:   c.user,
 		Host:   c.host,
 		Path:   path.Join(c.basePath, urlPath),
 	}
