@@ -19,6 +19,7 @@ package pmm
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"sort"
 	"strings"
@@ -68,12 +69,13 @@ func (s sortOutput) Less(i, j int) bool {
 type List struct {
 	Version string
 	ServerInfo
-	Platform string
-	Err      string
-	Services []ServiceStatus
+	Platform         string
+	Err              string
+	Services         []ServiceStatus
+	ExternalServices []ExternalMetrics
 }
 
-// Table formats *List.Services as table and returns result as string
+// Table formats *List.Services as table and returns result as string.
 func (l *List) Table() string {
 	// Print table.
 	maxTypeLen := len("SERVICE TYPE")
@@ -120,6 +122,19 @@ func (l *List) Table() string {
 	return out
 }
 
+// ExternalTable formats *List.ExternalServices as table and returns result as string.
+func (l *List) ExternalTable() string {
+	var buf bytes.Buffer
+	w := tabwriter.NewWriter(&buf, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(w, "Name\tScrape interval\tScrape timeout\tMetrics path\tScheme\tInstances")
+	for _, ext := range l.ExternalServices {
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
+			ext.JobName, ext.ScrapeInterval, ext.ScrapeTimeout, ext.MetricsPath, ext.Scheme, strings.Join(ext.StaticTargets, ", "))
+	}
+	w.Flush()
+	return buf.String()
+}
+
 // Format formats *List with provided format template and returns result as string.
 func (l *List) Format(format string) string {
 	b := &bytes.Buffer{}
@@ -153,7 +168,8 @@ const (
 {{printf "%-15s | %s" "Service Manager" .Platform}}
 {{if .Err}}
 {{.Err}}{{end}}
-{{if .Services}}{{.Table}}{{end}}`
+{{if .Services}}{{.Table}}{{end}}
+{{if .ExternalServices}}{{.ExternalTable}}{{end}}`
 )
 
 // List prints to stdout all services from Consul.
@@ -167,6 +183,13 @@ func (a *Admin) List() error {
 	defer func() {
 		fmt.Print(l.Format(a.Format))
 	}()
+
+	var err error
+	l.ExternalServices, err = a.ListExternalMetrics(context.TODO())
+	if err != nil {
+		l.Err = err.Error()
+		return nil
+	}
 
 	node, _, err := a.consulAPI.Catalog().Node(a.Config.ClientName, nil)
 	if err != nil || node == nil {

@@ -29,6 +29,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/percona/pmm-client/pmm/utils"
 )
 
 type API struct {
@@ -169,7 +171,7 @@ func (a *API) NewClient() *http.Client {
 	}
 	if a.debug {
 		// if api is in debug mode we should log every request and response
-		client.Transport = NewDebugRoundTripper(client.Transport)
+		client.Transport = utils.NewDebugRoundTripper(client.Transport)
 	}
 	return client
 }

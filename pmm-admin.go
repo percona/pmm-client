@@ -18,10 +18,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/percona/pmm-client/pmm"
 	"github.com/spf13/cobra"
@@ -463,6 +465,45 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 			fmt.Println("OK, now monitoring ProxySQL metrics using DSN", pmm.SanitizeDSN(flagDSN))
 		},
 	}
+	cmdAddExternalMetrics = &cobra.Command{
+		Use:   "external:metrics name [instance1] [instance2] ...",
+		Short: "Add external Prometheus exporters job to metrics monitoring.",
+		Long: `This command adds external Prometheus exporters job with given name to metrics monitoring.
+
+An optional list of instances (scrape targets) can be provided.
+		`,
+		Args: cobra.MinimumNArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			exp := &pmm.ExternalMetrics{
+				JobName:        admin.ServiceName,
+				ScrapeInterval: flagExtInterval,
+				ScrapeTimeout:  flagExtTimeout,
+				MetricsPath:    flagExtPath,
+				Scheme:         flagExtScheme,
+				StaticTargets:  args[1:], // first arg is admin.ServiceName
+			}
+			if err := admin.AddExternalMetrics(context.TODO(), exp); err != nil {
+				fmt.Println("Error adding external metrics:", err)
+				os.Exit(1)
+			}
+			fmt.Println("External metrics added.")
+		},
+	}
+	cmdAddExternalInstances = &cobra.Command{
+		Use:   "external:instances name [instance1] [instance2] ...",
+		Short: "Add external Prometheus exporters instances to existing metrics monitoring job.",
+		Long: `This command adds external Prometheus exporters instances (scrape targets) to existing metrics monitoring job.
+		`,
+		Args: cobra.MinimumNArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			targets := args[1:] // first arg is admin.ServiceName
+			if err := admin.AddExternalInstances(context.TODO(), admin.ServiceName, targets); err != nil {
+				fmt.Println("Error adding external instances:", err)
+				os.Exit(1)
+			}
+			fmt.Println("External instances added.")
+		},
+	}
 
 	cmdRemove = &cobra.Command{
 		Use:     "remove",
@@ -657,14 +698,42 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 		},
 	}
 
+	cmdRemoveExternalMetrics = &cobra.Command{
+		Use:   "external:metrics name",
+		Short: "Remove external Prometheus exporters from metrics monitoring.",
+		Long:  `This command removes the given external Prometheus exporter to metrics monitoring.`,
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := admin.RemoveExternalMetrics(context.TODO(), admin.ServiceName); err != nil {
+				fmt.Println("Error removing external metrics:", err)
+				os.Exit(1)
+			}
+			fmt.Println("External metrics removed.")
+		},
+	}
+	cmdRemoveExternalInstances = &cobra.Command{
+		Use:   "external:instances name [instance1] [instance2] ...",
+		Short: "Remove external Prometheus exporters instances from existing metrics monitoring job.",
+		Long: `This command removes external Prometheus exporters instances (scrape targets) from existing metrics monitoring job.
+		`,
+		Args: cobra.MinimumNArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			targets := args[1:] // first arg is admin.ServiceName
+			if err := admin.RemoveExternalInstances(context.TODO(), admin.ServiceName, targets); err != nil {
+				fmt.Println("Error removing external instances:", err)
+				os.Exit(1)
+			}
+			fmt.Println("External instances removed.")
+		},
+	}
+
 	cmdList = &cobra.Command{
 		Use:     "list",
 		Aliases: []string{"ls"},
 		Short:   "List monitoring services for this system.",
 		Long:    "This command displays the list of monitoring services and their details.",
 		Run: func(cmd *cobra.Command, args []string) {
-			err := admin.List()
-			if err != nil {
+			if err := admin.List(); err != nil {
 				fmt.Println("Error listing instances:", err)
 				os.Exit(1)
 			}
@@ -994,6 +1063,9 @@ despite PMM server is alive or not.
 
 	flagServicePort int
 
+	flagExtInterval, flagExtTimeout time.Duration
+	flagExtPath, flagExtScheme      string
+
 	flagM pmm.MySQLFlags
 	flagC pmm.Config
 )
@@ -1026,6 +1098,8 @@ func main() {
 		cmdAddMongoDBMetrics,
 		cmdAddMongoDBQueries,
 		cmdAddProxySQLMetrics,
+		cmdAddExternalMetrics,
+		cmdAddExternalInstances,
 	)
 	cmdRemove.AddCommand(
 		cmdRemoveMySQL,
@@ -1036,6 +1110,8 @@ func main() {
 		cmdRemoveMongoDBMetrics,
 		cmdRemoveMongoDBQueries,
 		cmdRemoveProxySQLMetrics,
+		cmdRemoveExternalMetrics,
+		cmdRemoveExternalInstances,
 	)
 
 	// Flags.
@@ -1100,9 +1176,15 @@ func main() {
 
 	cmdAddProxySQLMetrics.Flags().StringVar(&flagDSN, "dsn", "stats:stats@tcp(localhost:6032)/", "ProxySQL connection DSN")
 
+	cmdAddExternalMetrics.Flags().DurationVar(&flagExtInterval, "interval", 0, "scrape interval")
+	cmdAddExternalMetrics.Flags().DurationVar(&flagExtTimeout, "timeout", 0, "scrape timeout")
+	cmdAddExternalMetrics.Flags().StringVar(&flagExtPath, "path", "", "metrics path")
+	cmdAddExternalMetrics.Flags().StringVar(&flagExtScheme, "scheme", "", "protocol scheme for scrapes")
+
+	cmdRemove.Flags().BoolVar(&flagAll, "all", false, "remove all monitoring services")
+
 	cmdList.Flags().StringVar(&flagFormat, "format", "", "print result using a Go template")
 	cmdList.Flags().BoolVar(&flagJson, "json", false, "print result as json")
-	cmdRemove.Flags().BoolVar(&flagAll, "all", false, "remove all monitoring services")
 
 	cmdStart.Flags().BoolVar(&flagAll, "all", false, "start all monitoring services")
 	cmdStop.Flags().BoolVar(&flagAll, "all", false, "stop all monitoring services")

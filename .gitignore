@@ -1,6 +1,7 @@
 *.tmp
 *.swp
 *.log
+.vscode/
 distro/
 pmm-admin
 pmm.yml

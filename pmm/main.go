@@ -43,6 +43,8 @@ import (
 	consul "github.com/hashicorp/consul/api"
 	"github.com/percona/kardianos-service"
 	"github.com/prometheus/client_golang/api/prometheus"
+
+	"github.com/percona/pmm-client/pmm/managed"
 )
 
 // Admin main class.
@@ -58,10 +60,11 @@ type Admin struct {
 	qanAPI       *API
 	consulAPI    *consul.Client
 	promQueryAPI prometheus.QueryAPI
+	managedAPI   *managed.Client
 	//promSeriesAPI prometheus.SeriesAPI
 }
 
-// SetAPI setup Consul, QAN, Prometheus APIs and verify connection.
+// SetAPI setups QAN, Consul, Prometheus, pmm-managed clients and verifies connections.
 func (a *Admin) SetAPI() error {
 	// Set default API timeout if unset.
 	if a.apiTimeout == 0 {
@@ -117,8 +120,8 @@ func (a *Admin) SetAPI() error {
 	//a.promSeriesAPI = prometheus.NewSeriesAPI(client)
 
 	// Check if server is alive.
-	url := a.qanAPI.URL(a.serverURL)
-	resp, _, err := a.qanAPI.Get(url)
+	qanURL := a.qanAPI.URL(a.serverURL)
+	resp, _, err := a.qanAPI.Get(qanURL)
 	if err != nil {
 		if strings.Contains(err.Error(), "x509: cannot validate certificate") {
 			return fmt.Errorf(`Unable to connect to PMM server by address: %s
@@ -159,8 +162,8 @@ Check if the configured address is correct. %s`, a.Config.ServerAddress, err)
 
 	// Check if server is not password protected but client is configured so.
 	if a.Config.ServerUser != "" {
-		url = fmt.Sprintf("%s://%s", scheme, a.Config.ServerAddress)
-		if resp, _, err := a.qanAPI.Get(url); err == nil && resp.StatusCode == http.StatusOK {
+		qanURL = fmt.Sprintf("%s://%s", scheme, a.Config.ServerAddress)
+		if resp, _, err := a.qanAPI.Get(qanURL); err == nil && resp.StatusCode == http.StatusOK {
 			return fmt.Errorf(`This client is configured with HTTP basic authentication.
 However, PMM server is not.
 
@@ -170,6 +173,12 @@ Otherwise, run the following command to reset the config and disable authenticat
 pmm-admin config --server %s %s`, a.Config.ServerAddress, helpText)
 		}
 	}
+
+	var user *url.Userinfo
+	if a.Config.ServerUser != "" {
+		user = url.UserPassword(a.Config.ServerUser, a.Config.ServerPassword)
+	}
+	a.managedAPI = managed.NewClient(a.Config.ServerAddress, scheme, user, a.Config.ServerInsecureSSL)
 
 	return nil
 }
