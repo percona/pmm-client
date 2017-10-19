@@ -37,7 +37,7 @@ type Error struct {
 	Code int    `json:"code"`
 }
 
-func (e Error) Error() string {
+func (e *Error) Error() string {
 	return e.Err
 }
 
@@ -112,7 +112,7 @@ func (c *Client) do(ctx context.Context, method string, urlPath string, body int
 			// They can retry with --verbose to see the gory details.
 			return fmt.Errorf("status code %d (%s)", resp.StatusCode, resp.Header.Get("Content-Type"))
 		}
-		return e
+		return &e
 	}
 
 	if res == nil {
