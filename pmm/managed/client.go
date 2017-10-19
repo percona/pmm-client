@@ -49,9 +49,7 @@ type Client struct {
 	basePath string
 }
 
-const debug = false
-
-func NewClient(host string, scheme string, user *url.Userinfo, insecureSSL bool) *Client {
+func NewClient(host string, scheme string, user *url.Userinfo, insecureSSL bool, verbose bool) *Client {
 	transport := &http.Transport{}
 	if insecureSSL {
 		transport.TLSClientConfig = &tls.Config{
@@ -61,7 +59,7 @@ func NewClient(host string, scheme string, user *url.Userinfo, insecureSSL bool)
 	client := &http.Client{
 		Transport: transport,
 	}
-	if debug {
+	if verbose {
 		client.Transport = utils.NewDebugRoundTripper(client.Transport)
 	}
 

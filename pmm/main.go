@@ -178,7 +178,7 @@ pmm-admin config --server %s %s`, a.Config.ServerAddress, helpText)
 	if a.Config.ServerUser != "" {
 		user = url.UserPassword(a.Config.ServerUser, a.Config.ServerPassword)
 	}
-	a.managedAPI = managed.NewClient(a.Config.ServerAddress, scheme, user, a.Config.ServerInsecureSSL)
+	a.managedAPI = managed.NewClient(a.Config.ServerAddress, scheme, user, a.Config.ServerInsecureSSL, a.Verbose)
 
 	return nil
 }
