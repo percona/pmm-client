@@ -94,7 +94,7 @@ func (a *Admin) AddExternalMetrics(ctx context.Context, ext *ExternalMetrics) er
 			StaticConfigs:  sc,
 		},
 	})
-	if _, ok := err.(*managed.Error); !ok {
+	if _, ok := err.(*managed.Error); err != nil && !ok {
 		return fmt.Errorf("%s\nPlease check versions of your PMM Server and PMM Client.", err)
 	}
 	return err
@@ -103,7 +103,7 @@ func (a *Admin) AddExternalMetrics(ctx context.Context, ext *ExternalMetrics) er
 // RemoveExternalMetrics removes external Prometheus scrape job and targets.
 func (a *Admin) RemoveExternalMetrics(ctx context.Context, name string) error {
 	err := a.managedAPI.ScrapeConfigsDelete(ctx, name)
-	if _, ok := err.(*managed.Error); !ok {
+	if _, ok := err.(*managed.Error); err != nil && !ok {
 		return fmt.Errorf("%s\nPlease check versions of your PMM Server and PMM Client.", err)
 	}
 	return err
@@ -115,7 +115,7 @@ func (a *Admin) AddExternalInstances(ctx context.Context, name string, targets [
 		JobName: name,
 		Targets: targets,
 	})
-	if _, ok := err.(*managed.Error); !ok {
+	if _, ok := err.(*managed.Error); err != nil && !ok {
 		return fmt.Errorf("%s\nPlease check versions of your PMM Server and PMM Client.", err)
 	}
 	return err
@@ -127,7 +127,7 @@ func (a *Admin) RemoveExternalInstances(ctx context.Context, name string, target
 		JobName: name,
 		Targets: targets,
 	})
-	if _, ok := err.(*managed.Error); !ok {
+	if _, ok := err.(*managed.Error); err != nil && !ok {
 		return fmt.Errorf("%s\nPlease check versions of your PMM Server and PMM Client.", err)
 	}
 	return err
