@@ -108,7 +108,9 @@ func (c *Client) do(ctx context.Context, method string, urlPath string, body int
 	if resp.StatusCode >= 400 {
 		var e Error
 		if err = json.Unmarshal(b, &e); err != nil {
-			return fmt.Errorf("%d: %s (%s)", resp.StatusCode, e.Error(), b)
+			// Do not dump HTML from nginx by default, but give user an idea that something is very wrong.
+			// They can retry with --verbose to see the gory details.
+			return fmt.Errorf("status code %d (%s)", resp.StatusCode, resp.Header.Get("Content-Type"))
 		}
 		return e
 	}
