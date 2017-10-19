@@ -465,6 +465,7 @@ func testList(t *testing.T, data pmmAdminData) {
 	}
 	fapi.AppendConsulV1CatalogNode(clientName, node)
 	fapi.AppendConsulV1KV()
+	fapi.AppendManaged()
 
 	os.MkdirAll(data.rootDir+pmm.PMMBaseDir, 0777)
 	os.Create(data.rootDir + pmm.PMMBaseDir + "/node_exporter")
@@ -642,6 +643,7 @@ mysql:queries    test-client-name  -           YES                 - \s*
 					Running: true,
 				},
 			},
+			ExternalServices: []pmm.ExternalMetrics{},
 		}
 		got := pmm.List{}
 		err = json.Unmarshal(output, &got)
@@ -1423,10 +1425,10 @@ func assertRegexpLines(t *testing.T, rx string, str string, msgAndArgs ...interf
 		case asOk && esOk:
 			ok = ok && assert.Regexp(t, "^"+expectedScanner.Text()+"$", actualScanner.Text(), msgAndArgs...)
 		case asOk:
-			t.Errorf("didn't expect more lines but got: %s", actualScanner.Text())
+			t.Errorf("didn't expect more lines but got: %#q", actualScanner.Text())
 			ok = false
 		case esOk:
-			t.Errorf("didn't got line but expected it to match against: %s", expectedScanner.Text())
+			t.Errorf("didn't got line but expected it to match against: %#q", expectedScanner.Text())
 			ok = false
 		default:
 			return ok

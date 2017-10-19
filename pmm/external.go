@@ -19,6 +19,7 @@ package pmm
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/percona/pmm-client/pmm/managed"
@@ -40,7 +41,11 @@ type ExternalMetrics struct {
 func (a *Admin) ListExternalMetrics(ctx context.Context) ([]ExternalMetrics, error) {
 	resp, err := a.managedAPI.ScrapeConfigsList(ctx)
 	if err != nil {
-		return nil, err
+		msg := fmt.Sprintf("Error getting a list of external metrics: %s.", err)
+		if _, ok := err.(*managed.Error); !ok {
+			msg += "\nPlease check versions of your PMM Server and PMM Client."
+		}
+		return nil, fmt.Errorf("%s", msg)
 	}
 
 	res := make([]ExternalMetrics, len(resp.ScrapeConfigs))
@@ -79,7 +84,7 @@ func (a *Admin) AddExternalMetrics(ctx context.Context, ext *ExternalMetrics) er
 		sc[0].Targets = append(sc[0].Targets, t)
 	}
 
-	return a.managedAPI.ScrapeConfigsCreate(ctx, &managed.APIScrapeConfigsCreateRequest{
+	err := a.managedAPI.ScrapeConfigsCreate(ctx, &managed.APIScrapeConfigsCreateRequest{
 		ScrapeConfig: &managed.APIScrapeConfig{
 			JobName:        ext.JobName,
 			ScrapeInterval: ext.ScrapeInterval.String(),
@@ -89,25 +94,41 @@ func (a *Admin) AddExternalMetrics(ctx context.Context, ext *ExternalMetrics) er
 			StaticConfigs:  sc,
 		},
 	})
+	if _, ok := err.(*managed.Error); !ok {
+		return fmt.Errorf("%s\nPlease check versions of your PMM Server and PMM Client.", err)
+	}
+	return err
 }
 
 // RemoveExternalMetrics removes external Prometheus scrape job and targets.
 func (a *Admin) RemoveExternalMetrics(ctx context.Context, name string) error {
-	return a.managedAPI.ScrapeConfigsDelete(ctx, name)
+	err := a.managedAPI.ScrapeConfigsDelete(ctx, name)
+	if _, ok := err.(*managed.Error); !ok {
+		return fmt.Errorf("%s\nPlease check versions of your PMM Server and PMM Client.", err)
+	}
+	return err
 }
 
 // AddExternalInstances adds targets to existing scrape job.
 func (a *Admin) AddExternalInstances(ctx context.Context, name string, targets []string) error {
-	return a.managedAPI.ScrapeConfigsAddStaticTargets(ctx, &managed.APIScrapeConfigsAddStaticTargetsRequest{
+	err := a.managedAPI.ScrapeConfigsAddStaticTargets(ctx, &managed.APIScrapeConfigsAddStaticTargetsRequest{
 		JobName: name,
 		Targets: targets,
 	})
+	if _, ok := err.(*managed.Error); !ok {
+		return fmt.Errorf("%s\nPlease check versions of your PMM Server and PMM Client.", err)
+	}
+	return err
 }
 
 // RemoveExternalInstances removes targets from existing scrape job.
 func (a *Admin) RemoveExternalInstances(ctx context.Context, name string, targets []string) error {
-	return a.managedAPI.ScrapeConfigsRemoveStaticTargets(ctx, &managed.APIScrapeConfigsRemoveStaticTargetsRequest{
+	err := a.managedAPI.ScrapeConfigsRemoveStaticTargets(ctx, &managed.APIScrapeConfigsRemoveStaticTargetsRequest{
 		JobName: name,
 		Targets: targets,
 	})
+	if _, ok := err.(*managed.Error); !ok {
+		return fmt.Errorf("%s\nPlease check versions of your PMM Server and PMM Client.", err)
+	}
+	return err
 }

@@ -72,6 +72,7 @@ type List struct {
 	Platform         string
 	Err              string
 	Services         []ServiceStatus
+	ExternalErr      string
 	ExternalServices []ExternalMetrics
 }
 
@@ -169,6 +170,7 @@ const (
 {{if .Err}}
 {{.Err}}{{end}}
 {{if .Services}}{{.Table}}{{end}}
+{{if .ExternalErr}}{{.ExternalErr}}{{end}}
 {{if .ExternalServices}}{{.ExternalTable}}{{end}}`
 )
 
@@ -187,8 +189,7 @@ func (a *Admin) List() error {
 	var err error
 	l.ExternalServices, err = a.ListExternalMetrics(context.TODO())
 	if err != nil {
-		l.Err = err.Error()
-		return nil
+		l.ExternalErr = err.Error()
 	}
 
 	node, _, err := a.consulAPI.Catalog().Node(a.Config.ClientName, nil)

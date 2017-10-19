@@ -201,3 +201,10 @@ func (f *FakeApi) AppendQanAPIAgents(id string) {
 
 	})
 }
+
+func (f *FakeApi) AppendManaged() {
+	f.Append("/managed/v0/scrape-configs", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte("{}"))
+	})
+}

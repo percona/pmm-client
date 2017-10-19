@@ -37,7 +37,7 @@ type Error struct {
 	Code int    `json:"code"`
 }
 
-func (e Error) Error() string {
+func (e *Error) Error() string {
 	return e.Err
 }
 
@@ -49,9 +49,7 @@ type Client struct {
 	basePath string
 }
 
-const debug = false
-
-func NewClient(host string, scheme string, user *url.Userinfo, insecureSSL bool) *Client {
+func NewClient(host string, scheme string, user *url.Userinfo, insecureSSL bool, verbose bool) *Client {
 	transport := &http.Transport{}
 	if insecureSSL {
 		transport.TLSClientConfig = &tls.Config{
@@ -61,7 +59,7 @@ func NewClient(host string, scheme string, user *url.Userinfo, insecureSSL bool)
 	client := &http.Client{
 		Transport: transport,
 	}
-	if debug {
+	if verbose {
 		client.Transport = utils.NewDebugRoundTripper(client.Transport)
 	}
 
@@ -110,9 +108,11 @@ func (c *Client) do(ctx context.Context, method string, urlPath string, body int
 	if resp.StatusCode >= 400 {
 		var e Error
 		if err = json.Unmarshal(b, &e); err != nil {
-			return fmt.Errorf("%d: %s (%s)", resp.StatusCode, e.Error(), b)
+			// Do not dump HTML from nginx by default, but give user an idea that something is very wrong.
+			// They can retry with --verbose to see the gory details.
+			return fmt.Errorf("status code %d (%s)", resp.StatusCode, resp.Header.Get("Content-Type"))
 		}
-		return e
+		return &e
 	}
 
 	if res == nil {
