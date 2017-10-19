@@ -19,6 +19,7 @@ package pmm
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/percona/pmm-client/pmm/managed"
@@ -40,7 +41,7 @@ type ExternalMetrics struct {
 func (a *Admin) ListExternalMetrics(ctx context.Context) ([]ExternalMetrics, error) {
 	resp, err := a.managedAPI.ScrapeConfigsList(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Error getting a list of external metrics: %s.", err)
 	}
 
 	res := make([]ExternalMetrics, len(resp.ScrapeConfigs))
