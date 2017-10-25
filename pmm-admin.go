@@ -701,7 +701,7 @@ An optional list of instances (scrape targets) can be provided.
 	cmdRemoveExternalMetrics = &cobra.Command{
 		Use:   "external:metrics name",
 		Short: "Remove external Prometheus exporters from metrics monitoring.",
-		Long:  `This command removes the given external Prometheus exporter to metrics monitoring.`,
+		Long:  `This command removes the given external Prometheus exporter from metrics monitoring.`,
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			if err := admin.RemoveExternalMetrics(context.TODO(), admin.ServiceName); err != nil {
