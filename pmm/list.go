@@ -162,16 +162,17 @@ func (l *List) Format(format string) string {
 	return b.String()
 }
 
+// each non-empty field value must end with newline
 const (
 	DefaultListTemplate = `pmm-admin {{.Version}}
 
 {{template "ServerInfo" .ServerInfo}}
 {{printf "%-15s | %s" "Service Manager" .Platform}}
 {{if .Err}}
-{{.Err}}{{end}}
-{{if .Services}}{{.Table}}{{end}}
-{{if .ExternalErr}}{{.ExternalErr}}{{end}}
-{{if .ExternalServices}}{{.ExternalTable}}{{end}}`
+{{.Err}}{{end}}{{if .Services}}
+{{.Table}}{{end}}{{if .ExternalErr}}
+{{.ExternalErr}}{{end}}{{if .ExternalServices}}
+{{.ExternalTable}}{{end}}`
 )
 
 // List prints to stdout all services from Consul.
@@ -189,17 +190,17 @@ func (a *Admin) List() error {
 	var err error
 	l.ExternalServices, err = a.ListExternalMetrics(context.TODO())
 	if err != nil {
-		l.ExternalErr = err.Error()
+		l.ExternalErr = err.Error() + "\n"
 	}
 
 	node, _, err := a.consulAPI.Catalog().Node(a.Config.ClientName, nil)
 	if err != nil || node == nil {
-		l.Err = fmt.Sprintf("%s '%s'.", noMonitoring, a.Config.ClientName)
+		l.Err = fmt.Sprintf("%s '%s'.\n", noMonitoring, a.Config.ClientName)
 		return nil
 	}
 
 	if len(node.Services) == 0 {
-		l.Err = fmt.Sprint("No services under monitoring.")
+		l.Err = fmt.Sprint("No services under monitoring.\n")
 		return nil
 	}
 
