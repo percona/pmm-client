@@ -35,8 +35,8 @@ var (
 	rootCmd = &cobra.Command{
 		Use: "pmm-admin",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			// NOTE: this function pre-runs with every command or sub-command with
-			// the only exception "pmm-admin config" which bypasses it.
+			// This function pre-runs with every command or sub-command.
+			// Two exceptions are "pmm-admin config" and "pmm-admin uninstall" which bypass it.
 
 			// Skip pre-run for "help" command.
 			// You should always be able to get help even if pmm is not configured yet.
