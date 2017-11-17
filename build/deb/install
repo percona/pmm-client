@@ -3,8 +3,8 @@ node_exporter /usr/local/percona/pmm-client/
 mysqld_exporter /usr/local/percona/pmm-client/
 mongodb_exporter /usr/local/percona/pmm-client/
 proxysql_exporter /usr/local/percona/pmm-client/
-pt-summary /usr/local/percona/pmm-client/
-pt-mysql-summary /usr/local/percona/pmm-client/
-pt-mongodb-summary /usr/local/percona/pmm-client/
+pt-summary /usr/local/percona/qan-agent/bin/
+pt-mysql-summary /usr/local/percona/qan-agent/bin/
+pt-mongodb-summary /usr/local/percona/qan-agent/bin/
 percona-qan-agent /usr/local/percona/qan-agent/bin/
 percona-qan-agent-installer /usr/local/percona/qan-agent/bin/
