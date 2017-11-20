@@ -147,7 +147,7 @@ func (a *Admin) registerAgent() error {
 	os.RemoveAll(fmt.Sprintf("%s/%s", AgentBaseDir, "instance"))
 
 	path := fmt.Sprintf("%s/bin/percona-qan-agent-installer", AgentBaseDir)
-	args := []string{"-basedir", AgentBaseDir, "-mysql=false"}
+	args := []string{"-basedir", AgentBaseDir}
 	if a.Config.ServerSSL {
 		args = append(args, "-use-ssl")
 	}
