@@ -2,6 +2,14 @@
 for file in $(find -L /etc/init.d -maxdepth 1 -name "pmm-*")
 do
     sed -i 's:for i in {1..10}:for i in $(seq 1 10):' "$file"
+    sed -i 's|^name=$(basename $0)|name=$(basename $(readlink -f $0))|' "$file"
+done
+for file in $(find -L /etc/systemd/system -maxdepth 1 -name "pmm-*")
+do
+    network_exists=$(grep -c "network.target" "$file")
+    if [ $network_exists = 0 ]; then
+        sed -i 's/Unit]/Unit]\nAfter=network.target\nAfter=syslog.target/' "$file"
+    fi
 done
 pmm-admin ping > /dev/null
 if [ $? = 0 ]; then
