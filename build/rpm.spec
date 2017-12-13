@@ -51,6 +51,20 @@ rm -rf $RPM_BUILD_ROOT
 # upgrade
 pmm-admin ping > /dev/null
 if [ $? = 0 ] && [ "$1" = "2" ]; then
+%if 0%{?rhel} == 6
+    for file in $(find -L /etc/init.d -maxdepth 1 -name "pmm-*")
+    do
+        sed -i 's|^name=$(basename $0)|name=$(basename $(readlink -f $0))|' "$file"
+    done
+%else
+    for file in $(find -L /etc/systemd/system -maxdepth 1 -name "pmm-*")
+    do
+        network_exists=$(grep -c "network.target" "$file")
+        if [ $network_exists = 0 ]; then
+            sed -i 's/Unit]/Unit]\nAfter=network.target\nAfter=syslog.target/' "$file"
+        fi
+    done
+%endif
     pmm-admin restart --all
 fi
 
