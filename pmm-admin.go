@@ -179,7 +179,7 @@ run 'pmm-admin repair' to remove orphaned services. Otherwise, please reinstall 
 		},
 	}
 	cmdAddMySQL = &cobra.Command{
-		Use:   "mysql [name]",
+		Use:   "mysql [flags] [name]",
 		Short: "Add complete monitoring for MySQL instance (linux and mysql metrics, queries).",
 		Long: `This command adds the given MySQL instance to system, metrics and queries monitoring.
 
@@ -252,7 +252,7 @@ Table statistics is automatically disabled when there are more than 10000 tables
 		},
 	}
 	cmdAddLinuxMetrics = &cobra.Command{
-		Use:   "linux:metrics [name] [flags] [-- exporter_args]",
+		Use:   "linux:metrics [flags] [name] [-- exporter_args]",
 		Short: "Add this system to metrics monitoring.",
 		Long: `This command adds this system to linux metrics monitoring.
 
@@ -272,7 +272,7 @@ However, you can add another one with the different name just for testing purpos
 		},
 	}
 	cmdAddMySQLMetrics = &cobra.Command{
-		Use:   "mysql:metrics [name] [flags] [-- exporter_args]",
+		Use:   "mysql:metrics [flags] [name] [-- exporter_args]",
 		Short: "Add MySQL instance to metrics monitoring.",
 		Long: `This command adds the given MySQL instance to metrics monitoring.
 
@@ -305,7 +305,7 @@ Table statistics is automatically disabled when there are more than 10000 tables
 		},
 	}
 	cmdAddMySQLQueries = &cobra.Command{
-		Use:   "mysql:queries [name]",
+		Use:   "mysql:queries [flags] [name]",
 		Short: "Add MySQL instance to Query Analytics.",
 		Long: `This command adds the given MySQL instance to Query Analytics.
 
@@ -339,7 +339,7 @@ a new user 'pmm@' automatically using the given (auto-detected) MySQL credential
 		},
 	}
 	cmdAddMongoDB = &cobra.Command{
-		Use:   "mongodb [name]",
+		Use:   "mongodb [flags] [name]",
 		Short: "Add complete monitoring for MongoDB instance (linux and mongodb metrics, queries).",
 		Long: `This command adds the given MongoDB instance to system, metrics and queries monitoring.
 
@@ -401,7 +401,7 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 		},
 	}
 	cmdAddMongoDBMetrics = &cobra.Command{
-		Use:   "mongodb:metrics [name] [flags] [-- exporter_args]",
+		Use:   "mongodb:metrics [flags] [name] [-- exporter_args]",
 		Short: "Add MongoDB instance to metrics monitoring.",
 		Long: `This command adds the given MongoDB instance to metrics monitoring.
 
@@ -426,7 +426,7 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 		},
 	}
 	cmdAddMongoDBQueries = &cobra.Command{
-		Use:   "mongodb:queries [name]",
+		Use:   "mongodb:queries [flags] [name]",
 		Short: "Add MongoDB instance to Query Analytics.",
 		Long: `This command adds the given MongoDB instance to Query Analytics.
 
@@ -453,7 +453,7 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 		},
 	}
 	cmdAddProxySQLMetrics = &cobra.Command{
-		Use:   "proxysql:metrics [name] [flags] [-- exporter_args]",
+		Use:   "proxysql:metrics [flags] [name] [-- exporter_args]",
 		Short: "Add ProxySQL instance to metrics monitoring.",
 		Long: `This command adds the given ProxySQL instance to metrics monitoring.
 
@@ -543,7 +543,7 @@ An optional list of instances (scrape targets) can be provided.
 		},
 	}
 	cmdRemoveMySQL = &cobra.Command{
-		Use:   "mysql [name]",
+		Use:   "mysql [flags] [name]",
 		Short: "Remove all monitoring for MySQL instance (linux and mysql metrics, queries).",
 		Long: `This command removes all monitoring for MySQL instance (linux and mysql metrics, queries).
 
@@ -579,7 +579,7 @@ An optional list of instances (scrape targets) can be provided.
 		},
 	}
 	cmdRemoveLinuxMetrics = &cobra.Command{
-		Use:   "linux:metrics [name]",
+		Use:   "linux:metrics [flags] [name]",
 		Short: "Remove this system from metrics monitoring.",
 		Long: `This command removes this system from linux metrics monitoring.
 
@@ -594,7 +594,7 @@ An optional list of instances (scrape targets) can be provided.
 		},
 	}
 	cmdRemoveMySQLMetrics = &cobra.Command{
-		Use:   "mysql:metrics [name]",
+		Use:   "mysql:metrics [flags] [name]",
 		Short: "Remove MySQL instance from metrics monitoring.",
 		Long: `This command removes MySQL instance from metrics monitoring.
 
@@ -609,7 +609,7 @@ An optional list of instances (scrape targets) can be provided.
 		},
 	}
 	cmdRemoveMySQLQueries = &cobra.Command{
-		Use:   "mysql:queries [name]",
+		Use:   "mysql:queries [flags] [name]",
 		Short: "Remove MySQL instance from Query Analytics.",
 		Long: `This command removes MySQL instance from Query Analytics.
 
@@ -624,7 +624,7 @@ An optional list of instances (scrape targets) can be provided.
 		},
 	}
 	cmdRemoveMongoDB = &cobra.Command{
-		Use:   "mongodb [name]",
+		Use:   "mongodb [flags] [name]",
 		Short: "Remove all monitoring for MongoDB instance (linux and mongodb metrics).",
 		Long: `This command removes all monitoring for MongoDB instance (linux and mongodb metrics).
 
@@ -660,7 +660,7 @@ An optional list of instances (scrape targets) can be provided.
 		},
 	}
 	cmdRemoveMongoDBMetrics = &cobra.Command{
-		Use:   "mongodb:metrics [name]",
+		Use:   "mongodb:metrics [flags] [name]",
 		Short: "Remove MongoDB instance from metrics monitoring.",
 		Long: `This command removes MongoDB instance from metrics monitoring.
 
@@ -675,7 +675,7 @@ An optional list of instances (scrape targets) can be provided.
 		},
 	}
 	cmdRemoveMongoDBQueries = &cobra.Command{
-		Use:   "mongodb:queries [name]",
+		Use:   "mongodb:queries [flags] [name]",
 		Short: "Remove MongoDB instance from Query Analytics.",
 		Long: `This command removes MongoDB instance from Query Analytics.
 
@@ -690,7 +690,7 @@ An optional list of instances (scrape targets) can be provided.
 		},
 	}
 	cmdRemoveProxySQLMetrics = &cobra.Command{
-		Use:   "proxysql:metrics [name]",
+		Use:   "proxysql:metrics [flags] [name]",
 		Short: "Remove ProxySQL instance from metrics monitoring.",
 		Long: `This command removes ProxySQL instance from metrics monitoring.
 
@@ -832,7 +832,7 @@ please check the firewall settings whether this system allows incoming connectio
 	}
 
 	cmdStart = &cobra.Command{
-		Use:   "start TYPE [name]",
+		Use:   "start TYPE [flags] [name]",
 		Short: "Start monitoring service.",
 		Long: `This command starts the corresponding system service or all.
 
@@ -889,7 +889,7 @@ please check the firewall settings whether this system allows incoming connectio
 		},
 	}
 	cmdStop = &cobra.Command{
-		Use:   "stop TYPE [name]",
+		Use:   "stop TYPE [flags] [name]",
 		Short: "Stop monitoring service.",
 		Long: `This command stops the corresponding system service or all.
 
@@ -942,7 +942,7 @@ please check the firewall settings whether this system allows incoming connectio
 		},
 	}
 	cmdRestart = &cobra.Command{
-		Use:   "restart TYPE [name]",
+		Use:   "restart TYPE [flags] [name]",
 		Short: "Restart monitoring service.",
 		Long: `This command restarts the corresponding system service or all.
 
@@ -992,7 +992,7 @@ please check the firewall settings whether this system allows incoming connectio
 	}
 
 	cmdPurge = &cobra.Command{
-		Use:   "purge TYPE [name]",
+		Use:   "purge TYPE [flags] [name]",
 		Short: "Purge metrics data on PMM server.",
 		Long: `This command purges metrics data associated with metrics service (type) on the PMM server.
 
