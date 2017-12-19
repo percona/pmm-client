@@ -252,7 +252,7 @@ Table statistics is automatically disabled when there are more than 10000 tables
 		},
 	}
 	cmdAddLinuxMetrics = &cobra.Command{
-		Use:   "linux:metrics [name] [-- exporter_args]",
+		Use:   "linux:metrics [name] [flags] [-- exporter_args]",
 		Short: "Add this system to metrics monitoring.",
 		Long: `This command adds this system to linux metrics monitoring.
 
@@ -261,6 +261,7 @@ It is supposed there could be only one instance of linux metrics being monitored
 However, you can add another one with the different name just for testing purposes using --force flag.
 
 [name] is an optional argument, by default it is set to the client name of this PMM client.
+[-- exporter_args] are additional exporter arguments.
 		`,
 		Run: func(cmd *cobra.Command, args []string) {
 			if err := admin.AddLinuxMetrics(flagForce); err != nil {
@@ -271,7 +272,7 @@ However, you can add another one with the different name just for testing purpos
 		},
 	}
 	cmdAddMySQLMetrics = &cobra.Command{
-		Use:   "mysql:metrics [name] [-- exporter_args]",
+		Use:   "mysql:metrics [name] [flags] [-- exporter_args]",
 		Short: "Add MySQL instance to metrics monitoring.",
 		Long: `This command adds the given MySQL instance to metrics monitoring.
 
@@ -282,11 +283,14 @@ a new user 'pmm@' automatically using the given (auto-detected) MySQL credential
 Table statistics is automatically disabled when there are more than 10000 tables on MySQL.
 
 [name] is an optional argument, by default it is set to the client name of this PMM client.
+[-- exporter_args] are additional exporter arguments.
 		`,
 		Example: `  pmm-admin add mysql:metrics --password abc123
   pmm-admin add mysql:metrics --password abc123 --create-user
   pmm-admin add mysql:metrics --password abc123 --port 3307 instance3307
-  pmm-admin add mysql:metrics --user rdsuser --password abc123 --host my-rds.1234567890.us-east-1.rds.amazonaws.com my-rds`,
+  pmm-admin add mysql:metrics --user rdsuser --password abc123 --host my-rds.1234567890.us-east-1.rds.amazonaws.com my-rds
+  pmm-admin add mysql:metrics -- --collect.perf_schema.eventsstatements
+  pmm-admin add mysql:metrics -- --collect.perf_schema.eventswaits=false`,
 		Run: func(cmd *cobra.Command, args []string) {
 			info, err := admin.DetectMySQL(flagM)
 			if err != nil {
@@ -397,16 +401,18 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 		},
 	}
 	cmdAddMongoDBMetrics = &cobra.Command{
-		Use:   "mongodb:metrics [name] [-- exporter_args]",
+		Use:   "mongodb:metrics [name] [flags] [-- exporter_args]",
 		Short: "Add MongoDB instance to metrics monitoring.",
 		Long: `This command adds the given MongoDB instance to metrics monitoring.
 
 When adding a MongoDB instance, you may provide --uri if the default one does not work for you.
 
 [name] is an optional argument, by default it is set to the client name of this PMM client.
+[-- exporter_args] are additional exporter arguments.
 		`,
 		Example: `  pmm-admin add mongodb:metrics
-  pmm-admin add mongodb:metrics --cluster bare-metal`,
+  pmm-admin add mongodb:metrics --cluster bare-metal
+  pmm-admin add mongodb:metrics -- --mongodb.tls`,
 		Run: func(cmd *cobra.Command, args []string) {
 			if _, err := admin.DetectMongoDB(flagMongoURI); err != nil {
 				fmt.Println(err)
@@ -447,11 +453,12 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 		},
 	}
 	cmdAddProxySQLMetrics = &cobra.Command{
-		Use:   "proxysql:metrics [name] [-- exporter_args]",
+		Use:   "proxysql:metrics [name] [flags] [-- exporter_args]",
 		Short: "Add ProxySQL instance to metrics monitoring.",
 		Long: `This command adds the given ProxySQL instance to metrics monitoring.
 
 [name] is an optional argument, by default it is set to the client name of this PMM client.
+[-- exporter_args] are additional exporter arguments.
 		`,
 		Run: func(cmd *cobra.Command, args []string) {
 			if err := admin.DetectProxySQL(flagDSN); err != nil {
