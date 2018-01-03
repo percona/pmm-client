@@ -252,7 +252,7 @@ Table statistics is automatically disabled when there are more than 10000 tables
 		},
 	}
 	cmdAddLinuxMetrics = &cobra.Command{
-		Use:   "linux:metrics [flags] [name] [-- exporter_args]",
+		Use:   "linux:metrics [flags] [name] [-- [exporter_args]]",
 		Short: "Add this system to metrics monitoring.",
 		Long: `This command adds this system to linux metrics monitoring.
 
@@ -261,7 +261,7 @@ It is supposed there could be only one instance of linux metrics being monitored
 However, you can add another one with the different name just for testing purposes using --force flag.
 
 [name] is an optional argument, by default it is set to the client name of this PMM client.
-[-- exporter_args] are additional exporter arguments.
+[exporter_args] are the command line options to be passed directly to Prometheus Exporter.
 		`,
 		Run: func(cmd *cobra.Command, args []string) {
 			if err := admin.AddLinuxMetrics(flagForce); err != nil {
@@ -272,7 +272,7 @@ However, you can add another one with the different name just for testing purpos
 		},
 	}
 	cmdAddMySQLMetrics = &cobra.Command{
-		Use:   "mysql:metrics [flags] [name] [-- exporter_args]",
+		Use:   "mysql:metrics [flags] [name] [-- [exporter_args]]",
 		Short: "Add MySQL instance to metrics monitoring.",
 		Long: `This command adds the given MySQL instance to metrics monitoring.
 
@@ -283,7 +283,7 @@ a new user 'pmm@' automatically using the given (auto-detected) MySQL credential
 Table statistics is automatically disabled when there are more than 10000 tables on MySQL.
 
 [name] is an optional argument, by default it is set to the client name of this PMM client.
-[-- exporter_args] are additional exporter arguments.
+[exporter_args] are the command line options to be passed directly to Prometheus Exporter.
 		`,
 		Example: `  pmm-admin add mysql:metrics --password abc123
   pmm-admin add mysql:metrics --password abc123 --create-user
@@ -401,14 +401,14 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 		},
 	}
 	cmdAddMongoDBMetrics = &cobra.Command{
-		Use:   "mongodb:metrics [flags] [name] [-- exporter_args]",
+		Use:   "mongodb:metrics [flags] [name] [-- [exporter_args]]",
 		Short: "Add MongoDB instance to metrics monitoring.",
 		Long: `This command adds the given MongoDB instance to metrics monitoring.
 
 When adding a MongoDB instance, you may provide --uri if the default one does not work for you.
 
 [name] is an optional argument, by default it is set to the client name of this PMM client.
-[-- exporter_args] are additional exporter arguments.
+[exporter_args] are the command line options to be passed directly to Prometheus Exporter.
 		`,
 		Example: `  pmm-admin add mongodb:metrics
   pmm-admin add mongodb:metrics --cluster bare-metal
@@ -453,12 +453,12 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 		},
 	}
 	cmdAddProxySQLMetrics = &cobra.Command{
-		Use:   "proxysql:metrics [flags] [name] [-- exporter_args]",
+		Use:   "proxysql:metrics [flags] [name] [-- [exporter_args]]",
 		Short: "Add ProxySQL instance to metrics monitoring.",
 		Long: `This command adds the given ProxySQL instance to metrics monitoring.
 
 [name] is an optional argument, by default it is set to the client name of this PMM client.
-[-- exporter_args] are additional exporter arguments.
+[exporter_args] are the command line options to be passed directly to Prometheus Exporter.
 		`,
 		Run: func(cmd *cobra.Command, args []string) {
 			if err := admin.DetectProxySQL(flagDSN); err != nil {
