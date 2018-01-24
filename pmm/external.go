@@ -25,6 +25,16 @@ import (
 	"github.com/percona/pmm-client/pmm/managed"
 )
 
+type ExternalLabelPair struct {
+	Name  string
+	Value string
+}
+
+type ExternalStaticConfig struct {
+	Labels  []ExternalLabelPair
+	Targets []string
+}
+
 // ExternalMetrics represents external Prometheus exporter configuration: job and targets.
 // Field names are used for JSON output, so do not rename them.
 // JSON output uses Prometheus and pmm-managed API terms; TUI uses terms aligned with other commands.
@@ -34,7 +44,7 @@ type ExternalMetrics struct {
 	ScrapeTimeout  time.Duration // nanoseconds in JSON
 	MetricsPath    string
 	Scheme         string
-	StaticTargets  []string
+	StaticConfigs  []ExternalStaticConfig
 }
 
 // ListExternalMetrics returns external Prometheus exporters.
@@ -59,11 +69,16 @@ func (a *Admin) ListExternalMetrics(ctx context.Context) ([]ExternalMetrics, err
 			return nil, err
 		}
 
-		var targets []string
-		for _, c := range sc.StaticConfigs {
-			for _, t := range c.Targets {
-				targets = append(targets, t)
+		var staticConfigs []ExternalStaticConfig
+		for _, sc := range sc.StaticConfigs {
+			labels := make([]ExternalLabelPair, len(sc.Labels))
+			for i, p := range sc.Labels {
+				labels[i] = ExternalLabelPair{Name: p.Name, Value: p.Value}
 			}
+			staticConfigs = append(staticConfigs, ExternalStaticConfig{
+				Labels:  labels,
+				Targets: sc.Targets,
+			})
 		}
 		res[i] = ExternalMetrics{
 			JobName:        sc.JobName,
@@ -71,7 +86,7 @@ func (a *Admin) ListExternalMetrics(ctx context.Context) ([]ExternalMetrics, err
 			ScrapeTimeout:  timeout,
 			MetricsPath:    sc.MetricsPath,
 			Scheme:         sc.Scheme,
-			StaticTargets:  targets,
+			StaticConfigs:  staticConfigs,
 		}
 	}
 	return res, nil
@@ -79,9 +94,16 @@ func (a *Admin) ListExternalMetrics(ctx context.Context) ([]ExternalMetrics, err
 
 // AddExternalMetrics adds external Prometheus scrape job and targets.
 func (a *Admin) AddExternalMetrics(ctx context.Context, ext *ExternalMetrics, checkReachability bool) error {
-	sc := []*managed.APIStaticConfig{{}}
-	for _, t := range ext.StaticTargets {
-		sc[0].Targets = append(sc[0].Targets, t)
+	var staticConfigs []*managed.APIStaticConfig
+	for _, sc := range ext.StaticConfigs {
+		labels := make([]*managed.APILabelPair, len(sc.Labels))
+		for i, p := range sc.Labels {
+			labels[i] = &managed.APILabelPair{Name: p.Name, Value: p.Value}
+		}
+		staticConfigs = append(staticConfigs, &managed.APIStaticConfig{
+			Labels:  labels,
+			Targets: sc.Targets,
+		})
 	}
 
 	err := a.managedAPI.ScrapeConfigsCreate(ctx, &managed.APIScrapeConfigsCreateRequest{
@@ -91,7 +113,7 @@ func (a *Admin) AddExternalMetrics(ctx context.Context, ext *ExternalMetrics, ch
 			ScrapeTimeout:  ext.ScrapeTimeout.String(),
 			MetricsPath:    ext.MetricsPath,
 			Scheme:         ext.Scheme,
-			StaticConfigs:  sc,
+			StaticConfigs:  staticConfigs,
 		},
 		CheckReachability: checkReachability,
 	})

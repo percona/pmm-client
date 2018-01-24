@@ -20,8 +20,10 @@ package main
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -473,7 +475,7 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 		},
 	}
 	cmdAddExternalMetrics = &cobra.Command{
-		Use:   "external:metrics name [instance1] [instance2] ...",
+		Use:   "external:metrics name [host1:port1[=instance1]] [host2:port2[=instance2]] ...",
 		Short: "Add external Prometheus exporters job to metrics monitoring.",
 		Long: `This command adds external Prometheus exporters job with given name to metrics monitoring.
 
@@ -481,13 +483,45 @@ An optional list of instances (scrape targets) can be provided.
 		`,
 		Args: cobra.MinimumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
+			if flagServicePort != 0 {
+				fmt.Println("--service-port should not be used with this command.")
+				os.Exit(1)
+			}
+			var staticConfigs []pmm.ExternalStaticConfig
+			for _, arg := range args[1:] {
+				parts := strings.Split(arg, "=")
+				if len(parts) > 2 {
+					fmt.Printf("Unexpected syntax for %q.\n", arg)
+					os.Exit(1)
+				}
+				target := parts[0]
+				if _, _, err := net.SplitHostPort(target); err != nil {
+					fmt.Printf("Unexpected syntax for %q: %s. \n", arg, err)
+					os.Exit(1)
+				}
+				sc := pmm.ExternalStaticConfig{
+					Targets: []string{target},
+				}
+				if len(parts) == 2 {
+					// so both 1.2.3.4:9000=host1 and 1.2.3.4:9000="host1" work
+					instance, _ := strconv.Unquote(parts[1])
+					if instance == "" {
+						instance = parts[1]
+					}
+					sc.Labels = []pmm.ExternalLabelPair{{
+						Name:  "instance",
+						Value: instance,
+					}}
+				}
+				staticConfigs = append(staticConfigs, sc)
+			}
 			exp := &pmm.ExternalMetrics{
-				JobName:        admin.ServiceName,
+				JobName:        admin.ServiceName, // zeroth arg
 				ScrapeInterval: flagExtInterval,
 				ScrapeTimeout:  flagExtTimeout,
 				MetricsPath:    flagExtPath,
 				Scheme:         flagExtScheme,
-				StaticTargets:  args[1:], // first arg is admin.ServiceName
+				StaticConfigs:  staticConfigs,
 			}
 			if err := admin.AddExternalMetrics(context.TODO(), exp, !flagForce); err != nil {
 				fmt.Println("Error adding external metrics:", err)
@@ -503,7 +537,7 @@ An optional list of instances (scrape targets) can be provided.
 		`,
 		Args: cobra.MinimumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			targets := args[1:] // first arg is admin.ServiceName
+			targets := args[1:] // zeroth arg is admin.ServiceName
 			if err := admin.AddExternalInstances(context.TODO(), admin.ServiceName, targets, !flagForce); err != nil {
 				fmt.Println("Error adding external instances:", err)
 				os.Exit(1)
@@ -725,7 +759,7 @@ An optional list of instances (scrape targets) can be provided.
 		`,
 		Args: cobra.MinimumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			targets := args[1:] // first arg is admin.ServiceName
+			targets := args[1:] // zeroth arg is admin.ServiceName
 			if err := admin.RemoveExternalInstances(context.TODO(), admin.ServiceName, targets); err != nil {
 				fmt.Println("Error removing external instances:", err)
 				os.Exit(1)
