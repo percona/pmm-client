@@ -78,7 +78,7 @@ func (a *Admin) ListExternalMetrics(ctx context.Context) ([]ExternalMetrics, err
 }
 
 // AddExternalMetrics adds external Prometheus scrape job and targets.
-func (a *Admin) AddExternalMetrics(ctx context.Context, ext *ExternalMetrics) error {
+func (a *Admin) AddExternalMetrics(ctx context.Context, ext *ExternalMetrics, checkReachability bool) error {
 	sc := []*managed.APIStaticConfig{{}}
 	for _, t := range ext.StaticTargets {
 		sc[0].Targets = append(sc[0].Targets, t)
@@ -93,6 +93,7 @@ func (a *Admin) AddExternalMetrics(ctx context.Context, ext *ExternalMetrics) er
 			Scheme:         ext.Scheme,
 			StaticConfigs:  sc,
 		},
+		CheckReachability: checkReachability,
 	})
 	if _, ok := err.(*managed.Error); err != nil && !ok {
 		return fmt.Errorf("%s\nPlease check versions of your PMM Server and PMM Client.", err)
@@ -110,10 +111,11 @@ func (a *Admin) RemoveExternalMetrics(ctx context.Context, name string) error {
 }
 
 // AddExternalInstances adds targets to existing scrape job.
-func (a *Admin) AddExternalInstances(ctx context.Context, name string, targets []string) error {
+func (a *Admin) AddExternalInstances(ctx context.Context, name string, targets []string, checkReachability bool) error {
 	err := a.managedAPI.ScrapeConfigsAddStaticTargets(ctx, &managed.APIScrapeConfigsAddStaticTargetsRequest{
-		JobName: name,
-		Targets: targets,
+		JobName:           name,
+		Targets:           targets,
+		CheckReachability: checkReachability,
 	})
 	if _, ok := err.(*managed.Error); err != nil && !ok {
 		return fmt.Errorf("%s\nPlease check versions of your PMM Server and PMM Client.", err)

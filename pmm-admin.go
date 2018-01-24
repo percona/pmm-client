@@ -489,7 +489,7 @@ An optional list of instances (scrape targets) can be provided.
 				Scheme:         flagExtScheme,
 				StaticTargets:  args[1:], // first arg is admin.ServiceName
 			}
-			if err := admin.AddExternalMetrics(context.TODO(), exp); err != nil {
+			if err := admin.AddExternalMetrics(context.TODO(), exp, !flagForce); err != nil {
 				fmt.Println("Error adding external metrics:", err)
 				os.Exit(1)
 			}
@@ -504,7 +504,7 @@ An optional list of instances (scrape targets) can be provided.
 		Args: cobra.MinimumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			targets := args[1:] // first arg is admin.ServiceName
-			if err := admin.AddExternalInstances(context.TODO(), admin.ServiceName, targets); err != nil {
+			if err := admin.AddExternalInstances(context.TODO(), admin.ServiceName, targets, !flagForce); err != nil {
 				fmt.Println("Error adding external instances:", err)
 				os.Exit(1)
 			}
@@ -1187,6 +1187,9 @@ func main() {
 	cmdAddExternalMetrics.Flags().DurationVar(&flagExtTimeout, "timeout", 0, "scrape timeout")
 	cmdAddExternalMetrics.Flags().StringVar(&flagExtPath, "path", "", "metrics path")
 	cmdAddExternalMetrics.Flags().StringVar(&flagExtScheme, "scheme", "", "protocol scheme for scrapes")
+	cmdAddExternalMetrics.Flags().BoolVar(&flagForce, "force", false, "TODO")
+
+	cmdAddExternalInstances.Flags().BoolVar(&flagForce, "force", false, "TODO")
 
 	cmdRemove.Flags().BoolVar(&flagAll, "all", false, "remove all monitoring services")
 
