@@ -30,9 +30,10 @@ type ExternalLabelPair struct {
 	Value string
 }
 
-type ExternalStaticConfig struct {
-	Labels  []ExternalLabelPair
-	Targets []string
+type ExternalTarget struct {
+	Target string
+	Labels []ExternalLabelPair
+	Health string
 }
 
 // ExternalMetrics represents external Prometheus exporter configuration: job and targets.
@@ -44,7 +45,7 @@ type ExternalMetrics struct {
 	ScrapeTimeout  time.Duration // nanoseconds in JSON
 	MetricsPath    string
 	Scheme         string
-	StaticConfigs  []ExternalStaticConfig
+	Targets        []ExternalTarget
 }
 
 // ListExternalMetrics returns external Prometheus exporters.
@@ -59,34 +60,44 @@ func (a *Admin) ListExternalMetrics(ctx context.Context) ([]ExternalMetrics, err
 	}
 
 	res := make([]ExternalMetrics, len(resp.ScrapeConfigs))
-	for i, sc := range resp.ScrapeConfigs {
-		interval, err := time.ParseDuration(sc.ScrapeInterval)
+	for i, cfg := range resp.ScrapeConfigs {
+		interval, err := time.ParseDuration(cfg.ScrapeInterval)
 		if err != nil {
 			return nil, err
 		}
-		timeout, err := time.ParseDuration(sc.ScrapeTimeout)
+		timeout, err := time.ParseDuration(cfg.ScrapeTimeout)
 		if err != nil {
 			return nil, err
 		}
 
-		var staticConfigs []ExternalStaticConfig
-		for _, sc := range sc.StaticConfigs {
+		var targets []ExternalTarget
+		for _, sc := range cfg.StaticConfigs {
 			labels := make([]ExternalLabelPair, len(sc.Labels))
 			for i, p := range sc.Labels {
 				labels[i] = ExternalLabelPair{Name: p.Name, Value: p.Value}
 			}
-			staticConfigs = append(staticConfigs, ExternalStaticConfig{
-				Labels:  labels,
-				Targets: sc.Targets,
-			})
+			for _, t := range sc.Targets {
+				health := ""
+				for _, h := range resp.ScrapeTargetsHealth {
+					if h.JobName == cfg.JobName && h.Target == t {
+						health = string(h.Health)
+					}
+				}
+
+				targets = append(targets, ExternalTarget{
+					Target: t,
+					Labels: labels,
+					Health: health,
+				})
+			}
 		}
 		res[i] = ExternalMetrics{
-			JobName:        sc.JobName,
+			JobName:        cfg.JobName,
 			ScrapeInterval: interval,
 			ScrapeTimeout:  timeout,
-			MetricsPath:    sc.MetricsPath,
-			Scheme:         sc.Scheme,
-			StaticConfigs:  staticConfigs,
+			MetricsPath:    cfg.MetricsPath,
+			Scheme:         cfg.Scheme,
+			Targets:        targets,
 		}
 	}
 	return res, nil
@@ -95,14 +106,14 @@ func (a *Admin) ListExternalMetrics(ctx context.Context) ([]ExternalMetrics, err
 // AddExternalMetrics adds external Prometheus scrape job and targets.
 func (a *Admin) AddExternalMetrics(ctx context.Context, ext *ExternalMetrics, checkReachability bool) error {
 	var staticConfigs []*managed.APIStaticConfig
-	for _, sc := range ext.StaticConfigs {
-		labels := make([]*managed.APILabelPair, len(sc.Labels))
-		for i, p := range sc.Labels {
+	for _, t := range ext.Targets {
+		labels := make([]*managed.APILabelPair, len(t.Labels))
+		for i, p := range t.Labels {
 			labels[i] = &managed.APILabelPair{Name: p.Name, Value: p.Value}
 		}
 		staticConfigs = append(staticConfigs, &managed.APIStaticConfig{
 			Labels:  labels,
-			Targets: sc.Targets,
+			Targets: []string{t.Target},
 		})
 	}
 

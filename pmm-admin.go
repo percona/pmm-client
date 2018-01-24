@@ -487,7 +487,7 @@ An optional list of instances (scrape targets) can be provided.
 				fmt.Println("--service-port should not be used with this command.")
 				os.Exit(1)
 			}
-			var staticConfigs []pmm.ExternalStaticConfig
+			var targets []pmm.ExternalTarget
 			for _, arg := range args[1:] {
 				parts := strings.Split(arg, "=")
 				if len(parts) > 2 {
@@ -499,8 +499,8 @@ An optional list of instances (scrape targets) can be provided.
 					fmt.Printf("Unexpected syntax for %q: %s. \n", arg, err)
 					os.Exit(1)
 				}
-				sc := pmm.ExternalStaticConfig{
-					Targets: []string{target},
+				t := pmm.ExternalTarget{
+					Target: target,
 				}
 				if len(parts) == 2 {
 					// so both 1.2.3.4:9000=host1 and 1.2.3.4:9000="host1" work
@@ -508,12 +508,12 @@ An optional list of instances (scrape targets) can be provided.
 					if instance == "" {
 						instance = parts[1]
 					}
-					sc.Labels = []pmm.ExternalLabelPair{{
+					t.Labels = []pmm.ExternalLabelPair{{
 						Name:  "instance",
 						Value: instance,
 					}}
 				}
-				staticConfigs = append(staticConfigs, sc)
+				targets = append(targets, t)
 			}
 			exp := &pmm.ExternalMetrics{
 				JobName:        admin.ServiceName, // zeroth arg
@@ -521,7 +521,7 @@ An optional list of instances (scrape targets) can be provided.
 				ScrapeTimeout:  flagExtTimeout,
 				MetricsPath:    flagExtPath,
 				Scheme:         flagExtScheme,
-				StaticConfigs:  staticConfigs,
+				Targets:        targets,
 			}
 			if err := admin.AddExternalMetrics(context.TODO(), exp, !flagForce); err != nil {
 				fmt.Println("Error adding external metrics:", err)

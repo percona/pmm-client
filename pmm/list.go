@@ -127,17 +127,16 @@ func (l *List) Table() string {
 func (l *List) ExternalTable() string {
 	var buf bytes.Buffer
 	w := tabwriter.NewWriter(&buf, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "Job name\tScrape interval\tScrape timeout\tMetrics path\tScheme\tTargets\tLabels")
+	fmt.Fprintln(w, "Job name\tScrape interval\tScrape timeout\tMetrics path\tScheme\tTarget\tLabels\tHealth")
 	for _, ext := range l.ExternalServices {
-		for _, sc := range ext.StaticConfigs {
-			instances := strings.Join(sc.Targets, ", ")
-			labels := make([]string, len(sc.Labels))
-			for i, p := range sc.Labels {
+		for _, t := range ext.Targets {
+			labels := make([]string, len(t.Labels))
+			for i, p := range t.Labels {
 				labels[i] = fmt.Sprintf("%s=%q", p.Name, p.Value)
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 				ext.JobName, ext.ScrapeInterval, ext.ScrapeTimeout, ext.MetricsPath, ext.Scheme,
-				instances, strings.Join(labels, ", "),
+				t.Target, strings.Join(labels, ", "), t.Health,
 			)
 		}
 	}

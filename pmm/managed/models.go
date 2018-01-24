@@ -74,9 +74,48 @@ type APIScrapeConfig struct {
 	StaticConfigs []*APIStaticConfig `json:"static_configs"`
 }
 
+type ScrapeTargetHealthHealth string
+
+const (
+	// ScrapeTargetHealthHealthUNKNOWN captures enum value "UNKNOWN"
+	ScrapeTargetHealthHealthUNKNOWN ScrapeTargetHealthHealth = "UNKNOWN"
+	// ScrapeTargetHealthHealthDOWN captures enum value "DOWN"
+	ScrapeTargetHealthHealthDOWN ScrapeTargetHealthHealth = "DOWN"
+	// ScrapeTargetHealthHealthUP captures enum value "UP"
+	ScrapeTargetHealthHealthUP ScrapeTargetHealthHealth = "UP"
+)
+
+type APIScrapeTargetHealth struct {
+	// Original scrape job name
+	JobName string `json:"job_name,omitempty"`
+
+	// "job" label value, may be different from job_name due to relabeling
+	Job string `json:"job,omitempty"`
+
+	// Original target
+	Target string `json:"target,omitempty"`
+
+	// "instance" label value, may be different from target due to relabeling
+	Instance string `json:"instance,omitempty"`
+
+	// health
+	Health ScrapeTargetHealthHealth `json:"health,omitempty"`
+}
+
 type APIScrapeConfigsListResponse struct {
 	// scrape configs
 	ScrapeConfigs []*APIScrapeConfig `json:"scrape_configs"`
+
+	// Scrape targets health for all managed scrape jobs
+	ScrapeTargetsHealth []*APIScrapeTargetHealth `json:"scrape_targets_health"`
+}
+
+type APIScrapeConfigsGetResponse struct {
+	// scrape config
+	ScrapeConfig *APIScrapeConfig `json:"scrape_config,omitempty"`
+
+	// Scrape targets health for this scrape job
+	ScrapeTargetsHealth []*APIScrapeTargetHealth `json:"scrape_targets_health"`
 }
 
 type APIScrapeConfigsCreateRequest struct {

@@ -32,6 +32,25 @@ import (
 	"github.com/percona/pmm-client/pmm/utils"
 )
 
+const (
+	ErrCanceled           = 1
+	ErrUnknown            = 2
+	ErrInvalidArgument    = 3
+	ErrDeadlineExceeded   = 4
+	ErrNotFound           = 5
+	ErrAlreadyExists      = 6
+	ErrPermissionDenied   = 7
+	ErrUnauthenticated    = 16
+	ErrResourceExhausted  = 8
+	ErrFailedPrecondition = 9
+	ErrAborted            = 10
+	ErrOutOfRange         = 11
+	ErrUnimplemented      = 12
+	ErrInternal           = 13
+	ErrUnavailable        = 14
+	ErrDataLoss           = 15
+)
+
 type Error struct {
 	Err  string `json:"error"`
 	Code int    `json:"code"`
@@ -124,6 +143,14 @@ func (c *Client) do(ctx context.Context, method string, urlPath string, body int
 func (c *Client) ScrapeConfigsList(ctx context.Context) (*APIScrapeConfigsListResponse, error) {
 	res := new(APIScrapeConfigsListResponse)
 	if err := c.do(ctx, "GET", "/v0/scrape-configs", nil, res); err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
+func (c *Client) ScrapeConfigsGet(ctx context.Context, jobName string) (*APIScrapeConfigsGetResponse, error) {
+	res := new(APIScrapeConfigsGetResponse)
+	if err := c.do(ctx, "GET", "/v0/scrape-configs/"+jobName, nil, res); err != nil {
 		return nil, err
 	}
 	return res, nil
