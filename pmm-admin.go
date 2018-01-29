@@ -809,6 +809,24 @@ An optional list of instances (scrape targets) can be provided.
 		},
 	}
 
+	cmdRemoveExternalService = &cobra.Command{
+		Use:   "external:service job_name --service-port=port",
+		Short: "Remove external Prometheus exporter running on this host from metrics monitoring.",
+		Long:  `This command removes external Prometheus exporter running on this host from metrics monitoring.`,
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			if flagServicePort == 0 {
+				fmt.Println("--service-port flag is required.")
+				os.Exit(1)
+			}
+			target := net.JoinHostPort(admin.Config.BindAddress, strconv.Itoa(flagServicePort))
+			if err := admin.RemoveExternalInstances(context.TODO(), admin.ServiceName, []string{target}); err != nil {
+				fmt.Println("Error removing external service:", err)
+				os.Exit(1)
+			}
+			fmt.Println("External service removed.")
+		},
+	}
 	cmdRemoveExternalMetrics = &cobra.Command{
 		Use:   "external:metrics job_name",
 		Short: "Remove external Prometheus exporters from metrics monitoring.",
@@ -1230,6 +1248,7 @@ func main() {
 		cmdRemoveMongoDBMetrics,
 		cmdRemoveMongoDBQueries,
 		cmdRemoveProxySQLMetrics,
+		cmdRemoveExternalService,
 		cmdRemoveExternalMetrics,
 		cmdRemoveExternalInstances,
 	)
@@ -1311,6 +1330,8 @@ func main() {
 	cmdAddExternalInstances.Flags().BoolVar(&flagForce, "force", false, "skip reachability check")
 
 	cmdRemove.Flags().BoolVar(&flagAll, "all", false, "remove all monitoring services")
+
+	cmdRemoveExternalService.Flags().IntVar(&flagServicePort, "service-port", 0, "service port")
 
 	cmdList.Flags().StringVar(&flagFormat, "format", "", "print result using a Go template")
 	cmdList.Flags().BoolVar(&flagJson, "json", false, "print result as json")

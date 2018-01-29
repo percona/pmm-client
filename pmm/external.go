@@ -190,11 +190,6 @@ func (a *Admin) AddExternalService(ctx context.Context, ext *ExternalMetrics, fo
 
 }
 
-func (a *Admin) RemoveExternalService(ctx context.Context, ext *ExternalMetrics) error {
-	// TODO
-	return nil
-}
-
 // AddExternalMetrics adds external Prometheus scrape job and targets.
 func (a *Admin) AddExternalMetrics(ctx context.Context, ext *ExternalMetrics, checkReachability bool) error {
 	var staticConfigs []*managed.APIStaticConfig
