@@ -20,8 +20,10 @@ package main
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -472,8 +474,47 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 			fmt.Println("OK, now monitoring ProxySQL metrics using DSN", pmm.SanitizeDSN(flagDSN))
 		},
 	}
+	cmdAddExternalService = &cobra.Command{
+		Use:   "external:service job_name [instance] --service-port=port",
+		Short: "Add external Prometheus exporter running on this host to new or existing scrape job for metrics monitoring.",
+		Long: `Add external Prometheus exporter running on this host to new or existing scrape job for metrics monitoring.
+
+[instance] is an optional argument, by default it is set to the client name of this PMM client.
+		`,
+		Args: cobra.RangeArgs(1, 2),
+		Run: func(cmd *cobra.Command, args []string) {
+			if flagServicePort == 0 {
+				fmt.Println("--service-port flag is required.")
+				os.Exit(1)
+			}
+			target := net.JoinHostPort(admin.Config.BindAddress, strconv.Itoa(flagServicePort))
+			instance := admin.Config.ClientName
+			if len(args) > 1 { // zeroth arg is admin.ServiceName
+				instance = args[1]
+			}
+			exp := &pmm.ExternalMetrics{
+				JobName:        admin.ServiceName,
+				ScrapeInterval: flagExtInterval,
+				ScrapeTimeout:  flagExtTimeout,
+				MetricsPath:    flagExtPath,
+				Scheme:         flagExtScheme,
+				Targets: []pmm.ExternalTarget{{
+					Target: target,
+					Labels: []pmm.ExternalLabelPair{{
+						Name:  "instance",
+						Value: instance,
+					}},
+				}},
+			}
+			if err := admin.AddExternalService(context.TODO(), exp, flagForce); err != nil {
+				fmt.Println("Error adding external service:", err)
+				os.Exit(1)
+			}
+			fmt.Println("External service added.")
+		},
+	}
 	cmdAddExternalMetrics = &cobra.Command{
-		Use:   "external:metrics name [instance1] [instance2] ...",
+		Use:   "external:metrics job_name [host1:port1[=instance1]] [host2:port2[=instance2]] ...",
 		Short: "Add external Prometheus exporters job to metrics monitoring.",
 		Long: `This command adds external Prometheus exporters job with given name to metrics monitoring.
 
@@ -481,15 +522,47 @@ An optional list of instances (scrape targets) can be provided.
 		`,
 		Args: cobra.MinimumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
+			if flagServicePort != 0 {
+				fmt.Println("--service-port should not be used with this command.")
+				os.Exit(1)
+			}
+			var targets []pmm.ExternalTarget
+			for _, arg := range args[1:] { // zeroth arg is admin.ServiceName
+				parts := strings.Split(arg, "=")
+				if len(parts) > 2 {
+					fmt.Printf("Unexpected syntax for %q.\n", arg)
+					os.Exit(1)
+				}
+				target := parts[0]
+				if _, _, err := net.SplitHostPort(target); err != nil {
+					fmt.Printf("Unexpected syntax for %q: %s. \n", arg, err)
+					os.Exit(1)
+				}
+				t := pmm.ExternalTarget{
+					Target: target,
+				}
+				if len(parts) == 2 {
+					// so both 1.2.3.4:9000=host1 and 1.2.3.4:9000="host1" work
+					instance, _ := strconv.Unquote(parts[1])
+					if instance == "" {
+						instance = parts[1]
+					}
+					t.Labels = []pmm.ExternalLabelPair{{
+						Name:  "instance",
+						Value: instance,
+					}}
+				}
+				targets = append(targets, t)
+			}
 			exp := &pmm.ExternalMetrics{
-				JobName:        admin.ServiceName,
+				JobName:        admin.ServiceName, // zeroth arg
 				ScrapeInterval: flagExtInterval,
 				ScrapeTimeout:  flagExtTimeout,
 				MetricsPath:    flagExtPath,
 				Scheme:         flagExtScheme,
-				StaticTargets:  args[1:], // first arg is admin.ServiceName
+				Targets:        targets,
 			}
-			if err := admin.AddExternalMetrics(context.TODO(), exp); err != nil {
+			if err := admin.AddExternalMetrics(context.TODO(), exp, !flagForce); err != nil {
 				fmt.Println("Error adding external metrics:", err)
 				os.Exit(1)
 			}
@@ -497,14 +570,45 @@ An optional list of instances (scrape targets) can be provided.
 		},
 	}
 	cmdAddExternalInstances = &cobra.Command{
-		Use:   "external:instances name [instance1] [instance2] ...",
+		Use:   "external:instances job_name [host1:port1[=instance1]] [host2:port2[=instance2]] ...",
 		Short: "Add external Prometheus exporters instances to existing metrics monitoring job.",
 		Long: `This command adds external Prometheus exporters instances (scrape targets) to existing metrics monitoring job.
 		`,
-		Args: cobra.MinimumNArgs(1),
+		Args: cobra.MinimumNArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
-			targets := args[1:] // first arg is admin.ServiceName
-			if err := admin.AddExternalInstances(context.TODO(), admin.ServiceName, targets); err != nil {
+			if flagServicePort != 0 {
+				fmt.Println("--service-port should not be used with this command.")
+				os.Exit(1)
+			}
+			var targets []pmm.ExternalTarget
+			for _, arg := range args[1:] { // zeroth arg is admin.ServiceName
+				parts := strings.Split(arg, "=")
+				if len(parts) > 2 {
+					fmt.Printf("Unexpected syntax for %q.\n", arg)
+					os.Exit(1)
+				}
+				target := parts[0]
+				if _, _, err := net.SplitHostPort(target); err != nil {
+					fmt.Printf("Unexpected syntax for %q: %s. \n", arg, err)
+					os.Exit(1)
+				}
+				t := pmm.ExternalTarget{
+					Target: target,
+				}
+				if len(parts) == 2 {
+					// so both 1.2.3.4:9000=host1 and 1.2.3.4:9000="host1" work
+					instance, _ := strconv.Unquote(parts[1])
+					if instance == "" {
+						instance = parts[1]
+					}
+					t.Labels = []pmm.ExternalLabelPair{{
+						Name:  "instance",
+						Value: instance,
+					}}
+				}
+				targets = append(targets, t)
+			}
+			if err := admin.AddExternalInstances(context.TODO(), admin.ServiceName, targets, !flagForce); err != nil {
 				fmt.Println("Error adding external instances:", err)
 				os.Exit(1)
 			}
@@ -705,12 +809,34 @@ An optional list of instances (scrape targets) can be provided.
 		},
 	}
 
+	cmdRemoveExternalService = &cobra.Command{
+		Use:   "external:service job_name --service-port=port",
+		Short: "Remove external Prometheus exporter running on this host from metrics monitoring.",
+		Long:  `This command removes external Prometheus exporter running on this host from metrics monitoring.`,
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			if flagServicePort == 0 {
+				fmt.Println("--service-port flag is required.")
+				os.Exit(1)
+			}
+			target := net.JoinHostPort(admin.Config.BindAddress, strconv.Itoa(flagServicePort))
+			if err := admin.RemoveExternalInstances(context.TODO(), admin.ServiceName, []string{target}); err != nil {
+				fmt.Println("Error removing external service:", err)
+				os.Exit(1)
+			}
+			fmt.Println("External service removed.")
+		},
+	}
 	cmdRemoveExternalMetrics = &cobra.Command{
-		Use:   "external:metrics name",
+		Use:   "external:metrics job_name",
 		Short: "Remove external Prometheus exporters from metrics monitoring.",
 		Long:  `This command removes the given external Prometheus exporter from metrics monitoring.`,
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
+			if flagServicePort != 0 {
+				fmt.Println("--service-port should not be used with this command.")
+				os.Exit(1)
+			}
 			if err := admin.RemoveExternalMetrics(context.TODO(), admin.ServiceName); err != nil {
 				fmt.Println("Error removing external metrics:", err)
 				os.Exit(1)
@@ -719,13 +845,17 @@ An optional list of instances (scrape targets) can be provided.
 		},
 	}
 	cmdRemoveExternalInstances = &cobra.Command{
-		Use:   "external:instances name [instance1] [instance2] ...",
+		Use:   "external:instances job_name [host1:port1] [host1:port1] ...",
 		Short: "Remove external Prometheus exporters instances from existing metrics monitoring job.",
 		Long: `This command removes external Prometheus exporters instances (scrape targets) from existing metrics monitoring job.
 		`,
-		Args: cobra.MinimumNArgs(1),
+		Args: cobra.MinimumNArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
-			targets := args[1:] // first arg is admin.ServiceName
+			if flagServicePort != 0 {
+				fmt.Println("--service-port should not be used with this command.")
+				os.Exit(1)
+			}
+			targets := args[1:] // zeroth arg is admin.ServiceName
 			if err := admin.RemoveExternalInstances(context.TODO(), admin.ServiceName, targets); err != nil {
 				fmt.Println("Error removing external instances:", err)
 				os.Exit(1)
@@ -1105,6 +1235,7 @@ func main() {
 		cmdAddMongoDBMetrics,
 		cmdAddMongoDBQueries,
 		cmdAddProxySQLMetrics,
+		cmdAddExternalService,
 		cmdAddExternalMetrics,
 		cmdAddExternalInstances,
 	)
@@ -1117,6 +1248,7 @@ func main() {
 		cmdRemoveMongoDBMetrics,
 		cmdRemoveMongoDBQueries,
 		cmdRemoveProxySQLMetrics,
+		cmdRemoveExternalService,
 		cmdRemoveExternalMetrics,
 		cmdRemoveExternalInstances,
 	)
@@ -1183,12 +1315,23 @@ func main() {
 
 	cmdAddProxySQLMetrics.Flags().StringVar(&flagDSN, "dsn", "stats:stats@tcp(localhost:6032)/", "ProxySQL connection DSN")
 
+	cmdAddExternalService.Flags().DurationVar(&flagExtInterval, "interval", 0, "scrape interval")
+	cmdAddExternalService.Flags().DurationVar(&flagExtTimeout, "timeout", 0, "scrape timeout")
+	cmdAddExternalService.Flags().StringVar(&flagExtPath, "path", "", "metrics path")
+	cmdAddExternalService.Flags().StringVar(&flagExtScheme, "scheme", "", "protocol scheme for scrapes")
+	cmdAddExternalService.Flags().BoolVar(&flagForce, "force", false, "skip reachability check, overwrite scrape job parameters")
+
 	cmdAddExternalMetrics.Flags().DurationVar(&flagExtInterval, "interval", 0, "scrape interval")
 	cmdAddExternalMetrics.Flags().DurationVar(&flagExtTimeout, "timeout", 0, "scrape timeout")
 	cmdAddExternalMetrics.Flags().StringVar(&flagExtPath, "path", "", "metrics path")
 	cmdAddExternalMetrics.Flags().StringVar(&flagExtScheme, "scheme", "", "protocol scheme for scrapes")
+	cmdAddExternalMetrics.Flags().BoolVar(&flagForce, "force", false, "skip reachability check")
+
+	cmdAddExternalInstances.Flags().BoolVar(&flagForce, "force", false, "skip reachability check")
 
 	cmdRemove.Flags().BoolVar(&flagAll, "all", false, "remove all monitoring services")
+
+	cmdRemoveExternalService.Flags().IntVar(&flagServicePort, "service-port", 0, "service port")
 
 	cmdList.Flags().StringVar(&flagFormat, "format", "", "print result using a Go template")
 	cmdList.Flags().BoolVar(&flagJson, "json", false, "print result as json")

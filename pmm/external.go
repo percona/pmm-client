@@ -25,6 +25,17 @@ import (
 	"github.com/percona/pmm-client/pmm/managed"
 )
 
+type ExternalLabelPair struct {
+	Name  string
+	Value string
+}
+
+type ExternalTarget struct {
+	Target string
+	Labels []ExternalLabelPair
+	Health string
+}
+
 // ExternalMetrics represents external Prometheus exporter configuration: job and targets.
 // Field names are used for JSON output, so do not rename them.
 // JSON output uses Prometheus and pmm-managed API terms; TUI uses terms aligned with other commands.
@@ -34,7 +45,7 @@ type ExternalMetrics struct {
 	ScrapeTimeout  time.Duration // nanoseconds in JSON
 	MetricsPath    string
 	Scheme         string
-	StaticTargets  []string
+	Targets        []ExternalTarget
 }
 
 // ListExternalMetrics returns external Prometheus exporters.
@@ -49,86 +60,217 @@ func (a *Admin) ListExternalMetrics(ctx context.Context) ([]ExternalMetrics, err
 	}
 
 	res := make([]ExternalMetrics, len(resp.ScrapeConfigs))
-	for i, sc := range resp.ScrapeConfigs {
-		interval, err := time.ParseDuration(sc.ScrapeInterval)
+	for i, cfg := range resp.ScrapeConfigs {
+		interval, err := time.ParseDuration(cfg.ScrapeInterval)
 		if err != nil {
 			return nil, err
 		}
-		timeout, err := time.ParseDuration(sc.ScrapeTimeout)
+		timeout, err := time.ParseDuration(cfg.ScrapeTimeout)
 		if err != nil {
 			return nil, err
 		}
 
-		var targets []string
-		for _, c := range sc.StaticConfigs {
-			for _, t := range c.Targets {
-				targets = append(targets, t)
+		var targets []ExternalTarget
+		for _, sc := range cfg.StaticConfigs {
+			labels := make([]ExternalLabelPair, len(sc.Labels))
+			for i, p := range sc.Labels {
+				labels[i] = ExternalLabelPair{Name: p.Name, Value: p.Value}
+			}
+			for _, t := range sc.Targets {
+				health := ""
+				for _, h := range resp.ScrapeTargetsHealth {
+					if h.JobName == cfg.JobName && h.Target == t {
+						health = string(h.Health)
+					}
+				}
+
+				targets = append(targets, ExternalTarget{
+					Target: t,
+					Labels: labels,
+					Health: health,
+				})
 			}
 		}
 		res[i] = ExternalMetrics{
-			JobName:        sc.JobName,
+			JobName:        cfg.JobName,
 			ScrapeInterval: interval,
 			ScrapeTimeout:  timeout,
-			MetricsPath:    sc.MetricsPath,
-			Scheme:         sc.Scheme,
-			StaticTargets:  targets,
+			MetricsPath:    cfg.MetricsPath,
+			Scheme:         cfg.Scheme,
+			Targets:        targets,
 		}
 	}
 	return res, nil
 }
 
-// AddExternalMetrics adds external Prometheus scrape job and targets.
-func (a *Admin) AddExternalMetrics(ctx context.Context, ext *ExternalMetrics) error {
-	sc := []*managed.APIStaticConfig{{}}
-	for _, t := range ext.StaticTargets {
-		sc[0].Targets = append(sc[0].Targets, t)
+func (a *Admin) AddExternalService(ctx context.Context, ext *ExternalMetrics, force bool) error {
+	resp, err := a.managedAPI.ScrapeConfigsGet(ctx, ext.JobName)
+	var found bool
+	switch e := err.(type) {
+	case nil:
+		found = true
+
+		interval, err := time.ParseDuration(resp.ScrapeConfig.ScrapeInterval)
+		if err != nil {
+			return err
+		}
+		timeout, err := time.ParseDuration(resp.ScrapeConfig.ScrapeTimeout)
+		if err != nil {
+			return err
+		}
+
+		// if values are not given explicitly , use existing values
+		if ext.ScrapeInterval == 0 {
+			ext.ScrapeInterval = interval
+		}
+		if ext.ScrapeTimeout == 0 {
+			ext.ScrapeTimeout = timeout
+		}
+		if ext.MetricsPath == "" {
+			ext.MetricsPath = resp.ScrapeConfig.MetricsPath
+		}
+		if ext.Scheme == "" {
+			ext.Scheme = resp.ScrapeConfig.Scheme
+		}
+
+		// check if values changed
+		if !force {
+			if ext.ScrapeInterval != interval {
+				return fmt.Errorf("scrape interval changed (requested %s, was %s). Omit --interval flag, or use --force flag.", ext.ScrapeInterval, interval)
+			}
+			if ext.ScrapeTimeout != timeout {
+				return fmt.Errorf("scrape timeout changed (requested %s, was %s). Omit --timeout flag, or use --force flag.", ext.ScrapeTimeout, timeout)
+			}
+			if ext.MetricsPath != resp.ScrapeConfig.MetricsPath {
+				return fmt.Errorf("scrape metrics path changed (requested %q, was %q). Omit --path flag, or use --force flag.", ext.MetricsPath, resp.ScrapeConfig.MetricsPath)
+			}
+			if ext.Scheme != resp.ScrapeConfig.Scheme {
+				return fmt.Errorf("scrapes protocol schema changed (requested %q, was %q). Omit --scheme flag, or use --force flag.", ext.Scheme, resp.ScrapeConfig.Scheme)
+			}
+		}
+
+	case *managed.Error:
+		if e.Code != managed.ErrNotFound {
+			return err
+		}
+	default:
+		return err
 	}
 
-	err := a.managedAPI.ScrapeConfigsCreate(ctx, &managed.APIScrapeConfigsCreateRequest{
+	var staticConfigs []*managed.APIStaticConfig
+	for _, t := range ext.Targets {
+		labels := make([]*managed.APILabelPair, len(t.Labels))
+		for i, p := range t.Labels {
+			labels[i] = &managed.APILabelPair{Name: p.Name, Value: p.Value}
+		}
+		staticConfigs = append(staticConfigs, &managed.APIStaticConfig{
+			Labels:  labels,
+			Targets: []string{t.Target},
+		})
+	}
+
+	cfg := &managed.APIScrapeConfig{
+		JobName:        ext.JobName,
+		ScrapeInterval: ext.ScrapeInterval.String(),
+		ScrapeTimeout:  ext.ScrapeTimeout.String(),
+		MetricsPath:    ext.MetricsPath,
+		Scheme:         ext.Scheme,
+		StaticConfigs:  staticConfigs,
+	}
+	if found {
+		return a.managedAPI.ScrapeConfigsUpdate(ctx, &managed.APIScrapeConfigsUpdateRequest{
+			ScrapeConfig:      cfg,
+			CheckReachability: !force,
+		})
+	}
+	return a.managedAPI.ScrapeConfigsCreate(ctx, &managed.APIScrapeConfigsCreateRequest{
+		ScrapeConfig:      cfg,
+		CheckReachability: !force,
+	})
+
+}
+
+// AddExternalMetrics adds external Prometheus scrape job and targets.
+func (a *Admin) AddExternalMetrics(ctx context.Context, ext *ExternalMetrics, checkReachability bool) error {
+	var staticConfigs []*managed.APIStaticConfig
+	for _, t := range ext.Targets {
+		labels := make([]*managed.APILabelPair, len(t.Labels))
+		for i, p := range t.Labels {
+			labels[i] = &managed.APILabelPair{Name: p.Name, Value: p.Value}
+		}
+		staticConfigs = append(staticConfigs, &managed.APIStaticConfig{
+			Labels:  labels,
+			Targets: []string{t.Target},
+		})
+	}
+
+	return a.managedAPI.ScrapeConfigsCreate(ctx, &managed.APIScrapeConfigsCreateRequest{
 		ScrapeConfig: &managed.APIScrapeConfig{
 			JobName:        ext.JobName,
 			ScrapeInterval: ext.ScrapeInterval.String(),
 			ScrapeTimeout:  ext.ScrapeTimeout.String(),
 			MetricsPath:    ext.MetricsPath,
 			Scheme:         ext.Scheme,
-			StaticConfigs:  sc,
+			StaticConfigs:  staticConfigs,
 		},
+		CheckReachability: checkReachability,
 	})
-	if _, ok := err.(*managed.Error); err != nil && !ok {
-		return fmt.Errorf("%s\nPlease check versions of your PMM Server and PMM Client.", err)
-	}
-	return err
 }
 
 // RemoveExternalMetrics removes external Prometheus scrape job and targets.
 func (a *Admin) RemoveExternalMetrics(ctx context.Context, name string) error {
-	err := a.managedAPI.ScrapeConfigsDelete(ctx, name)
-	if _, ok := err.(*managed.Error); err != nil && !ok {
-		return fmt.Errorf("%s\nPlease check versions of your PMM Server and PMM Client.", err)
-	}
-	return err
+	return a.managedAPI.ScrapeConfigsDelete(ctx, name)
 }
 
 // AddExternalInstances adds targets to existing scrape job.
-func (a *Admin) AddExternalInstances(ctx context.Context, name string, targets []string) error {
-	err := a.managedAPI.ScrapeConfigsAddStaticTargets(ctx, &managed.APIScrapeConfigsAddStaticTargetsRequest{
-		JobName: name,
-		Targets: targets,
-	})
-	if _, ok := err.(*managed.Error); err != nil && !ok {
-		return fmt.Errorf("%s\nPlease check versions of your PMM Server and PMM Client.", err)
+func (a *Admin) AddExternalInstances(ctx context.Context, name string, targets []ExternalTarget, checkReachability bool) error {
+	resp, err := a.managedAPI.ScrapeConfigsGet(ctx, name)
+	if err != nil {
+		return err
 	}
-	return err
+
+	cfg := resp.ScrapeConfig
+	staticConfigs := cfg.StaticConfigs
+	for _, t := range targets {
+		labels := make([]*managed.APILabelPair, len(t.Labels))
+		for i, p := range t.Labels {
+			labels[i] = &managed.APILabelPair{Name: p.Name, Value: p.Value}
+		}
+		staticConfigs = append(staticConfigs, &managed.APIStaticConfig{
+			Labels:  labels,
+			Targets: []string{t.Target},
+		})
+	}
+
+	cfg.StaticConfigs = staticConfigs
+	return a.managedAPI.ScrapeConfigsUpdate(ctx, &managed.APIScrapeConfigsUpdateRequest{
+		ScrapeConfig:      cfg,
+		CheckReachability: checkReachability,
+	})
 }
 
 // RemoveExternalInstances removes targets from existing scrape job.
 func (a *Admin) RemoveExternalInstances(ctx context.Context, name string, targets []string) error {
-	err := a.managedAPI.ScrapeConfigsRemoveStaticTargets(ctx, &managed.APIScrapeConfigsRemoveStaticTargetsRequest{
-		JobName: name,
-		Targets: targets,
-	})
-	if _, ok := err.(*managed.Error); err != nil && !ok {
-		return fmt.Errorf("%s\nPlease check versions of your PMM Server and PMM Client.", err)
+	resp, err := a.managedAPI.ScrapeConfigsGet(ctx, name)
+	if err != nil {
+		return err
 	}
-	return err
+
+	cfg := resp.ScrapeConfig
+	for _, removeT := range targets {
+		for i, staticConfig := range cfg.StaticConfigs {
+			var newTargets []string
+			for _, t := range staticConfig.Targets {
+				if removeT != t {
+					newTargets = append(newTargets, t)
+				}
+			}
+			cfg.StaticConfigs[i].Targets = newTargets
+		}
+	}
+
+	return a.managedAPI.ScrapeConfigsUpdate(ctx, &managed.APIScrapeConfigsUpdateRequest{
+		ScrapeConfig:      cfg,
+		CheckReachability: false,
+	})
 }

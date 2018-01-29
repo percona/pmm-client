@@ -32,6 +32,25 @@ import (
 	"github.com/percona/pmm-client/pmm/utils"
 )
 
+const (
+	ErrCanceled           = 1
+	ErrUnknown            = 2
+	ErrInvalidArgument    = 3
+	ErrDeadlineExceeded   = 4
+	ErrNotFound           = 5
+	ErrAlreadyExists      = 6
+	ErrPermissionDenied   = 7
+	ErrUnauthenticated    = 16
+	ErrResourceExhausted  = 8
+	ErrFailedPrecondition = 9
+	ErrAborted            = 10
+	ErrOutOfRange         = 11
+	ErrUnimplemented      = 12
+	ErrInternal           = 13
+	ErrUnavailable        = 14
+	ErrDataLoss           = 15
+)
+
 type Error struct {
 	Err  string `json:"error"`
 	Code int    `json:"code"`
@@ -129,18 +148,22 @@ func (c *Client) ScrapeConfigsList(ctx context.Context) (*APIScrapeConfigsListRe
 	return res, nil
 }
 
+func (c *Client) ScrapeConfigsGet(ctx context.Context, jobName string) (*APIScrapeConfigsGetResponse, error) {
+	res := new(APIScrapeConfigsGetResponse)
+	if err := c.do(ctx, "GET", "/v0/scrape-configs/"+jobName, nil, res); err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
 func (c *Client) ScrapeConfigsCreate(ctx context.Context, req *APIScrapeConfigsCreateRequest) error {
 	return c.do(ctx, "POST", "/v0/scrape-configs", req, nil)
 }
 
+func (c *Client) ScrapeConfigsUpdate(ctx context.Context, req *APIScrapeConfigsUpdateRequest) error {
+	return c.do(ctx, "PUT", "/v0/scrape-configs/"+req.ScrapeConfig.JobName, req, nil)
+}
+
 func (c *Client) ScrapeConfigsDelete(ctx context.Context, jobName string) error {
 	return c.do(ctx, "DELETE", "/v0/scrape-configs/"+jobName, nil, nil)
-}
-
-func (c *Client) ScrapeConfigsAddStaticTargets(ctx context.Context, req *APIScrapeConfigsAddStaticTargetsRequest) error {
-	return c.do(ctx, "POST", "/v0/scrape-configs/"+req.JobName+"/static-targets", req, nil)
-}
-
-func (c *Client) ScrapeConfigsRemoveStaticTargets(ctx context.Context, req *APIScrapeConfigsRemoveStaticTargetsRequest) error {
-	return c.do(ctx, "DELETE", "/v0/scrape-configs/"+req.JobName+"/static-targets", req, nil)
 }
