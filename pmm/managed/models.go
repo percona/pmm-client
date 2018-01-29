@@ -126,21 +126,10 @@ type APIScrapeConfigsCreateRequest struct {
 	CheckReachability bool `json:"check_reachability,omitempty"`
 }
 
-type APIScrapeConfigsAddStaticTargetsRequest struct {
-	// job name
-	JobName string `json:"job_name,omitempty"`
-
-	// Hostnames or IPs followed by an optional port number: "1.2.3.4:9090"
-	Targets []string `json:"targets"`
+type APIScrapeConfigsUpdateRequest struct {
+	// scrape config
+	ScrapeConfig *APIScrapeConfig `json:"scrape_config,omitempty"`
 
 	// Check that added targets can be scraped from PMM Server
 	CheckReachability bool `json:"check_reachability,omitempty"`
-}
-
-type APIScrapeConfigsRemoveStaticTargetsRequest struct {
-	// job name
-	JobName string `json:"job_name,omitempty"`
-
-	// Hostnames or IPs followed by an optional port number: "1.2.3.4:9090"
-	Targets []string `json:"targets"`
 }

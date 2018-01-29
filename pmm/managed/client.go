@@ -160,14 +160,10 @@ func (c *Client) ScrapeConfigsCreate(ctx context.Context, req *APIScrapeConfigsC
 	return c.do(ctx, "POST", "/v0/scrape-configs", req, nil)
 }
 
+func (c *Client) ScrapeConfigsUpdate(ctx context.Context, req *APIScrapeConfigsUpdateRequest) error {
+	return c.do(ctx, "PUT", "/v0/scrape-configs/"+req.ScrapeConfig.JobName, req, nil)
+}
+
 func (c *Client) ScrapeConfigsDelete(ctx context.Context, jobName string) error {
 	return c.do(ctx, "DELETE", "/v0/scrape-configs/"+jobName, nil, nil)
-}
-
-func (c *Client) ScrapeConfigsAddStaticTargets(ctx context.Context, req *APIScrapeConfigsAddStaticTargetsRequest) error {
-	return c.do(ctx, "POST", "/v0/scrape-configs/"+req.JobName+"/static-targets", req, nil)
-}
-
-func (c *Client) ScrapeConfigsRemoveStaticTargets(ctx context.Context, req *APIScrapeConfigsRemoveStaticTargetsRequest) error {
-	return c.do(ctx, "DELETE", "/v0/scrape-configs/"+req.JobName+"/static-targets", req, nil)
 }

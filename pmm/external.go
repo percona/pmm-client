@@ -103,6 +103,65 @@ func (a *Admin) ListExternalMetrics(ctx context.Context) ([]ExternalMetrics, err
 	return res, nil
 }
 
+func (a *Admin) AddExternalService(ctx context.Context, ext *ExternalMetrics, force bool) error {
+	resp, err := a.managedAPI.ScrapeConfigsGet(ctx, ext.JobName)
+	switch e := err.(type) {
+	case nil:
+		if !force {
+			interval, err := time.ParseDuration(resp.ScrapeConfig.ScrapeInterval)
+			if err != nil {
+				return err
+			}
+			timeout, err := time.ParseDuration(resp.ScrapeConfig.ScrapeTimeout)
+			if err != nil {
+				return err
+			}
+
+			if interval != ext.ScrapeInterval ||
+				timeout != ext.ScrapeTimeout ||
+				resp.ScrapeConfig.MetricsPath != ext.MetricsPath ||
+				resp.ScrapeConfig.Scheme != ext.Scheme {
+
+			}
+		}
+
+	case *managed.Error:
+		if e.Code != managed.ErrNotFound {
+			return err
+		}
+	default:
+		return err
+	}
+
+	var staticConfigs []*managed.APIStaticConfig
+	for _, t := range ext.Targets {
+		labels := make([]*managed.APILabelPair, len(t.Labels))
+		for i, p := range t.Labels {
+			labels[i] = &managed.APILabelPair{Name: p.Name, Value: p.Value}
+		}
+		staticConfigs = append(staticConfigs, &managed.APIStaticConfig{
+			Labels:  labels,
+			Targets: []string{t.Target},
+		})
+	}
+
+	err = a.managedAPI.ScrapeConfigsCreate(ctx, &managed.APIScrapeConfigsCreateRequest{
+		ScrapeConfig: &managed.APIScrapeConfig{
+			JobName:        ext.JobName,
+			ScrapeInterval: ext.ScrapeInterval.String(),
+			ScrapeTimeout:  ext.ScrapeTimeout.String(),
+			MetricsPath:    ext.MetricsPath,
+			Scheme:         ext.Scheme,
+			StaticConfigs:  staticConfigs,
+		},
+		CheckReachability: !force,
+	})
+	if _, ok := err.(*managed.Error); err != nil && !ok {
+		return fmt.Errorf("%s\nPlease check versions of your PMM Server and PMM Client.", err)
+	}
+	return err
+}
+
 // AddExternalMetrics adds external Prometheus scrape job and targets.
 func (a *Admin) AddExternalMetrics(ctx context.Context, ext *ExternalMetrics, checkReachability bool) error {
 	var staticConfigs []*managed.APIStaticConfig
@@ -144,26 +203,54 @@ func (a *Admin) RemoveExternalMetrics(ctx context.Context, name string) error {
 }
 
 // AddExternalInstances adds targets to existing scrape job.
-func (a *Admin) AddExternalInstances(ctx context.Context, name string, targets []string, checkReachability bool) error {
-	err := a.managedAPI.ScrapeConfigsAddStaticTargets(ctx, &managed.APIScrapeConfigsAddStaticTargetsRequest{
-		JobName:           name,
-		Targets:           targets,
+func (a *Admin) AddExternalInstances(ctx context.Context, name string, targets []ExternalTarget, checkReachability bool) error {
+	resp, err := a.managedAPI.ScrapeConfigsGet(ctx, name)
+	if err != nil {
+		return err
+	}
+
+	cfg := resp.ScrapeConfig
+	staticConfigs := cfg.StaticConfigs
+	for _, t := range targets {
+		labels := make([]*managed.APILabelPair, len(t.Labels))
+		for i, p := range t.Labels {
+			labels[i] = &managed.APILabelPair{Name: p.Name, Value: p.Value}
+		}
+		staticConfigs = append(staticConfigs, &managed.APIStaticConfig{
+			Labels:  labels,
+			Targets: []string{t.Target},
+		})
+	}
+
+	cfg.StaticConfigs = staticConfigs
+	return a.managedAPI.ScrapeConfigsUpdate(ctx, &managed.APIScrapeConfigsUpdateRequest{
+		ScrapeConfig:      cfg,
 		CheckReachability: checkReachability,
 	})
-	if _, ok := err.(*managed.Error); err != nil && !ok {
-		return fmt.Errorf("%s\nPlease check versions of your PMM Server and PMM Client.", err)
-	}
-	return err
 }
 
 // RemoveExternalInstances removes targets from existing scrape job.
 func (a *Admin) RemoveExternalInstances(ctx context.Context, name string, targets []string) error {
-	err := a.managedAPI.ScrapeConfigsRemoveStaticTargets(ctx, &managed.APIScrapeConfigsRemoveStaticTargetsRequest{
-		JobName: name,
-		Targets: targets,
-	})
-	if _, ok := err.(*managed.Error); err != nil && !ok {
-		return fmt.Errorf("%s\nPlease check versions of your PMM Server and PMM Client.", err)
+	resp, err := a.managedAPI.ScrapeConfigsGet(ctx, name)
+	if err != nil {
+		return err
 	}
-	return err
+
+	cfg := resp.ScrapeConfig
+	for _, removeT := range targets {
+		for i, staticConfig := range cfg.StaticConfigs {
+			var newTargets []string
+			for _, t := range staticConfig.Targets {
+				if removeT != t {
+					newTargets = append(newTargets, t)
+				}
+			}
+			cfg.StaticConfigs[i].Targets = newTargets
+		}
+	}
+
+	return a.managedAPI.ScrapeConfigsUpdate(ctx, &managed.APIScrapeConfigsUpdateRequest{
+		ScrapeConfig:      cfg,
+		CheckReachability: false,
+	})
 }
