@@ -105,23 +105,47 @@ func (a *Admin) ListExternalMetrics(ctx context.Context) ([]ExternalMetrics, err
 
 func (a *Admin) AddExternalService(ctx context.Context, ext *ExternalMetrics, force bool) error {
 	resp, err := a.managedAPI.ScrapeConfigsGet(ctx, ext.JobName)
+	var found bool
 	switch e := err.(type) {
 	case nil:
+		found = true
+
+		interval, err := time.ParseDuration(resp.ScrapeConfig.ScrapeInterval)
+		if err != nil {
+			return err
+		}
+		timeout, err := time.ParseDuration(resp.ScrapeConfig.ScrapeTimeout)
+		if err != nil {
+			return err
+		}
+
+		// if values are not given explicitly , use existing values
+		if ext.ScrapeInterval == 0 {
+			ext.ScrapeInterval = interval
+		}
+		if ext.ScrapeTimeout == 0 {
+			ext.ScrapeTimeout = timeout
+		}
+		if ext.MetricsPath == "" {
+			ext.MetricsPath = resp.ScrapeConfig.MetricsPath
+		}
+		if ext.Scheme == "" {
+			ext.Scheme = resp.ScrapeConfig.Scheme
+		}
+
+		// check if values changed
 		if !force {
-			interval, err := time.ParseDuration(resp.ScrapeConfig.ScrapeInterval)
-			if err != nil {
-				return err
+			if ext.ScrapeInterval != interval {
+				return fmt.Errorf("scrape interval changed (requested %s, was %s). Omit --interval flag, or use --force flag.", ext.ScrapeInterval, interval)
 			}
-			timeout, err := time.ParseDuration(resp.ScrapeConfig.ScrapeTimeout)
-			if err != nil {
-				return err
+			if ext.ScrapeTimeout != timeout {
+				return fmt.Errorf("scrape timeout changed (requested %s, was %s). Omit --timeout flag, or use --force flag.", ext.ScrapeTimeout, timeout)
 			}
-
-			if interval != ext.ScrapeInterval ||
-				timeout != ext.ScrapeTimeout ||
-				resp.ScrapeConfig.MetricsPath != ext.MetricsPath ||
-				resp.ScrapeConfig.Scheme != ext.Scheme {
-
+			if ext.MetricsPath != resp.ScrapeConfig.MetricsPath {
+				return fmt.Errorf("scrape metrics path changed (requested %q, was %q). Omit --path flag, or use --force flag.", ext.MetricsPath, resp.ScrapeConfig.MetricsPath)
+			}
+			if ext.Scheme != resp.ScrapeConfig.Scheme {
+				return fmt.Errorf("scrapes protocol schema changed (requested %q, was %q). Omit --scheme flag, or use --force flag.", ext.Scheme, resp.ScrapeConfig.Scheme)
 			}
 		}
 
@@ -145,21 +169,30 @@ func (a *Admin) AddExternalService(ctx context.Context, ext *ExternalMetrics, fo
 		})
 	}
 
-	err = a.managedAPI.ScrapeConfigsCreate(ctx, &managed.APIScrapeConfigsCreateRequest{
-		ScrapeConfig: &managed.APIScrapeConfig{
-			JobName:        ext.JobName,
-			ScrapeInterval: ext.ScrapeInterval.String(),
-			ScrapeTimeout:  ext.ScrapeTimeout.String(),
-			MetricsPath:    ext.MetricsPath,
-			Scheme:         ext.Scheme,
-			StaticConfigs:  staticConfigs,
-		},
+	cfg := &managed.APIScrapeConfig{
+		JobName:        ext.JobName,
+		ScrapeInterval: ext.ScrapeInterval.String(),
+		ScrapeTimeout:  ext.ScrapeTimeout.String(),
+		MetricsPath:    ext.MetricsPath,
+		Scheme:         ext.Scheme,
+		StaticConfigs:  staticConfigs,
+	}
+	if found {
+		return a.managedAPI.ScrapeConfigsUpdate(ctx, &managed.APIScrapeConfigsUpdateRequest{
+			ScrapeConfig:      cfg,
+			CheckReachability: !force,
+		})
+	}
+	return a.managedAPI.ScrapeConfigsCreate(ctx, &managed.APIScrapeConfigsCreateRequest{
+		ScrapeConfig:      cfg,
 		CheckReachability: !force,
 	})
-	if _, ok := err.(*managed.Error); err != nil && !ok {
-		return fmt.Errorf("%s\nPlease check versions of your PMM Server and PMM Client.", err)
-	}
-	return err
+
+}
+
+func (a *Admin) RemoveExternalService(ctx context.Context, ext *ExternalMetrics) error {
+	// TODO
+	return nil
 }
 
 // AddExternalMetrics adds external Prometheus scrape job and targets.
@@ -176,7 +209,7 @@ func (a *Admin) AddExternalMetrics(ctx context.Context, ext *ExternalMetrics, ch
 		})
 	}
 
-	err := a.managedAPI.ScrapeConfigsCreate(ctx, &managed.APIScrapeConfigsCreateRequest{
+	return a.managedAPI.ScrapeConfigsCreate(ctx, &managed.APIScrapeConfigsCreateRequest{
 		ScrapeConfig: &managed.APIScrapeConfig{
 			JobName:        ext.JobName,
 			ScrapeInterval: ext.ScrapeInterval.String(),
@@ -187,19 +220,11 @@ func (a *Admin) AddExternalMetrics(ctx context.Context, ext *ExternalMetrics, ch
 		},
 		CheckReachability: checkReachability,
 	})
-	if _, ok := err.(*managed.Error); err != nil && !ok {
-		return fmt.Errorf("%s\nPlease check versions of your PMM Server and PMM Client.", err)
-	}
-	return err
 }
 
 // RemoveExternalMetrics removes external Prometheus scrape job and targets.
 func (a *Admin) RemoveExternalMetrics(ctx context.Context, name string) error {
-	err := a.managedAPI.ScrapeConfigsDelete(ctx, name)
-	if _, ok := err.(*managed.Error); err != nil && !ok {
-		return fmt.Errorf("%s\nPlease check versions of your PMM Server and PMM Client.", err)
-	}
-	return err
+	return a.managedAPI.ScrapeConfigsDelete(ctx, name)
 }
 
 // AddExternalInstances adds targets to existing scrape job.

@@ -476,8 +476,8 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 	}
 	cmdAddExternalService = &cobra.Command{
 		Use:   "external:service job_name [instance] --service-port=port",
-		Short: "TODO Add external Prometheus exporter running on this host to new or existing scrape job for metrics monitoring.",
-		Long: `TODO Add external Prometheus exporter running on this host to new or existing scrape job for metrics monitoring.
+		Short: "Add external Prometheus exporter running on this host to new or existing scrape job for metrics monitoring.",
+		Long: `Add external Prometheus exporter running on this host to new or existing scrape job for metrics monitoring.
 
 [instance] is an optional argument, by default it is set to the client name of this PMM client.
 		`,
@@ -1300,7 +1300,7 @@ func main() {
 	cmdAddExternalService.Flags().DurationVar(&flagExtTimeout, "timeout", 0, "scrape timeout")
 	cmdAddExternalService.Flags().StringVar(&flagExtPath, "path", "", "metrics path")
 	cmdAddExternalService.Flags().StringVar(&flagExtScheme, "scheme", "", "protocol scheme for scrapes")
-	cmdAddExternalService.Flags().BoolVar(&flagForce, "force", false, "skip reachability check")
+	cmdAddExternalService.Flags().BoolVar(&flagForce, "force", false, "skip reachability check, overwrite scrape job parameters")
 
 	cmdAddExternalMetrics.Flags().DurationVar(&flagExtInterval, "interval", 0, "scrape interval")
 	cmdAddExternalMetrics.Flags().DurationVar(&flagExtTimeout, "timeout", 0, "scrape timeout")
