@@ -520,7 +520,7 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 
 An optional list of instances (scrape targets) can be provided.
 		`,
-		Args: cobra.MinimumNArgs(1),
+		Args: cobra.MinimumNArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
 			if flagServicePort != 0 {
 				fmt.Println("--service-port should not be used with this command.")
