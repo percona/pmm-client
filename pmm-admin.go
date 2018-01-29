@@ -514,9 +514,9 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 		},
 	}
 	cmdAddExternalMetrics = &cobra.Command{
-		Use:   "external:metrics job_name [host1:port1[=name1]] [host2:port2[=name2]] ...",
-		Short: "TODO Add external Prometheus exporters job to metrics monitoring.",
-		Long: `TODO This command adds external Prometheus exporters job with given name to metrics monitoring.
+		Use:   "external:metrics job_name [host1:port1[=instance1]] [host2:port2[=instance2]] ...",
+		Short: "Add external Prometheus exporters job to metrics monitoring.",
+		Long: `This command adds external Prometheus exporters job with given name to metrics monitoring.
 
 An optional list of instances (scrape targets) can be provided.
 		`,
@@ -527,7 +527,7 @@ An optional list of instances (scrape targets) can be provided.
 				os.Exit(1)
 			}
 			var targets []pmm.ExternalTarget
-			for _, arg := range args[1:] {
+			for _, arg := range args[1:] { // zeroth arg is admin.ServiceName
 				parts := strings.Split(arg, "=")
 				if len(parts) > 2 {
 					fmt.Printf("Unexpected syntax for %q.\n", arg)
@@ -571,17 +571,17 @@ An optional list of instances (scrape targets) can be provided.
 	}
 	cmdAddExternalInstances = &cobra.Command{
 		Use:   "external:instances job_name [host1:port1[=instance1]] [host2:port2[=instance2]] ...",
-		Short: "TODO Add external Prometheus exporters instances to existing metrics monitoring job.",
-		Long: `TODO This command adds external Prometheus exporters instances (scrape targets) to existing metrics monitoring job.
+		Short: "Add external Prometheus exporters instances to existing metrics monitoring job.",
+		Long: `This command adds external Prometheus exporters instances (scrape targets) to existing metrics monitoring job.
 		`,
-		Args: cobra.MinimumNArgs(1),
+		Args: cobra.MinimumNArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
 			if flagServicePort != 0 {
 				fmt.Println("--service-port should not be used with this command.")
 				os.Exit(1)
 			}
 			var targets []pmm.ExternalTarget
-			for _, arg := range args[1:] {
+			for _, arg := range args[1:] { // zeroth arg is admin.ServiceName
 				parts := strings.Split(arg, "=")
 				if len(parts) > 2 {
 					fmt.Printf("Unexpected syntax for %q.\n", arg)
@@ -810,11 +810,15 @@ An optional list of instances (scrape targets) can be provided.
 	}
 
 	cmdRemoveExternalMetrics = &cobra.Command{
-		Use:   "external:metrics name",
+		Use:   "external:metrics job_name",
 		Short: "Remove external Prometheus exporters from metrics monitoring.",
 		Long:  `This command removes the given external Prometheus exporter from metrics monitoring.`,
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
+			if flagServicePort != 0 {
+				fmt.Println("--service-port should not be used with this command.")
+				os.Exit(1)
+			}
 			if err := admin.RemoveExternalMetrics(context.TODO(), admin.ServiceName); err != nil {
 				fmt.Println("Error removing external metrics:", err)
 				os.Exit(1)
@@ -823,12 +827,16 @@ An optional list of instances (scrape targets) can be provided.
 		},
 	}
 	cmdRemoveExternalInstances = &cobra.Command{
-		Use:   "external:instances name [instance1] [instance2] ...",
+		Use:   "external:instances job_name [host1:port1] [host1:port1] ...",
 		Short: "Remove external Prometheus exporters instances from existing metrics monitoring job.",
 		Long: `This command removes external Prometheus exporters instances (scrape targets) from existing metrics monitoring job.
 		`,
-		Args: cobra.MinimumNArgs(1),
+		Args: cobra.MinimumNArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
+			if flagServicePort != 0 {
+				fmt.Println("--service-port should not be used with this command.")
+				os.Exit(1)
+			}
 			targets := args[1:] // zeroth arg is admin.ServiceName
 			if err := admin.RemoveExternalInstances(context.TODO(), admin.ServiceName, targets); err != nil {
 				fmt.Println("Error removing external instances:", err)
@@ -1292,15 +1300,15 @@ func main() {
 	cmdAddExternalService.Flags().DurationVar(&flagExtTimeout, "timeout", 0, "scrape timeout")
 	cmdAddExternalService.Flags().StringVar(&flagExtPath, "path", "", "metrics path")
 	cmdAddExternalService.Flags().StringVar(&flagExtScheme, "scheme", "", "protocol scheme for scrapes")
-	cmdAddExternalService.Flags().BoolVar(&flagForce, "force", false, "TODO skip reachability check")
+	cmdAddExternalService.Flags().BoolVar(&flagForce, "force", false, "skip reachability check")
 
 	cmdAddExternalMetrics.Flags().DurationVar(&flagExtInterval, "interval", 0, "scrape interval")
 	cmdAddExternalMetrics.Flags().DurationVar(&flagExtTimeout, "timeout", 0, "scrape timeout")
 	cmdAddExternalMetrics.Flags().StringVar(&flagExtPath, "path", "", "metrics path")
 	cmdAddExternalMetrics.Flags().StringVar(&flagExtScheme, "scheme", "", "protocol scheme for scrapes")
-	cmdAddExternalMetrics.Flags().BoolVar(&flagForce, "force", false, "TODO skip reachability check")
+	cmdAddExternalMetrics.Flags().BoolVar(&flagForce, "force", false, "skip reachability check")
 
-	cmdAddExternalInstances.Flags().BoolVar(&flagForce, "force", false, "TODO skip reachability check")
+	cmdAddExternalInstances.Flags().BoolVar(&flagForce, "force", false, "skip reachability check")
 
 	cmdRemove.Flags().BoolVar(&flagAll, "all", false, "remove all monitoring services")
 
