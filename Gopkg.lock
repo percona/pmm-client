@@ -41,7 +41,12 @@
 
 [[projects]]
   name = "github.com/hashicorp/consul"
-  packages = ["acl","agent/structs","api","types"]
+  packages = [
+    "acl",
+    "agent/structs",
+    "api",
+    "types"
+  ]
   revision = "112c0603d3d6fb23ab5f15e8fdb1a761da8eaf9a"
   version = "v0.9.3"
 
@@ -86,12 +91,25 @@
 [[projects]]
   branch = "master"
   name = "github.com/hashicorp/golang-lru"
-  packages = [".","simplelru"]
+  packages = [
+    ".",
+    "simplelru"
+  ]
   revision = "0a025b7e63adc15a622f29b0b2c4c3848243bbf6"
 
 [[projects]]
   name = "github.com/hashicorp/hcl"
-  packages = [".","hcl/ast","hcl/parser","hcl/scanner","hcl/strconv","hcl/token","json/parser","json/scanner","json/token"]
+  packages = [
+    ".",
+    "hcl/ast",
+    "hcl/parser",
+    "hcl/scanner",
+    "hcl/strconv",
+    "hcl/token",
+    "json/parser",
+    "json/scanner",
+    "json/token"
+  ]
   revision = "68e816d1c783414e79bc65b3994d9ab6b0a722ab"
 
 [[projects]]
@@ -106,7 +124,10 @@
 
 [[projects]]
   name = "github.com/hashicorp/serf"
-  packages = ["coordinate","serf"]
+  packages = [
+    "coordinate",
+    "serf"
+  ]
   revision = "d6574a5bb1226678d7010325fb6c985db20ee458"
   version = "v0.8.1"
 
@@ -162,7 +183,10 @@
 
 [[projects]]
   name = "github.com/percona/pmm"
-  packages = ["proto","proto/config"]
+  packages = [
+    "proto",
+    "proto/config"
+  ]
   revision = "46da02520e111d26504c5a4fb320a337dc8a830d"
 
 [[projects]]
@@ -206,12 +230,26 @@
 
 [[projects]]
   name = "golang.org/x/net"
-  packages = ["bpf","context","context/ctxhttp","internal/iana","internal/socket","ipv4"]
+  packages = [
+    "bpf",
+    "context",
+    "context/ctxhttp",
+    "internal/iana",
+    "internal/socket",
+    "ipv4"
+  ]
   revision = "66aacef3dd8a676686c7ae3716979581e8b03c47"
 
 [[projects]]
   name = "golang.org/x/sys"
-  packages = ["unix","windows","windows/registry","windows/svc","windows/svc/eventlog","windows/svc/mgr"]
+  packages = [
+    "unix",
+    "windows",
+    "windows/registry",
+    "windows/svc",
+    "windows/svc/eventlog",
+    "windows/svc/mgr"
+  ]
   revision = "e24f485414aeafb646f6fca458b0bf869c0880a1"
 
 [[projects]]
@@ -223,7 +261,14 @@
 [[projects]]
   branch = "v2"
   name = "gopkg.in/mgo.v2"
-  packages = [".","bson","dbtest","internal/json","internal/sasl","internal/scram"]
+  packages = [
+    ".",
+    "bson",
+    "dbtest",
+    "internal/json",
+    "internal/sasl",
+    "internal/scram"
+  ]
   revision = "3f83fa5005286a7fe593b055f0d7771a7dce4655"
 
 [[projects]]
@@ -240,6 +285,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "80bf34a8d689880255359a3b03f3015d11acb383cffdb135835557fc72228e5d"
+  inputs-digest = "83f6bcbecb609ad6d468c0b837c5b5f82b25ab79b584f96c876cbe4761bbde43"
   solver-name = "gps-cdcl"
   solver-version = 1

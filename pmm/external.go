@@ -22,6 +22,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/prometheus/common/model"
+
 	"github.com/percona/pmm-client/pmm/managed"
 )
 
@@ -61,14 +63,16 @@ func (a *Admin) ListExternalMetrics(ctx context.Context) ([]ExternalMetrics, err
 
 	res := make([]ExternalMetrics, len(resp.ScrapeConfigs))
 	for i, cfg := range resp.ScrapeConfigs {
-		interval, err := time.ParseDuration(cfg.ScrapeInterval)
+		d, err := model.ParseDuration(cfg.ScrapeInterval)
 		if err != nil {
 			return nil, err
 		}
-		timeout, err := time.ParseDuration(cfg.ScrapeTimeout)
+		interval := time.Duration(d)
+		d, err = model.ParseDuration(cfg.ScrapeTimeout)
 		if err != nil {
 			return nil, err
 		}
+		timeout := time.Duration(d)
 
 		var targets []ExternalTarget
 		for _, sc := range cfg.StaticConfigs {
@@ -110,14 +114,16 @@ func (a *Admin) AddExternalService(ctx context.Context, ext *ExternalMetrics, fo
 	case nil:
 		found = true
 
-		interval, err := time.ParseDuration(resp.ScrapeConfig.ScrapeInterval)
+		d, err := model.ParseDuration(resp.ScrapeConfig.ScrapeInterval)
 		if err != nil {
 			return err
 		}
-		timeout, err := time.ParseDuration(resp.ScrapeConfig.ScrapeTimeout)
+		interval := time.Duration(d)
+		d, err = model.ParseDuration(resp.ScrapeConfig.ScrapeTimeout)
 		if err != nil {
 			return err
 		}
+		timeout := time.Duration(d)
 
 		// if values are not given explicitly , use existing values
 		if ext.ScrapeInterval == 0 {
