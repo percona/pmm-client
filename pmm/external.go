@@ -177,8 +177,8 @@ func (a *Admin) AddExternalService(ctx context.Context, ext *ExternalMetrics, fo
 
 	cfg := &managed.APIScrapeConfig{
 		JobName:        ext.JobName,
-		ScrapeInterval: ext.ScrapeInterval.String(),
-		ScrapeTimeout:  ext.ScrapeTimeout.String(),
+		ScrapeInterval: model.Duration(ext.ScrapeInterval).String(),
+		ScrapeTimeout:  model.Duration(ext.ScrapeTimeout).String(),
 		MetricsPath:    ext.MetricsPath,
 		Scheme:         ext.Scheme,
 		StaticConfigs:  staticConfigs,
@@ -213,8 +213,8 @@ func (a *Admin) AddExternalMetrics(ctx context.Context, ext *ExternalMetrics, ch
 	return a.managedAPI.ScrapeConfigsCreate(ctx, &managed.APIScrapeConfigsCreateRequest{
 		ScrapeConfig: &managed.APIScrapeConfig{
 			JobName:        ext.JobName,
-			ScrapeInterval: ext.ScrapeInterval.String(),
-			ScrapeTimeout:  ext.ScrapeTimeout.String(),
+			ScrapeInterval: model.Duration(ext.ScrapeInterval).String(),
+			ScrapeTimeout:  model.Duration(ext.ScrapeTimeout).String(),
 			MetricsPath:    ext.MetricsPath,
 			Scheme:         ext.Scheme,
 			StaticConfigs:  staticConfigs,
