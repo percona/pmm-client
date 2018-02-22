@@ -216,6 +216,7 @@ func testConfig(t *testing.T, data pmmAdminData) {
 	clientAddress, _, _ := net.SplitHostPort(u.Host)
 	clientName, _ := os.Hostname()
 	fapi.AppendRoot()
+	fapi.AppendQanAPIPing()
 	fapi.AppendConsulV1StatusLeader(clientAddress)
 	node := &api.CatalogNode{
 		Node: &api.Node{},
@@ -256,6 +257,7 @@ func testConfigVerbose(t *testing.T, data pmmAdminData) {
 	clientAddress, _, _ := net.SplitHostPort(u.Host)
 	clientName, _ := os.Hostname()
 	fapi.AppendRoot()
+	fapi.AppendQanAPIPing()
 	fapi.AppendConsulV1StatusLeader(clientAddress)
 	node := &api.CatalogNode{
 		Node: &api.Node{},
@@ -275,7 +277,7 @@ func testConfigVerbose(t *testing.T, data pmmAdminData) {
 
 	// with --verbose flag we should have bunch of http requests to server
 	expected := `.+ request:
-> GET / HTTP/1.1
+> GET /qan-api/ping HTTP/1.1
 > Host: ` + u.Host + `
 > User-Agent: Go-http-client/1.1
 > Accept-Encoding: gzip
@@ -285,6 +287,7 @@ func testConfigVerbose(t *testing.T, data pmmAdminData) {
 < HTTP/1.1 200 OK
 < Content-Type: text/plain; charset=utf-8
 < Date: .*
+< X-Percona-Qan-Api-Version: gotest
 < Content-Length: 0
 <\s*
 <\s*
@@ -366,14 +369,14 @@ func testConfigVerboseServerNotAvailable(t *testing.T, data pmmAdminData) {
 	// with --verbose flag we should have bunch of http requests to server
 	// however api is unavailable, so `--verbose` prints only request...
 	expected := `.* request:
-> GET / HTTP/1.1
+> GET /qan-api/ping HTTP/1.1
 > Host: xyz
 > User-Agent: Go-http-client/1.1
 > Accept-Encoding: gzip
 >\s*
 >\s*
 Unable to connect to PMM server by address: xyz
-Get http://xyz: dial tcp: lookup xyz.*: no such host
+Get http://xyz/qan-api/ping: dial tcp: lookup xyz.*: no such host
 
 * Check if the configured address is correct.
 * If server is running on non-default port, ensure it was specified along with the address.
@@ -459,6 +462,7 @@ func testList(t *testing.T, data pmmAdminData) {
 	serverAddress, _, _ := net.SplitHostPort(u.Host)
 	clientName := "test-client-name"
 	fapi.AppendRoot()
+	fapi.AppendQanAPIPing()
 	fapi.AppendConsulV1StatusLeader(serverAddress)
 	node := &api.CatalogNode{
 		Node: &api.Node{},
@@ -711,6 +715,7 @@ func testStartStopRestart(t *testing.T, data pmmAdminData) {
 	serverAddress, _, _ := net.SplitHostPort(u.Host)
 	clientName := "test-client-name"
 	fapi.AppendRoot()
+	fapi.AppendQanAPIPing()
 	fapi.AppendConsulV1StatusLeader(serverAddress)
 	node := &api.CatalogNode{
 		Node: &api.Node{},
@@ -867,7 +872,7 @@ func testStartStopRestartAllWithServices(t *testing.T, data pmmAdminData) {
 		assert.Nil(t, err)
 		expected := `OK, all services already started. Run 'pmm-admin list' to see monitoring services.
 Unable to connect to PMM server by address: just
-Get http://just: dial tcp: lookup just.*: no such host
+Get http://just/qan-api/ping: dial tcp: lookup just.*: no such host
 
 * Check if the configured address is correct.
 * If server is running on non-default port, ensure it was specified along with the address.
@@ -901,7 +906,7 @@ Get http://just: dial tcp: lookup just.*: no such host
 		assert.Nil(t, err)
 		expected := `OK, restarted ` + fmt.Sprintf("%d", numOfServices) + ` services.
 Unable to connect to PMM server by address: just
-Get http://just: dial tcp: lookup just.*: no such host
+Get http://just/qan-api/ping: dial tcp: lookup just.*: no such host
 
 * Check if the configured address is correct.
 * If server is running on non-default port, ensure it was specified along with the address.
@@ -922,6 +927,7 @@ func testStartStopRestartNoServiceFound(t *testing.T, data pmmAdminData) {
 	fapi := fakeapi.New()
 	defer fapi.Close()
 	fapi.AppendRoot()
+	fapi.AppendQanAPIPing()
 	fapi.AppendConsulV1StatusLeader(fapi.Host())
 	clientName, _ := os.Hostname()
 	node := &api.CatalogNode{
@@ -1014,8 +1020,8 @@ func testCheckNetwork(t *testing.T, data pmmAdminData) {
 	defer fapi.Close()
 	u, _ := url.Parse(fapi.URL())
 	fapi.AppendRoot()
-	fapi.AppendPrometheusAPIV1Query()
 	fapi.AppendQanAPIPing()
+	fapi.AppendPrometheusAPIV1Query()
 	fapi.AppendConsulV1StatusLeader(fapi.Host())
 	clientName, _ := os.Hostname()
 	node := &api.CatalogNode{
@@ -1131,6 +1137,7 @@ func testAddLinuxMetricsWithAdditionalArgsOk(t *testing.T, data pmmAdminData) {
 		fapi := fakeapi.New()
 		defer fapi.Close()
 		fapi.AppendRoot()
+		fapi.AppendQanAPIPing()
 		fapi.AppendConsulV1StatusLeader(fapi.Host())
 		clientName, _ := os.Hostname()
 		node := &api.CatalogNode{
@@ -1199,6 +1206,7 @@ func testAddLinuxMetricsWithAdditionalArgsFail(t *testing.T, data pmmAdminData) 
 		fapi := fakeapi.New()
 		defer fapi.Close()
 		fapi.AppendRoot()
+		fapi.AppendQanAPIPing()
 		fapi.AppendConsulV1StatusLeader(fapi.Host())
 		clientName, _ := os.Hostname()
 		node := &api.CatalogNode{
@@ -1268,6 +1276,7 @@ func testAddMongoDB(t *testing.T, data pmmAdminData) {
 		fapi := fakeapi.New()
 		defer fapi.Close()
 		fapi.AppendRoot()
+		fapi.AppendQanAPIPing()
 		fapi.AppendConsulV1StatusLeader(fapi.Host())
 		clientName, _ := os.Hostname()
 		node := &api.CatalogNode{
@@ -1351,6 +1360,7 @@ func testAddMongoDBQueries(t *testing.T, data pmmAdminData) {
 		fapi := fakeapi.New()
 		defer fapi.Close()
 		fapi.AppendRoot()
+		fapi.AppendQanAPIPing()
 		fapi.AppendConsulV1StatusLeader(fapi.Host())
 		clientName, _ := os.Hostname()
 		node := &api.CatalogNode{
