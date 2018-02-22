@@ -5,7 +5,7 @@
 The easiest way to make a local development setup is to use Docker Compose.
 
 ```
-docker-compose up
+docker-compose up -d
 make
 ```
 
