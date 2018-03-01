@@ -1363,7 +1363,6 @@ func testAddMongoDBQueries(t *testing.T, data pmmAdminData) {
 	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/instance", 0777)
 	os.Create(data.rootDir + pmm.PMMBaseDir + "/node_exporter")
 	os.Create(data.rootDir + pmm.PMMBaseDir + "/mysqld_exporter")
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/mongodb_exporter")
 	os.Create(data.rootDir + pmm.PMMBaseDir + "/proxysql_exporter")
 	os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent")
 
