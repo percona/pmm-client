@@ -2,7 +2,7 @@
 Name:           pmm-client
 Summary:        Percona Monitoring and Management Client
 Version:        %{version}
-Release:        %{release}
+Release:        %{release}%{?dist}
 Group:          Applications/Databases
 License:        AGPLv3
 Vendor:         Percona LLC
