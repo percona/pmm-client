@@ -188,8 +188,8 @@ func (s *darwinLaunchdService) Restart() error {
 	return s.Start()
 }
 func (s *darwinLaunchdService) Status() error {
-        // Not implemented
-        return nil
+	// Not implemented
+	return nil
 }
 
 func (s *darwinLaunchdService) Run() error {

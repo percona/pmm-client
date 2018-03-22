@@ -2,7 +2,7 @@
 all: sysv systemd upstart clean
 
 test:
-	@go test -c ..
+	@go test -o service.test -c ..
 
 clean:
 	-rm service.test
