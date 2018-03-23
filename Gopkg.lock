@@ -2,6 +2,12 @@
 
 
 [[projects]]
+  name = "github.com/StackExchange/wmi"
+  packages = ["."]
+  revision = "5d049714c4a64225c3c79a7cf7d02f7fb5b96338"
+  version = "1.0.0"
+
+[[projects]]
   name = "github.com/armon/go-metrics"
   packages = ["."]
   revision = "0a12dc6f6b9da6da644031a1b9b5a85478c5ee27"
@@ -32,6 +38,15 @@
   packages = ["."]
   revision = "570b54cabe6b8eb0bc2dfce68d964677d63b5260"
   version = "v1.5.0"
+
+[[projects]]
+  name = "github.com/go-ole/go-ole"
+  packages = [
+    ".",
+    "oleutil"
+  ]
+  revision = "a41e3c4b706f6ae8dfbff342b06e40fa4d2d0506"
+  version = "v1.2.1"
 
 [[projects]]
   name = "github.com/go-sql-driver/mysql"
@@ -168,7 +183,7 @@
   branch = "master"
   name = "github.com/percona/go-mysql"
   packages = ["dsn"]
-  revision = "b561fedcb9dd988e592a6fb88bdf05596e598af1"
+  revision = "d88869effd270fbaabceaabc9df1d732ae44efba"
 
 [[projects]]
   branch = "master"
@@ -191,6 +206,12 @@
   revision = "46da02520e111d26504c5a4fb320a337dc8a830d"
 
 [[projects]]
+  name = "github.com/pkg/errors"
+  packages = ["."]
+  revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
+  version = "v0.8.0"
+
+[[projects]]
   name = "github.com/pmezard/go-difflib"
   packages = ["difflib"]
   revision = "d8ed2627bdf02c080bf22230dbb337003b7aba2d"
@@ -211,6 +232,25 @@
   name = "github.com/sean-/seed"
   packages = ["."]
   revision = "e2103e2c35297fb7e17febb81e49b312087a2372"
+
+[[projects]]
+  name = "github.com/shirou/gopsutil"
+  packages = [
+    "cpu",
+    "host",
+    "internal/common",
+    "mem",
+    "net",
+    "process"
+  ]
+  revision = "5776ff9c7c5d063d574ef53d740f75c68b448e53"
+  version = "v2.18.02"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/shirou/w32"
+  packages = ["."]
+  revision = "bb4de0191aa41b5507caa14b0650cdbddcd9280b"
 
 [[projects]]
   name = "github.com/spf13/cobra"
