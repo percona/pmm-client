@@ -189,7 +189,7 @@
   branch = "master"
   name = "github.com/percona/kardianos-service"
   packages = ["."]
-  revision = "c96072ddec8a88d46fc319da74384113f46ca91d"
+  revision = "13b8f7cee7c65569ea0c79878aabed4956416853"
 
 [[projects]]
   name = "github.com/percona/pmgo"

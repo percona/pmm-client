@@ -70,6 +70,9 @@ var tf = map[string]interface{}{
 		// Put command in single quotes, otherwise special characters like dollar ($) sign will be interpreted.
 		return `'` + strings.Replace(s, `'`, `'"'"'`, -1) + `'`
 	},
+	"cmdSystemD": func(s string) string {
+		return `"` + strings.Replace(s, `"`, `\"`, -1) + `"`
+	},
 	"cmdEscape": func(s string) string {
 		return strings.Replace(s, " ", `\x20`, -1)
 	},
