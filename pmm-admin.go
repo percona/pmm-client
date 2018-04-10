@@ -183,7 +183,7 @@ run 'pmm-admin repair' to remove orphaned services. Otherwise, please reinstall 
 
 	cmdAnnotate = &cobra.Command{
 		Use:     "annotate TEXT",
-		Short:   "annotate application events",
+		Short:   "Annotate application events.",
 		Long:    "This command is used to highlight application events as Grafana annotations.",
 		Example: `  pmm-admin annotate "Application deploy v1.2" --tags "UI, v1.2"`,
 		Run: func(cmd *cobra.Command, args []string) {

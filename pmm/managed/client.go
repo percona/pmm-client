@@ -168,6 +168,7 @@ func (c *Client) ScrapeConfigsDelete(ctx context.Context, jobName string) error 
 	return c.do(ctx, "DELETE", "/v0/scrape-configs/"+jobName, nil, nil)
 }
 
+// AnnotationCreate posts annotation to managed API.
 func (c *Client) AnnotationCreate(ctx context.Context, req *APIAnnotationCreateRequest) error {
 	return c.do(ctx, "POST", "/v0/annotations", req, nil)
 }

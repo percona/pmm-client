@@ -24,7 +24,7 @@ import (
 	"github.com/percona/pmm-client/pmm/managed"
 )
 
-// AddAnnotation posts annotatin to managed.
+// AddAnnotation posts annotation to managed.
 func (a *Admin) AddAnnotation(ctx context.Context, text string, tags string) error {
 	return a.managedAPI.AnnotationCreate(ctx, &managed.APIAnnotationCreateRequest{
 		Text: text,
