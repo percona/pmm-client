@@ -152,6 +152,7 @@ func testHelp(t *testing.T, data pmmAdminData) {
 Available Commands:
   config         Configure PMM Client.
   add            Add service to monitoring.
+  annotate       Annotate application events.
   remove         Remove service from monitoring.
   list           List monitoring services for this system.
   info           Display PMM Client information \(works offline\).

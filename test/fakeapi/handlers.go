@@ -208,3 +208,15 @@ func (f *FakeApi) AppendManaged() {
 		w.Write([]byte("{}"))
 	})
 }
+
+// AddAnnotation allows test annotation endpoint.
+func (f *FakeApi) AddAnnotation() {
+	f.Append("/managed/v0/annotations", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case "POST":
+			w.WriteHeader(http.StatusOK)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	})
+}
