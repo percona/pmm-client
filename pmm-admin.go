@@ -180,6 +180,25 @@ run 'pmm-admin repair' to remove orphaned services. Otherwise, please reinstall 
 			}
 		},
 	}
+
+	cmdAnnotate = &cobra.Command{
+		Use:     "annotate TEXT",
+		Short:   "Annotate application events.",
+		Long:    "Publish Application Events as Annotations to PMM Server.",
+		Example: `  pmm-admin annotate "Application deploy v1.2" --tags "UI, v1.2"`,
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) != 1 {
+				fmt.Println("Desctiption of annotation is required")
+				os.Exit(1)
+			}
+			if err := admin.AddAnnotation(context.TODO(), args[0], flagATags); err != nil {
+				fmt.Println("Your annotation could not be posted. Error message we received was:\n", err)
+				os.Exit(1)
+			}
+			fmt.Println("Your annotation was successfully posted.")
+		},
+	}
+
 	cmdAddMySQL = &cobra.Command{
 		Use:   "mysql [flags] [name]",
 		Short: "Add complete monitoring for MySQL instance (linux and mysql metrics, queries).",
@@ -1195,6 +1214,7 @@ despite PMM server is alive or not.
 	}
 
 	flagMongoURI, flagCluster, flagDSN, flagFormat string
+	flagATags                                      string
 
 	flagVersion, flagJson, flagAll, flagForce bool
 
@@ -1213,6 +1233,7 @@ func main() {
 	rootCmd.AddCommand(
 		cmdConfig,
 		cmdAdd,
+		cmdAnnotate,
 		cmdRemove,
 		cmdList,
 		cmdInfo,
@@ -1269,6 +1290,8 @@ func main() {
 	cmdConfig.Flags().BoolVar(&flagForce, "force", false, "force to set client name on initial setup after uninstall with unreachable server")
 
 	cmdAdd.PersistentFlags().IntVar(&flagServicePort, "service-port", 0, "service port")
+
+	cmdAnnotate.Flags().StringVar(&flagATags, "tags", "", "List of tags (sepatated by comma)")
 
 	cmdAddLinuxMetrics.Flags().BoolVar(&flagForce, "force", false, "force to add another linux:metrics instance with different name for testing purposes")
 
