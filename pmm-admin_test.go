@@ -133,7 +133,7 @@ func testVersion(t *testing.T, data pmmAdminData) {
 	assert.Nil(t, err)
 
 	// sanity check that version number was changed with ldflag for this test build
-	assert.Equal(t, "1.9.1", pmm.Version)
+	assert.Equal(t, "1.10.0", pmm.Version)
 	expected := `gotest`
 
 	assertRegexpLines(t, expected, string(output))
@@ -152,6 +152,7 @@ func testHelp(t *testing.T, data pmmAdminData) {
 Available Commands:
   config         Configure PMM Client.
   add            Add service to monitoring.
+  annotate       Annotate application events.
   remove         Remove service from monitoring.
   list           List monitoring services for this system.
   info           Display PMM Client information \(works offline\).

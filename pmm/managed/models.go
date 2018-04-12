@@ -133,3 +133,11 @@ type APIScrapeConfigsUpdateRequest struct {
 	// Check that added targets can be scraped from PMM Server
 	CheckReachability bool `json:"check_reachability,omitempty"`
 }
+
+// APIAnnotationCreateRequest request to create an annotation at managed.
+type APIAnnotationCreateRequest struct {
+	// list of tags (optional)
+	Tags []string `json:"tags,omitempty"`
+	// description of annotation
+	Text string `json:"text"`
+}
