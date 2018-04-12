@@ -63,6 +63,7 @@ func (f *FakeApi) AppendQanAPIPing() {
 	f.Append("/qan-api/ping", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case "GET":
+			w.Header().Add("Content-Type", "text/plain; charset=utf-8")
 			w.Header().Add("X-Percona-Qan-Api-Version", "gotest")
 			w.WriteHeader(http.StatusOK)
 		default:
