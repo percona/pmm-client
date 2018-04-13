@@ -26,6 +26,9 @@ import (
 	"path"
 	"time"
 
+	"net"
+	"net/url"
+
 	"github.com/hashicorp/consul/agent/structs"
 	"github.com/hashicorp/consul/api"
 	"github.com/percona/pmm/proto"
@@ -80,8 +83,12 @@ func (f *FakeApi) AppendQanAPIInstancesId(id string, protoInstance *proto.Instan
 	})
 }
 
-func (f *FakeApi) AppendConsulV1StatusLeader(xRemoteIP string) {
+func (f *FakeApi) AppendConsulV1StatusLeader() {
 	f.Append("/v1/status/leader", func(w http.ResponseWriter, r *http.Request) {
+		f.RLock()
+		defer f.RUnlock()
+		u, _ := url.Parse(f.baseURL)
+		xRemoteIP, _, _ := net.SplitHostPort(u.Host)
 		w.Header().Add("X-Remote-IP", xRemoteIP)
 		w.Header().Add("X-Server-Time", fmt.Sprintf("%d", time.Now().Unix()))
 		w.WriteHeader(http.StatusOK)
@@ -89,7 +96,7 @@ func (f *FakeApi) AppendConsulV1StatusLeader(xRemoteIP string) {
 	})
 }
 
-func (f *FakeApi) AppendConsulV1CatalogNode(name string, node *api.CatalogNode) {
+func (f *FakeApi) AppendConsulV1CatalogNode(name string, node api.CatalogNode) {
 	f.Append("/v1/catalog/node/"+name, func(w http.ResponseWriter, r *http.Request) {
 		data, _ := json.Marshal(node)
 		w.WriteHeader(http.StatusOK)

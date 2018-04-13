@@ -34,10 +34,9 @@ func TestAdmin_AddAnnotation(t *testing.T) {
 
 	// create fakeapi
 	api := fakeapi.New()
-	defer api.Close()
 	api.AddAnnotation()
-
-	u, _ := url.Parse(api.URL())
+	_, host, port := api.Start()
+	defer api.Close()
 
 	// create pmm-admin instance
 	admin := &Admin{}
@@ -45,14 +44,14 @@ func TestAdmin_AddAnnotation(t *testing.T) {
 	timeout := 1 * time.Second
 	debug := false
 	admin.qanAPI = NewAPI(insecureFlag, timeout, debug)
-	admin.managedAPI = managed.NewClient(u.Host, "http", &url.Userinfo{}, false, true)
+	hostPort := fmt.Sprintf("%s:%s", host, port)
+	admin.managedAPI = managed.NewClient(hostPort, "http", &url.Userinfo{}, false, true)
 
 	// point pmm-admin to fake http api
-	admin.serverURL = u.Host
+	admin.serverURL = hostPort
 	scheme := "http"
 	authStr := ""
-	host := u.Host // u.Host delivers host:port
-	admin.serverURL = fmt.Sprintf("%s://%s%s", scheme, authStr, host)
+	admin.serverURL = fmt.Sprintf("%s://%s%s", scheme, authStr, hostPort)
 
 	err := admin.AddAnnotation(context.TODO(), "Description", "tag1, tag2")
 	assert.Nil(t, err)

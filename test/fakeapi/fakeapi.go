@@ -23,43 +23,40 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sync"
 )
 
 type FakeApi struct {
-	testServer *httptest.Server
-	serveMux   *http.ServeMux
-	ctx        context.Context
+	testServer          *httptest.Server
+	serveMux            *http.ServeMux
+	ctx                 context.Context
+	baseURL, host, port string
+	sync.RWMutex
 }
 
 func New() *FakeApi {
 	fakeApi := &FakeApi{}
 	fakeApi.serveMux = http.NewServeMux()
-	fakeApi.testServer = httptest.NewServer(fakeApi.serveMux)
 	return fakeApi
+}
+
+// Start new FakeApi server and return it's URL, host and port
+func (f *FakeApi) Start() (string, string, string) {
+	f.Lock()
+	defer f.Unlock()
+	f.testServer = httptest.NewServer(f.serveMux)
+	f.baseURL = f.testServer.URL
+	u, _ := url.Parse(f.baseURL)
+	f.host, f.port, _ = net.SplitHostPort(u.Host)
+	return f.baseURL, f.host, f.port
 }
 
 func (f *FakeApi) Close() {
 	f.ctx = nil
-	f.testServer.Close()
-}
-
-// Host of the fake api
-func (f *FakeApi) Host() string {
-	u, _ := url.Parse(f.URL())
-	host, _, _ := net.SplitHostPort(u.Host)
-	return host
-}
-
-// Port of the fake api
-func (f *FakeApi) Port() string {
-	u, _ := url.Parse(f.URL())
-	_, port, _ := net.SplitHostPort(u.Host)
-	return port
-}
-
-// URL for the fake api
-func (f *FakeApi) URL() string {
-	return f.testServer.URL
+	if f.testServer != nil {
+		f.testServer.Close()
+		f.testServer = nil
+	}
 }
 
 func (f *FakeApi) Append(pattern string, handler func(http.ResponseWriter, *http.Request)) {
