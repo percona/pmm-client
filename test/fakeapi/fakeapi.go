@@ -51,6 +51,7 @@ func (f *FakeApi) Start() (string, string, string) {
 	return f.baseURL, f.host, f.port
 }
 
+// Close shutdowns FakeApi server.
 func (f *FakeApi) Close() {
 	f.ctx = nil
 	if f.testServer != nil {
