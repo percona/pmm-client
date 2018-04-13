@@ -34,6 +34,7 @@ import (
 	"github.com/percona/pmm/proto"
 )
 
+// AppendRoot adds "/" route to API.
 func (f *FakeApi) AppendRoot() {
 	f.Append("/", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
@@ -62,6 +63,7 @@ func (f *FakeApi) AppendPrometheusAPIV1Query() {
 	})
 }
 
+// AppendQanAPIPing adds "/qan-api/ping" route to API.
 func (f *FakeApi) AppendQanAPIPing() {
 	f.Append("/qan-api/ping", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
@@ -83,6 +85,7 @@ func (f *FakeApi) AppendQanAPIInstancesId(id string, protoInstance *proto.Instan
 	})
 }
 
+// AppendConsulV1StatusLeader adds "/v1/status/leader" route to API.
 func (f *FakeApi) AppendConsulV1StatusLeader() {
 	f.Append("/v1/status/leader", func(w http.ResponseWriter, r *http.Request) {
 		f.RLock()
@@ -96,6 +99,7 @@ func (f *FakeApi) AppendConsulV1StatusLeader() {
 	})
 }
 
+// AppendConsulV1CatalogNode adds "/v1/catalog/node/<name>" route to API.
 func (f *FakeApi) AppendConsulV1CatalogNode(name string, node api.CatalogNode) {
 	f.Append("/v1/catalog/node/"+name, func(w http.ResponseWriter, r *http.Request) {
 		data, _ := json.Marshal(node)
