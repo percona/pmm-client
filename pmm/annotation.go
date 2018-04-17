@@ -19,6 +19,7 @@ package pmm
 
 import (
 	"context"
+	"errors"
 	"regexp"
 
 	"github.com/percona/pmm-client/pmm/managed"
@@ -26,6 +27,9 @@ import (
 
 // AddAnnotation posts annotation to managed.
 func (a *Admin) AddAnnotation(ctx context.Context, text string, tags string) error {
+	if text == "" {
+		return errors.New("Failed to save annotation. Empty annotation is not allowed.")
+	}
 	return a.managedAPI.AnnotationCreate(ctx, &managed.APIAnnotationCreateRequest{
 		Text: text,
 		// split by comma and trim spaces if they were after comma
