@@ -55,4 +55,7 @@ func TestAdmin_AddAnnotation(t *testing.T) {
 
 	err := admin.AddAnnotation(context.TODO(), "Description", "tag1, tag2")
 	assert.Nil(t, err)
+
+	err = admin.AddAnnotation(context.TODO(), "", "tag1, tag2")
+	assert.Equal(t, "failed to save annotation (empty annotation is not allowed)", err.Error())
 }
