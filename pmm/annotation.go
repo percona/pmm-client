@@ -28,7 +28,7 @@ import (
 // AddAnnotation posts annotation to managed.
 func (a *Admin) AddAnnotation(ctx context.Context, text string, tags string) error {
 	if text == "" {
-		return errors.New("Failed to save annotation. Empty annotation is not allowed.")
+		return errors.New("failed to save annotation (empty annotation is not allowed)")
 	}
 	return a.managedAPI.AnnotationCreate(ctx, &managed.APIAnnotationCreateRequest{
 		Text: text,
