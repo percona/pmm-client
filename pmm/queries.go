@@ -141,7 +141,7 @@ func (a *Admin) sendQANCmd(agentID, cmdName string, data []byte) error {
 		}
 		return a.qanAPI.Error("PUT", url, resp.StatusCode, http.StatusOK, content)
 	}
-	return errors.New("timeout 10s waiting on agent to connect to API.")
+	return errors.New("timeout 10s waiting on agent to connect to API")
 }
 
 // registerAgent register agent on QAN API using agent installer.

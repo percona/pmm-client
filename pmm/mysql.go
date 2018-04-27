@@ -28,7 +28,7 @@ import (
 	"github.com/percona/go-mysql/dsn"
 )
 
-// MySQLFlags MySQL specific flags.
+// MySQLFlags are MySQL specific flags.
 type MySQLFlags struct {
 	DefaultsFile string
 	User         string
@@ -43,6 +43,7 @@ type MySQLFlags struct {
 	Force              bool
 }
 
+// MySQLInfo describes running MySQL instance.
 type MySQLInfo struct {
 	Hostname string
 	Port     string
@@ -56,13 +57,13 @@ type MySQLInfo struct {
 func (a *Admin) DetectMySQL(mf MySQLFlags) (*MySQLInfo, error) {
 	// Check for invalid mix of flags.
 	if mf.Socket != "" && mf.Host != "" {
-		return nil, errors.New("Flags --socket and --host are mutually exclusive.")
+		return nil, errors.New("flags --socket and --host are mutually exclusive")
 	}
 	if mf.Socket != "" && mf.Port != "" {
-		return nil, errors.New("Flags --socket and --port are mutually exclusive.")
+		return nil, errors.New("lags --socket and --port are mutually exclusive")
 	}
 	if !mf.CreateUser && mf.CreateUserPassword != "" {
-		return nil, errors.New("Flag --create-user-password should be used along with --create-user.")
+		return nil, errors.New("lag --create-user-password should be used along with --create-user")
 	}
 
 	userDSN := dsn.DSN{
@@ -77,7 +78,7 @@ func (a *Admin) DetectMySQL(mf MySQLFlags) (*MySQLInfo, error) {
 	// Populate defaults to DSN for missing options.
 	userDSN, err := userDSN.AutoDetect()
 	if err != nil && err != dsn.ErrNoSocket {
-		err = fmt.Errorf("Problem with MySQL auto-detection: %s", err)
+		err = fmt.Errorf("problem with MySQL auto-detection: %s", err)
 		return nil, err
 	}
 
@@ -169,7 +170,7 @@ func createMySQLUser(db *sql.DB, userDSN dsn.DSN, mf MySQLFlags) (dsn.DSN, error
 
 	// Verify new MySQL user works. If this fails, the new DSN or grant statements are wrong.
 	if err := testConnection(userDSN.String()); err != nil {
-		err = fmt.Errorf("Problem creating a new MySQL user. Insufficient privileges: %s", err)
+		err = fmt.Errorf("problem creating a new MySQL user. Insufficient privileges: %s", err)
 		return dsn.DSN{}, err
 	}
 

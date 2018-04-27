@@ -57,7 +57,7 @@ var (
 				admin.Format = flagFormat
 			}
 
-			if flagJson {
+			if flagJSON {
 				admin.Format = "{{ json . }}"
 			}
 
@@ -1217,7 +1217,7 @@ despite PMM server is alive or not.
 	flagMongoURI, flagCluster, flagDSN, flagFormat string
 	flagATags                                      string
 
-	flagVersion, flagJson, flagAll, flagForce bool
+	flagVersion, flagJSON, flagAll, flagForce bool
 
 	flagServicePort int
 
@@ -1370,7 +1370,7 @@ func main() {
 	cmdRemoveExternalService.Flags().IntVar(&flagServicePort, "service-port", 0, "service port")
 
 	cmdList.Flags().StringVar(&flagFormat, "format", "", "print result using a Go template")
-	cmdList.Flags().BoolVar(&flagJson, "json", false, "print result as json")
+	cmdList.Flags().BoolVar(&flagJSON, "json", false, "print result as json")
 
 	cmdStart.Flags().BoolVar(&flagAll, "all", false, "start all monitoring services")
 	cmdStop.Flags().BoolVar(&flagAll, "all", false, "stop all monitoring services")

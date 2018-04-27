@@ -40,7 +40,7 @@ type MySQLQueriesFlags struct {
 	DisableSlowLogsRotation bool
 }
 
-// MySQLQueriesAddResult is result returned by AddMySQLQueries.
+// MySQLQueriesResult is result returned by AddMySQLQueries.
 type MySQLQueriesResult struct {
 	QuerySource string
 }
