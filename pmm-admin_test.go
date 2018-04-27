@@ -1383,8 +1383,8 @@ func testAddMySQL(t *testing.T, data pmmAdminData) {
 	output, err := cmd.CombinedOutput()
 	assert.Nil(t, err)
 	expected := `\[linux:metrics\] OK, now monitoring this system.
-\[mysql:metrics\] OK, now monitoring MySQL metrics using DSN root:\*\*\*@tcp\(localhost:3306\)
-\[mysql:queries\] OK, now monitoring MySQL queries from perfschema using DSN root:\*\*\*@tcp\(localhost:3306\)
+\[mysql:metrics\] OK, now monitoring MySQL metrics using DSN root:\*\*\*@tcp\(127.0.0.1:3306\)
+\[mysql:queries\] OK, now monitoring MySQL queries from perfschema using DSN root:\*\*\*@tcp\(127.0.0.1:3306\)
 `
 	assertRegexpLines(t, expected, string(output))
 }
@@ -1499,8 +1499,8 @@ func testAddMySQLWithDisableSlowLogsRotation(t *testing.T, data pmmAdminData) {
 		output, err := cmd.CombinedOutput()
 		assert.Nil(t, err)
 		expected := `\[linux:metrics\] OK, now monitoring this system.
-\[mysql:metrics\] OK, now monitoring MySQL metrics using DSN root:\*\*\*@tcp\(localhost:3307\)
-\[mysql:queries\] OK, now monitoring MySQL queries from slowlog using DSN root:\*\*\*@tcp\(localhost:3307\)
+\[mysql:metrics\] OK, now monitoring MySQL metrics using DSN root:\*\*\*@tcp\(127.0.0.1:3307\)
+\[mysql:queries\] OK, now monitoring MySQL queries from slowlog using DSN root:\*\*\*@tcp\(127.0.0.1:3307\)
 `
 		assertRegexpLines(t, expected, string(output))
 	}
@@ -1628,8 +1628,8 @@ func testAddMySQLWithRetainSlowLogs(t *testing.T, data pmmAdminData) {
 		output, err := cmd.CombinedOutput()
 		assert.Nil(t, err)
 		expected := `\[linux:metrics\] OK, now monitoring this system.
-\[mysql:metrics\] OK, now monitoring MySQL metrics using DSN root:\*\*\*@tcp\(localhost:3307\)
-\[mysql:queries\] OK, now monitoring MySQL queries from slowlog using DSN root:\*\*\*@tcp\(localhost:3307\)
+\[mysql:metrics\] OK, now monitoring MySQL metrics using DSN root:\*\*\*@tcp\(127.0.0.1:3307\)
+\[mysql:queries\] OK, now monitoring MySQL queries from slowlog using DSN root:\*\*\*@tcp\(127.0.0.1:3307\)
 `
 		assertRegexpLines(t, expected, string(output))
 	}
