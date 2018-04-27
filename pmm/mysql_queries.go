@@ -22,91 +22,104 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"strconv"
+	"os"
 	"strings"
 	"time"
 
 	consul "github.com/hashicorp/consul/api"
 	"github.com/percona/kardianos-service"
 	"github.com/percona/pmm/proto"
-	protocfg "github.com/percona/pmm/proto/config"
+	pc "github.com/percona/pmm/proto/config"
 )
 
+// MySQLQueriesFlags MySQL Queries specific flags.
+type MySQLQueriesFlags struct {
+	QuerySource string
+	// slowlog specific options.
+	RetainSlowLogs          int
+	DisableSlowLogsRotation bool
+}
+
+// MySQLQueriesAddResult is result returned by AddMySQLQueries.
+type MySQLQueriesResult struct {
+	QuerySource string
+}
+
 // AddMySQLQueries add mysql instance to Query Analytics.
-func (a *Admin) AddMySQLQueries(info map[string]string) error {
+func (a *Admin) AddMySQLQueries(mi MySQLInfo, mf MySQLQueriesFlags, qf QueriesFlags) (mr *MySQLQueriesResult, err error) {
+	mr = &MySQLQueriesResult{}
+
 	serviceType := "mysql:queries"
-	dsn := info["dsn"]
-	safeDSN := info["safe_dsn"]
 
 	// Check if we have already this service on Consul.
 	consulSvc, err := a.getConsulService(serviceType, a.ServiceName)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if consulSvc != nil {
-		return ErrDuplicate
+		return nil, ErrDuplicate
 	}
 
 	if err := a.checkGlobalDuplicateService(serviceType, a.ServiceName); err != nil {
-		return err
+		return nil, err
 	}
 
 	// Now check if there are any existing services of given service type.
 	consulSvc, err = a.getConsulService(serviceType, "")
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Register agent if config file does not exist.
 	agentConfigFile := fmt.Sprintf("%s/config/agent.conf", AgentBaseDir)
 	if !FileExists(agentConfigFile) {
 		if err := a.registerAgent(); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
 	agentID, err := getAgentID(agentConfigFile)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	// Get parent_uuid of agent instance.
 	parentUUID, err := a.getAgentInstance(agentID)
 	if err == errNoInstance {
 		// If agent is orphaned, let's re-register it.
 		if err := a.registerAgent(); err != nil {
-			return err
+			return nil, err
 		}
 		// Get new agent id.
 		agentID, err = getAgentID(agentConfigFile)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		// Get parent_uuid again.
 		parentUUID, err = a.getAgentInstance(agentID)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	} else if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Check if related instance exists or try to re-use the existing one.
 	instance, err := a.getMySQLInstance(a.ServiceName, parentUUID)
 	if err == errNoInstance {
 		// Create new instance on QAN.
-		instance, err = a.createMySQLInstance(info, parentUUID)
+		instance, err = a.createMySQLInstance(mi, parentUUID)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	} else if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Write instance config for qan-agent with real DSN.
-	instance.DSN = dsn
+	instance.DSN = mi.DSN
 	bytes, _ := json.MarshalIndent(instance, "", "    ")
 	if err := ioutil.WriteFile(fmt.Sprintf("%s/instance/%s.json", AgentBaseDir, instance.UUID), bytes, 0600); err != nil {
-		return err
+		return nil, err
 	}
 
 	// Choose port.
@@ -124,27 +137,41 @@ func (a *Admin) AddMySQLQueries(info map[string]string) error {
 			Arguments:   a.Args,
 		}
 		if err := installService(svcConfig); err != nil {
-			return err
+			return nil, err
 		}
 	} else {
 		port = consulSvc.Port
 		// Ensure qan-agent is started if service exists, otherwise it won't be enabled for QAN.
 		if err := startService(fmt.Sprintf("pmm-mysql-queries-%d", port)); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
+	mr.QuerySource = mf.QuerySource
+	if mr.QuerySource == "auto" {
+		// MySQL is local if the server hostname == MySQL hostname.
+		osHostname, _ := os.Hostname()
+		if osHostname == mi.Hostname {
+			mr.QuerySource = "slowlog"
+		} else {
+			mr.QuerySource = "perfschema"
+		}
+	}
+
+	exampleQueries := !qf.DisableQueryExamples
+	slowLogsRotation := !mf.DisableSlowLogsRotation
 	// Start QAN by associating instance with agent.
-	// @todo struct instead of map[]interface{}
-	query_examples, _ := strconv.ParseBool(info["query_examples"])
-	qanConfig := map[string]interface{}{
-		"UUID":           instance.UUID,
-		"CollectFrom":    info["query_source"],
-		"Interval":       60,
-		"ExampleQueries": query_examples,
+	qanConfig := pc.QAN{
+		UUID:           instance.UUID,
+		CollectFrom:    mr.QuerySource,
+		Interval:       60,
+		ExampleQueries: &exampleQueries,
+		// "slowlog" specific options.
+		SlowLogsRotation: &slowLogsRotation,
+		SlowLogsToKeep:   &mf.RetainSlowLogs,
 	}
 	if err := a.startQAN(agentID, qanConfig); err != nil {
-		return err
+		return nil, err
 	}
 
 	tags := []string{
@@ -169,13 +196,13 @@ func (a *Admin) AddMySQLQueries(info map[string]string) error {
 		Service: &srv,
 	}
 	if _, err := a.consulAPI.Catalog().Register(&reg, nil); err != nil {
-		return err
+		return nil, err
 	}
 
 	// Add info to Consul KV.
 	d := &consul.KVPair{
 		Key:   fmt.Sprintf("%s/%s/%s/dsn", a.Config.ClientName, serviceID, a.ServiceName),
-		Value: []byte(safeDSN),
+		Value: []byte(mi.SafeDSN),
 	}
 	a.consulAPI.KV().Put(d, nil)
 	d = &consul.KVPair{
@@ -184,7 +211,7 @@ func (a *Admin) AddMySQLQueries(info map[string]string) error {
 	}
 	a.consulAPI.KV().Put(d, nil)
 
-	return nil
+	return mr, nil
 }
 
 // RemoveMySQLQueries remove mysql instance from QAN.
@@ -334,14 +361,14 @@ func (a *Admin) getMySQLInstance(name, parentUUID string) (proto.Instance, error
 }
 
 // createMySQLInstance create mysql instance on QAN API and return it.
-func (a *Admin) createMySQLInstance(info map[string]string, parentUUID string) (proto.Instance, error) {
+func (a *Admin) createMySQLInstance(mi MySQLInfo, parentUUID string) (proto.Instance, error) {
 	in := proto.Instance{
 		Subsystem:  "mysql",
 		ParentUUID: parentUUID,
 		Name:       a.ServiceName,
-		DSN:        info["safe_dsn"],
-		Distro:     info["distro"],
-		Version:    info["version"],
+		DSN:        mi.SafeDSN,
+		Distro:     mi.Distro,
+		Version:    mi.Version,
 	}
 	inBytes, _ := json.Marshal(in)
 	url := a.qanAPI.URL(a.serverURL, qanAPIBasePath, "instances")
@@ -394,7 +421,7 @@ func getQuerySource(configFile string) (string, error) {
 		return "", err
 	}
 
-	config := &protocfg.QAN{}
+	config := &pc.QAN{}
 	if err := json.Unmarshal(jsonData, &config); err != nil {
 		return "", err
 	}
@@ -409,10 +436,19 @@ func getQueryExamples(configFile string) (bool, error) {
 		return false, err
 	}
 
-	config := &protocfg.QAN{}
+	config := &pc.QAN{}
 	if err := json.Unmarshal(jsonData, &config); err != nil {
 		return false, err
 	}
 
-	return config.ExampleQueries, nil
+	return boolValue(config.ExampleQueries), nil
+}
+
+// boolValue returns the value of the bool pointer passed in or
+// false if the pointer is nil.
+func boolValue(v *bool) bool {
+	if v != nil {
+		return *v
+	}
+	return false
 }

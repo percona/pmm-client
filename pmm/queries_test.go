@@ -25,7 +25,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/percona/pmm-client/test/fakeapi"
+	"github.com/percona/pmm-client/tests/fakeapi"
+	pc "github.com/percona/pmm/proto/config"
 	protocfg "github.com/percona/pmm/proto/config"
 	"github.com/stretchr/testify/assert"
 )
@@ -78,11 +79,12 @@ func TestAdmin_StartStopQAN(t *testing.T) {
 	defer api.Close()
 	_, host, port := api.Start()
 
+	exampleQueries := true
 	// create qan config
-	qanConfig := map[string]interface{}{
-		"UUID":           "xyz",
-		"Interval":       60,
-		"ExampleQueries": true,
+	qanConfig := pc.QAN{
+		UUID:           "xyz",
+		Interval:       60,
+		ExampleQueries: &exampleQueries,
 	}
 
 	// create pmm-admin instance

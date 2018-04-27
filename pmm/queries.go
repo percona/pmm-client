@@ -28,8 +28,13 @@ import (
 	"time"
 
 	"github.com/percona/pmm/proto"
-	protocfg "github.com/percona/pmm/proto/config"
+	pc "github.com/percona/pmm/proto/config"
 )
+
+// QueriesFlags Queries specific flags.
+type QueriesFlags struct {
+	DisableQueryExamples bool
+}
 
 // deleteInstance delete instance on QAN API.
 func (a *Admin) deleteInstance(uuid string) error {
@@ -76,7 +81,7 @@ func getAgentID(configFile string) (string, error) {
 		return "", err
 	}
 
-	config := &protocfg.Agent{}
+	config := &pc.Agent{}
 	if err := json.Unmarshal(jsonData, &config); err != nil {
 		return "", err
 	}
@@ -89,7 +94,7 @@ func getAgentID(configFile string) (string, error) {
 }
 
 // startQan enable QAN on agent through QAN API.
-func (a *Admin) startQAN(agentID string, config map[string]interface{}) error {
+func (a *Admin) startQAN(agentID string, config pc.QAN) error {
 	cmdName := "StartTool"
 	data, err := json.Marshal(config)
 	if err != nil {

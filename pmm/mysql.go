@@ -22,8 +22,6 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
-	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -39,23 +37,23 @@ type MySQLFlags struct {
 	Port         string
 	Socket       string
 
-	QuerySource string
-
 	CreateUser         bool
 	CreateUserPassword string
 	MaxUserConn        uint16
 	Force              bool
+}
 
-	DisableTableStats      bool
-	DisableTableStatsLimit uint16
-	DisableUserStats       bool
-	DisableBinlogStats     bool
-	DisableProcesslist     bool
-	DisableQueryExamples   bool
+type MySQLInfo struct {
+	Hostname string
+	Port     string
+	Distro   string
+	Version  string
+	DSN      string
+	SafeDSN  string
 }
 
 // DetectMySQL detect MySQL, create user if needed, return DSN and MySQL info strings.
-func (a *Admin) DetectMySQL(mf MySQLFlags) (map[string]string, error) {
+func (a *Admin) DetectMySQL(mf MySQLFlags) (*MySQLInfo, error) {
 	// Check for invalid mix of flags.
 	if mf.Socket != "" && mf.Host != "" {
 		return nil, errors.New("Flags --socket and --host are mutually exclusive.")
@@ -117,19 +115,6 @@ func (a *Admin) DetectMySQL(mf MySQLFlags) (map[string]string, error) {
 	// At this point, we verified the MySQL access, so no need to handle SQL errors below
 	// if our queries are predictably good.
 
-	// Get MySQL variables.
-	info := getMysqlInfo(db, mf.DisableTableStats)
-
-	if mf.QuerySource == "auto" {
-		// MySQL is local if the server hostname == MySQL hostname.
-		osHostname, _ := os.Hostname()
-		if osHostname == info["hostname"] {
-			mf.QuerySource = "slowlog"
-		} else {
-			mf.QuerySource = "perfschema"
-		}
-	}
-
 	// Create a new MySQL user.
 	if mf.CreateUser {
 		userDSN, err = createMySQLUser(db, userDSN, mf)
@@ -142,12 +127,12 @@ func (a *Admin) DetectMySQL(mf MySQLFlags) (map[string]string, error) {
 		a.writeConfig()
 	}
 
-	info["query_source"] = mf.QuerySource
-	info["query_examples"] = strconv.FormatBool(!mf.DisableQueryExamples)
-	info["dsn"] = userDSN.String()
-	info["safe_dsn"] = SanitizeDSN(userDSN.String())
+	// Get MySQL variables.
+	mi := getMysqlInfo(db)
+	mi.DSN = userDSN.String()
+	mi.SafeDSN = SanitizeDSN(userDSN.String())
 
-	return info, nil
+	return mi, nil
 }
 
 func createMySQLUser(db *sql.DB, userDSN dsn.DSN, mf MySQLFlags) (dsn.DSN, error) {
@@ -267,21 +252,10 @@ func testConnection(dsn string) error {
 	return nil
 }
 
-func getMysqlInfo(db *sql.DB, disableTableStats bool) map[string]string {
-	var hostname, port, distro, version, tableCount string
-	db.QueryRow("SELECT @@hostname, @@port, @@version_comment, @@version").Scan(&hostname, &port, &distro, &version)
-	// Do not count number of tables if we explicitly disable table stats.
-	if !disableTableStats {
-		db.QueryRow("SELECT COUNT(*) FROM information_schema.tables").Scan(&tableCount)
-	}
-
-	return map[string]string{
-		"hostname":    hostname,
-		"port":        port,
-		"distro":      distro,
-		"version":     version,
-		"table_count": tableCount,
-	}
+func getMysqlInfo(db *sql.DB) *MySQLInfo {
+	mi := &MySQLInfo{}
+	db.QueryRow("SELECT @@hostname, @@port, @@version_comment, @@version").Scan(&mi.Hostname, &mi.Port, &mi.Distro, &mi.Version)
+	return mi
 }
 
 // generatePassword generate password to satisfy MySQL 5.7 default password policy.

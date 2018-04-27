@@ -4,6 +4,10 @@
   unused-packages = true
 
 [[constraint]]
+  name = "github.com/percona/pmm"
+  revision = "2705fbb6b1cc393660d9b3d25518d7bacd5db2ad"
+
+[[constraint]]
   name = "github.com/fatih/color"
   version = "^1.5.0"
 
