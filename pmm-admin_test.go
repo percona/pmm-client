@@ -1376,6 +1376,8 @@ func testAddMySQL(t *testing.T, data pmmAdminData) {
 		data.bin,
 		"add",
 		"mysql",
+		"--port", "3306", // MySQL instance with performance_schema enabled.
+		"--host", "127.0.0.1", // Force pmm-admin to ignore auto detection, otherwise it tries to connect to socket.
 	)
 
 	output, err := cmd.CombinedOutput()
@@ -1489,7 +1491,8 @@ func testAddMySQLWithDisableSlowLogsRotation(t *testing.T, data pmmAdminData) {
 			"add",
 			"mysql",
 			"--port", "3307", // MySQL instance with slow query log enabled.
-			"--query-source=slowlog", // Force using slowlog.
+			"--host", "127.0.0.1", // Force pmm-admin to ignore auto detection, otherwise it tries to connect to socket.
+			"--query-source=slowlog", // Force using slow query log.
 			"--disable-slow-logs-rotation",
 		)
 
@@ -1617,7 +1620,8 @@ func testAddMySQLWithRetainSlowLogs(t *testing.T, data pmmAdminData) {
 			"add",
 			"mysql",
 			"--port", "3307", // MySQL instance with slow query log enabled.
-			"--query-source=slowlog", // Force using slowlog.
+			"--host", "127.0.0.1", // Force pmm-admin to ignore auto detection, otherwise it tries to connect to socket.
+			"--query-source=slowlog", // Force using slow query log.
 			"--retain-slow-logs=42",
 		)
 
