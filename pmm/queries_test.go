@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"net/url"
 	"os"
 	"testing"
 	"time"
@@ -75,10 +74,9 @@ func TestAdmin_StartStopQAN(t *testing.T) {
 
 	// create fakeapi
 	api := fakeapi.New()
-	defer api.Close()
 	api.AppendQanAPIAgents(agentID)
-
-	u, _ := url.Parse(api.URL())
+	defer api.Close()
+	_, host, port := api.Start()
 
 	// create qan config
 	qanConfig := map[string]interface{}{
@@ -95,11 +93,10 @@ func TestAdmin_StartStopQAN(t *testing.T) {
 	admin.qanAPI = NewAPI(insecureFlag, timeout, debug)
 
 	// point pmm-admin to fake http api
-	admin.serverURL = u.Host
+	admin.serverURL = fmt.Sprintf("%s:%s", host, port)
 	scheme := "http"
 	authStr := ""
-	host := u.Host // u.Host delivers host:port
-	admin.serverURL = fmt.Sprintf("%s://%s%s", scheme, authStr, host)
+	admin.serverURL = fmt.Sprintf("%s://%s%s:%s", scheme, authStr, host, port)
 
 	t.Run("startQAN", func(t *testing.T) {
 		err := admin.startQAN(agentID, qanConfig)
