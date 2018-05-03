@@ -25,7 +25,7 @@ import (
 )
 
 // AddLinuxMetrics add linux service to monitoring.
-func (a *Admin) AddLinuxMetrics(force bool) error {
+func (a *Admin) AddLinuxMetrics(force bool, disableSSL bool) error {
 	// Check if we have already this service on Consul.
 	// When using force, we allow adding another service with different name.
 	name := ""
@@ -60,13 +60,21 @@ func (a *Admin) AddLinuxMetrics(force bool) error {
 		return err
 	}
 
+	var tags []string
+	if disableSSL {
+		tags = []string{fmt.Sprintf("alias_%s", a.ServiceName), "scheme_http"}
+	} else {
+		tags = []string{fmt.Sprintf("alias_%s", a.ServiceName), "scheme_https"}
+	}
+
 	// Add service to Consul.
 	srv := consul.AgentService{
 		ID:      fmt.Sprintf("linux:metrics-%d", port),
 		Service: "linux:metrics",
-		Tags:    []string{fmt.Sprintf("alias_%s", a.ServiceName), "scheme_https"},
+		Tags:    tags,
 		Port:    int(port),
 	}
+
 	reg := consul.CatalogRegistration{
 		Node:    a.Config.ClientName,
 		Address: a.Config.ClientAddress,
@@ -76,18 +84,20 @@ func (a *Admin) AddLinuxMetrics(force bool) error {
 		return err
 	}
 
-	// Check and generate certificate if needed.
-	if err := a.checkSSLCertificate(); err != nil {
-		return err
-	}
-
 	args := []string{
 		nodeExporterArgs,
 		fmt.Sprintf("-web.listen-address=%s:%d", a.Config.BindAddress, port),
 		fmt.Sprintf("-web.auth-file=%s", ConfigFile),
-		fmt.Sprintf("-web.ssl-cert-file=%s", SSLCertFile),
-		fmt.Sprintf("-web.ssl-key-file=%s", SSLKeyFile),
 	}
+
+	if !disableSSL {
+		// Check and generate certificate if needed.
+		if err := a.checkSSLCertificate(); err != nil {
+			return err
+		}
+		args = append(args, fmt.Sprintf("-web.ssl-key-file=%s", SSLKeyFile), fmt.Sprintf("-web.ssl-cert-file=%s", SSLCertFile))
+	}
+
 	// Add additional args passed to pmm-admin
 	args = append(args, a.Args...)
 

@@ -234,7 +234,7 @@ Table statistics is automatically disabled when there are more than 10000 tables
 				os.Exit(1)
 			}
 
-			err := admin.AddLinuxMetrics(flagForce)
+			err := admin.AddLinuxMetrics(flagForce, flagDisableSSL)
 			if err == pmm.ErrOneLinux {
 				fmt.Println("[linux:metrics] OK, already monitoring this system.")
 			} else if err != nil {
@@ -250,7 +250,7 @@ Table statistics is automatically disabled when there are more than 10000 tables
 				os.Exit(1)
 			}
 
-			err = admin.AddMySQLMetrics(info, flagM)
+			err = admin.AddMySQLMetrics(info, flagM, flagDisableSSL)
 			if err == pmm.ErrDuplicate {
 				fmt.Println("[mysql:metrics] OK, already monitoring MySQL metrics.")
 			} else if err != nil {
@@ -285,7 +285,7 @@ However, you can add another one with the different name just for testing purpos
 [exporter_args] are the command line options to be passed directly to Prometheus Exporter.
 		`,
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := admin.AddLinuxMetrics(flagForce); err != nil {
+			if err := admin.AddLinuxMetrics(flagForce, flagDisableSSL); err != nil {
 				fmt.Println("Error adding linux metrics:", err)
 				os.Exit(1)
 			}
@@ -318,7 +318,7 @@ Table statistics is automatically disabled when there are more than 10000 tables
 				fmt.Println(err)
 				os.Exit(1)
 			}
-			if err := admin.AddMySQLMetrics(info, flagM); err != nil {
+			if err := admin.AddMySQLMetrics(info, flagM, flagDisableSSL); err != nil {
 				fmt.Println("Error adding MySQL metrics:", err)
 				os.Exit(1)
 			}
@@ -383,7 +383,7 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 				os.Exit(1)
 			}
 
-			err := admin.AddLinuxMetrics(flagForce)
+			err := admin.AddLinuxMetrics(flagForce, flagDisableSSL)
 			if err == pmm.ErrOneLinux {
 				fmt.Println("[linux:metrics]   OK, already monitoring this system.")
 			} else if err != nil {
@@ -398,7 +398,7 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 				fmt.Printf("[mongodb:metrics] %s\n", err)
 				os.Exit(1)
 			}
-			err = admin.AddMongoDBMetrics(flagMongoURI, flagCluster)
+			err = admin.AddMongoDBMetrics(flagMongoURI, flagCluster, flagDisableSSL)
 			if err == pmm.ErrDuplicate {
 				fmt.Println("[mongodb:metrics] OK, already monitoring MongoDB metrics.")
 			} else if err != nil {
@@ -439,7 +439,7 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 				fmt.Println(err)
 				os.Exit(1)
 			}
-			if err := admin.AddMongoDBMetrics(flagMongoURI, flagCluster); err != nil {
+			if err := admin.AddMongoDBMetrics(flagMongoURI, flagCluster, flagDisableSSL); err != nil {
 				fmt.Println("Error adding MongoDB metrics:", err)
 				os.Exit(1)
 			}
@@ -486,7 +486,7 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 				fmt.Println(err)
 				os.Exit(1)
 			}
-			if err := admin.AddProxySQLMetrics(flagDSN); err != nil {
+			if err := admin.AddProxySQLMetrics(flagDSN, flagDisableSSL); err != nil {
 				fmt.Println("Error adding proxysql metrics:", err)
 				os.Exit(1)
 			}
@@ -1216,7 +1216,7 @@ despite PMM server is alive or not.
 	flagMongoURI, flagCluster, flagDSN, flagFormat string
 	flagATags                                      string
 
-	flagVersion, flagJson, flagAll, flagForce bool
+	flagVersion, flagJson, flagAll, flagForce, flagDisableSSL bool
 
 	flagServicePort int
 
@@ -1294,6 +1294,7 @@ func main() {
 	cmdAnnotate.Flags().StringVar(&flagATags, "tags", "", "List of tags (sepatated by comma)")
 
 	cmdAddLinuxMetrics.Flags().BoolVar(&flagForce, "force", false, "force to add another linux:metrics instance with different name for testing purposes")
+	cmdAddLinuxMetrics.Flags().BoolVar(&flagDisableSSL, "disable-ssl", true, "disable ssl mode on exporter")
 
 	addCommonMySQLFlags := func(cmd *cobra.Command) {
 		cmd.Flags().StringVar(&flagM.DefaultsFile, "defaults-file", "", "path to my.cnf")
@@ -1306,6 +1307,7 @@ func main() {
 		cmd.Flags().StringVar(&flagM.CreateUserPassword, "create-user-password", "", "optional password for a new MySQL user")
 		cmd.Flags().Uint16Var(&flagM.MaxUserConn, "create-user-maxconn", 10, "max user connections for a new user")
 		cmd.Flags().BoolVar(&flagM.Force, "force", false, "force to create/update MySQL user")
+		cmd.Flags().BoolVar(&flagDisableSSL, "disable-ssl", false, "disable ssl mode on exporter")
 	}
 
 	addCommonMySQLFlags(cmdAddMySQL)
@@ -1329,6 +1331,7 @@ func main() {
 
 	addCommonMongoDBFlags := func(cmd *cobra.Command) {
 		cmd.Flags().StringVar(&flagMongoURI, "uri", "localhost:27017", "MongoDB URI, format: [mongodb://][user:pass@]host[:port][/database][?options]")
+		cmd.Flags().BoolVar(&flagDisableSSL, "disable-ssl", false, "disable ssl mode on exporter")
 	}
 	addCommonMongoDBFlags(cmdAddMongoDB)
 	cmdAddMongoDB.Flags().StringVar(&flagCluster, "cluster", "", "cluster name")
@@ -1337,6 +1340,7 @@ func main() {
 	addCommonMongoDBFlags(cmdAddMongoDBQueries)
 
 	cmdAddProxySQLMetrics.Flags().StringVar(&flagDSN, "dsn", "stats:stats@tcp(localhost:6032)/", "ProxySQL connection DSN")
+	cmdAddProxySQLMetrics.Flags().BoolVar(&flagDisableSSL, "disable-ssl", false, "disable ssl mode on exporter")
 
 	cmdAddExternalService.Flags().DurationVar(&flagExtInterval, "interval", 0, "scrape interval")
 	cmdAddExternalService.Flags().DurationVar(&flagExtTimeout, "timeout", 0, "scrape timeout")
