@@ -22,8 +22,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"net"
-	"net/url"
 	"os"
 	"os/exec"
 	"reflect"
@@ -99,7 +97,8 @@ func TestPmmAdmin(t *testing.T) {
 		testConfigVerbose,
 		testConfigVerboseServerNotAvailable,
 		testHelp,
-		testList,
+		testListEmpty,
+		testListNonEmpty,
 		testStartStopRestart,
 		testStartStopRestartAllWithNoServices,
 		testStartStopRestartAllWithServices,
@@ -133,7 +132,7 @@ func testVersion(t *testing.T, data pmmAdminData) {
 	assert.Nil(t, err)
 
 	// sanity check that version number was changed with ldflag for this test build
-	assert.Equal(t, "EXPERIMENTAL", pmm.Version)
+	assert.Equal(t, "1.10.0", pmm.Version)
 	expected := `gotest`
 
 	assertRegexpLines(t, expected, string(output))
@@ -152,6 +151,7 @@ func testHelp(t *testing.T, data pmmAdminData) {
 Available Commands:
   config         Configure PMM Client.
   add            Add service to monitoring.
+  annotate       Annotate application events.
   remove         Remove service from monitoring.
   list           List monitoring services for this system.
   info           Display PMM Client information \(works offline\).
@@ -211,23 +211,22 @@ func testConfig(t *testing.T, data pmmAdminData) {
 
 	// Create fake api server
 	fapi := fakeapi.New()
-	defer fapi.Close()
-	u, _ := url.Parse(fapi.URL())
-	clientAddress, _, _ := net.SplitHostPort(u.Host)
-	clientName, _ := os.Hostname()
 	fapi.AppendRoot()
 	fapi.AppendQanAPIPing()
-	fapi.AppendConsulV1StatusLeader(clientAddress)
-	node := &api.CatalogNode{
+	fapi.AppendConsulV1StatusLeader()
+	node := api.CatalogNode{
 		Node: &api.Node{},
 	}
+	clientName, _ := os.Hostname()
 	fapi.AppendConsulV1CatalogNode(clientName, node)
+	url, host, port := fapi.Start()
+	defer fapi.Close()
 
 	cmd := exec.Command(
 		data.bin,
 		"config",
 		"--server",
-		u.Host,
+		fmt.Sprintf("%s:%s", host, port),
 	)
 
 	output, err := cmd.CombinedOutput()
@@ -235,9 +234,9 @@ func testConfig(t *testing.T, data pmmAdminData) {
 
 	expected := `OK, PMM server is alive.
 
-` + fmt.Sprintf("%-15s | %s ", "PMM Server", u.Host) + `
-` + fmt.Sprintf("%-15s | %s", "Client Name", clientName) + `
-` + fmt.Sprintf("%-15s | %s ", "Client Address", clientAddress) + `
+` + fmt.Sprintf("%-15s | %s ", "PMM Server", host) + `
+` + fmt.Sprintf("%-15s | %s", "Client Name", url) + `
+` + fmt.Sprintf("%-15s | %s ", "Client Address", port) + `
 `
 	assertRegexpLines(t, expected, string(output))
 }
@@ -252,24 +251,24 @@ func testConfigVerbose(t *testing.T, data pmmAdminData) {
 
 	// Create fake api server
 	fapi := fakeapi.New()
-	defer fapi.Close()
-	u, _ := url.Parse(fapi.URL())
-	clientAddress, _, _ := net.SplitHostPort(u.Host)
 	clientName, _ := os.Hostname()
 	fapi.AppendRoot()
 	fapi.AppendQanAPIPing()
-	fapi.AppendConsulV1StatusLeader(clientAddress)
-	node := &api.CatalogNode{
+	fapi.AppendConsulV1StatusLeader()
+	node := api.CatalogNode{
 		Node: &api.Node{},
 	}
 	fapi.AppendConsulV1CatalogNode(clientName, node)
+	_, host, port := fapi.Start()
+	hostPort := fmt.Sprintf("%s:%s", host, port)
+	defer fapi.Close()
 
 	cmd := exec.Command(
 		data.bin,
 		"config",
 		"--verbose",
 		"--server",
-		u.Host,
+		hostPort,
 	)
 
 	output, err := cmd.CombinedOutput()
@@ -278,7 +277,7 @@ func testConfigVerbose(t *testing.T, data pmmAdminData) {
 	// with --verbose flag we should have bunch of http requests to server
 	expected := `.+ request:
 > GET /qan-api/ping HTTP/1.1
-> Host: ` + u.Host + `
+> Host: ` + hostPort + `
 > User-Agent: Go-http-client/1.1
 > Accept-Encoding: gzip
 >\s*
@@ -293,7 +292,7 @@ func testConfigVerbose(t *testing.T, data pmmAdminData) {
 <\s*
 .+ request:
 > GET /v1/status/leader HTTP/1.1
-> Host: ` + u.Host + `
+> Host: ` + hostPort + `
 > User-Agent: Go-http-client/1.1
 > Accept-Encoding: gzip
 >\s*
@@ -309,7 +308,7 @@ func testConfigVerbose(t *testing.T, data pmmAdminData) {
 < "127.0.0.1:8300"
 .+ request:
 > GET /v1/catalog/node/` + clientName + ` HTTP/1.1
-> Host: ` + u.Host + `
+> Host: ` + hostPort + `
 > User-Agent: Go-http-client/1.1
 > Accept-Encoding: gzip
 >\s*
@@ -323,7 +322,7 @@ func testConfigVerbose(t *testing.T, data pmmAdminData) {
 < {"Node":{"ID":"","Node":"","Address":"","Datacenter":"","TaggedAddresses":null,"Meta":null,"CreateIndex":0,"ModifyIndex":0},"Services":null}
 .+ request:
 > GET /v1/status/leader HTTP/1.1
-> Host: ` + u.Host + `
+> Host: ` + hostPort + `
 > User-Agent: Go-http-client/1.1
 > Accept-Encoding: gzip
 >\s*
@@ -339,9 +338,9 @@ func testConfigVerbose(t *testing.T, data pmmAdminData) {
 < "127.0.0.1:8300"
 OK, PMM server is alive.
 
-PMM Server      | ` + u.Host + `
+PMM Server      | ` + host + `
 Client Name     | ` + clientName + `
-Client Address  | ` + clientAddress + `
+Client Address  | ` + hostPort + `
 `
 
 	assertRegexpLines(t, expected, string(output))
@@ -449,7 +448,7 @@ func testStartStopRestartAllWithNoServices(t *testing.T, data pmmAdminData) {
 	})
 }
 
-func testList(t *testing.T, data pmmAdminData) {
+func testListEmpty(t *testing.T, data pmmAdminData) {
 	defer func() {
 		err := os.RemoveAll(data.rootDir)
 		assert.Nil(t, err)
@@ -457,19 +456,18 @@ func testList(t *testing.T, data pmmAdminData) {
 
 	// Create fake api server
 	fapi := fakeapi.New()
-	defer fapi.Close()
-	u, _ := url.Parse(fapi.URL())
-	serverAddress, _, _ := net.SplitHostPort(u.Host)
 	clientName := "test-client-name"
 	fapi.AppendRoot()
 	fapi.AppendQanAPIPing()
-	fapi.AppendConsulV1StatusLeader(serverAddress)
-	node := &api.CatalogNode{
+	fapi.AppendConsulV1StatusLeader()
+	node := api.CatalogNode{
 		Node: &api.Node{},
 	}
 	fapi.AppendConsulV1CatalogNode(clientName, node)
 	fapi.AppendConsulV1KV()
 	fapi.AppendManaged()
+	_, host, port := fapi.Start()
+	defer fapi.Close()
 
 	os.MkdirAll(data.rootDir+pmm.PMMBaseDir, 0777)
 	os.Create(data.rootDir + pmm.PMMBaseDir + "/node_exporter")
@@ -495,7 +493,7 @@ func testList(t *testing.T, data pmmAdminData) {
 	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
 
 	pmmConfig := pmm.Config{
-		ServerAddress: fmt.Sprintf("%s:%s", fapi.Host(), fapi.Port()),
+		ServerAddress: fmt.Sprintf("%s:%s", host, port),
 		ClientName:    clientName,
 		ClientAddress: "empty",
 		BindAddress:   "data",
@@ -524,6 +522,23 @@ No services under monitoring.
 		assertRegexpLines(t, expected, string(output))
 	})
 
+}
+
+func testListNonEmpty(t *testing.T, data pmmAdminData) {
+	defer func() {
+		err := os.RemoveAll(data.rootDir)
+		assert.Nil(t, err)
+	}()
+
+	// Create fake api server
+	fapi := fakeapi.New()
+	clientName := "test-client-name"
+	fapi.AppendRoot()
+	fapi.AppendQanAPIPing()
+	fapi.AppendConsulV1StatusLeader()
+	node := api.CatalogNode{
+		Node: &api.Node{},
+	}
 	node.Services = map[string]*api.AgentService{
 		"a": {
 			ID:      "id",
@@ -542,6 +557,44 @@ No services under monitoring.
 			},
 		},
 	}
+
+	fapi.AppendConsulV1CatalogNode(clientName, node)
+	fapi.AppendConsulV1KV()
+	fapi.AppendManaged()
+	_, host, port := fapi.Start()
+	defer fapi.Close()
+
+	os.MkdirAll(data.rootDir+pmm.PMMBaseDir, 0777)
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/node_exporter")
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/mysqld_exporter")
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/mongodb_exporter")
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/proxysql_exporter")
+
+	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/bin", 0777)
+	os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent")
+	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/config", 0777)
+	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/instance", 0777)
+
+	f, _ := os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent-installer")
+	f.WriteString("#!/bin/sh\n")
+	f.WriteString("echo 'it works'")
+	f.Close()
+	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
+
+	f, _ = os.Create(data.rootDir + pmm.AgentBaseDir + "/config/agent.conf")
+	f.WriteString(`{"UUID":"42","ApiHostname":"somehostname","ApiPath":"/qan-api","ServerUser":"pmm"}`)
+	f.WriteString("\n")
+	f.Close()
+	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
+
+	pmmConfig := pmm.Config{
+		ServerAddress: fmt.Sprintf("%s:%s", host, port),
+		ClientName:    clientName,
+		ClientAddress: "empty",
+		BindAddress:   "data",
+	}
+	bytes, _ := yaml.Marshal(pmmConfig)
+	ioutil.WriteFile(data.rootDir+pmm.PMMBaseDir+"/pmm.yml", bytes, 0600)
 
 	// create fake system service
 	{
@@ -710,14 +763,11 @@ func testStartStopRestart(t *testing.T, data pmmAdminData) {
 
 	// Create fake api server
 	fapi := fakeapi.New()
-	defer fapi.Close()
-	u, _ := url.Parse(fapi.URL())
-	serverAddress, _, _ := net.SplitHostPort(u.Host)
 	clientName := "test-client-name"
 	fapi.AppendRoot()
 	fapi.AppendQanAPIPing()
-	fapi.AppendConsulV1StatusLeader(serverAddress)
-	node := &api.CatalogNode{
+	fapi.AppendConsulV1StatusLeader()
+	node := api.CatalogNode{
 		Node: &api.Node{},
 		Services: map[string]*api.AgentService{
 			"a": {
@@ -731,6 +781,8 @@ func testStartStopRestart(t *testing.T, data pmmAdminData) {
 		},
 	}
 	fapi.AppendConsulV1CatalogNode(clientName, node)
+	_, host, port := fapi.Start()
+	defer fapi.Close()
 
 	os.MkdirAll(data.rootDir+pmm.PMMBaseDir, 0777)
 	os.Create(data.rootDir + pmm.PMMBaseDir + "/node_exporter")
@@ -756,7 +808,7 @@ func testStartStopRestart(t *testing.T, data pmmAdminData) {
 	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
 
 	pmmConfig := pmm.Config{
-		ServerAddress: fmt.Sprintf("%s:%s", fapi.Host(), fapi.Port()),
+		ServerAddress: fmt.Sprintf("%s:%s", host, port),
 		ClientName:    clientName,
 		ClientAddress: "empty",
 		BindAddress:   "data",
@@ -925,15 +977,16 @@ func testStartStopRestartNoServiceFound(t *testing.T, data pmmAdminData) {
 
 	// Create fake api server
 	fapi := fakeapi.New()
-	defer fapi.Close()
 	fapi.AppendRoot()
 	fapi.AppendQanAPIPing()
-	fapi.AppendConsulV1StatusLeader(fapi.Host())
+	fapi.AppendConsulV1StatusLeader()
 	clientName, _ := os.Hostname()
-	node := &api.CatalogNode{
+	node := api.CatalogNode{
 		Node: &api.Node{},
 	}
 	fapi.AppendConsulV1CatalogNode(clientName, node)
+	_, host, port := fapi.Start()
+	defer fapi.Close()
 
 	// Create fake filesystem
 	os.MkdirAll(data.rootDir+pmm.PMMBaseDir, 0777)
@@ -960,7 +1013,7 @@ func testStartStopRestartNoServiceFound(t *testing.T, data pmmAdminData) {
 	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
 
 	pmmConfig := pmm.Config{
-		ServerAddress: fmt.Sprintf("%s:%s", fapi.Host(), fapi.Port()),
+		ServerAddress: fmt.Sprintf("%s:%s", host, port),
 		ClientName:    clientName,
 		ClientAddress: "localhost",
 		BindAddress:   "localhost",
@@ -1017,17 +1070,17 @@ func testCheckNetwork(t *testing.T, data pmmAdminData) {
 
 	// Create fake api server
 	fapi := fakeapi.New()
-	defer fapi.Close()
-	u, _ := url.Parse(fapi.URL())
 	fapi.AppendRoot()
 	fapi.AppendQanAPIPing()
 	fapi.AppendPrometheusAPIV1Query()
-	fapi.AppendConsulV1StatusLeader(fapi.Host())
+	fapi.AppendConsulV1StatusLeader()
 	clientName, _ := os.Hostname()
-	node := &api.CatalogNode{
+	node := api.CatalogNode{
 		Node: &api.Node{},
 	}
 	fapi.AppendConsulV1CatalogNode(clientName, node)
+	_, host, port := fapi.Start()
+	defer fapi.Close()
 
 	// Create fake filesystem
 	os.MkdirAll(data.rootDir+pmm.PMMBaseDir, 0777)
@@ -1054,7 +1107,7 @@ func testCheckNetwork(t *testing.T, data pmmAdminData) {
 	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
 
 	pmmConfig := pmm.Config{
-		ServerAddress: fmt.Sprintf("%s:%s", fapi.Host(), fapi.Port()),
+		ServerAddress: fmt.Sprintf("%s:%s", host, port),
 		ClientName:    clientName,
 		ClientAddress: "localhost",
 		BindAddress:   "localhost",
@@ -1073,7 +1126,7 @@ func testCheckNetwork(t *testing.T, data pmmAdminData) {
 		assert.Nil(t, err)
 		expected := `PMM Network Status
 
-Server Address | ` + u.Host + `
+Server Address | ` + host + `
 Client Address | localhost
 
 * System Time
@@ -1135,24 +1188,25 @@ func testAddLinuxMetricsWithAdditionalArgsOk(t *testing.T, data pmmAdminData) {
 	{
 		// Create fake api server
 		fapi := fakeapi.New()
-		defer fapi.Close()
 		fapi.AppendRoot()
 		fapi.AppendQanAPIPing()
-		fapi.AppendConsulV1StatusLeader(fapi.Host())
-		clientName, _ := os.Hostname()
-		node := &api.CatalogNode{
+		fapi.AppendConsulV1StatusLeader()
+		node := api.CatalogNode{
 			Node: &api.Node{},
 		}
+		clientName, _ := os.Hostname()
 		fapi.AppendConsulV1CatalogNode(clientName, node)
 		fapi.AppendConsulV1CatalogService()
 		fapi.AppendConsulV1CatalogRegister()
+		_, host, port := fapi.Start()
+		defer fapi.Close()
 
 		// Configure pmm
 		cmd := exec.Command(
 			data.bin,
 			"config",
 			"--server",
-			fmt.Sprintf("%s:%s", fapi.Host(), fapi.Port()),
+			fmt.Sprintf("%s:%s", host, port),
 		)
 		output, err := cmd.CombinedOutput()
 		assert.Nil(t, err, string(output))
@@ -1204,24 +1258,25 @@ func testAddLinuxMetricsWithAdditionalArgsFail(t *testing.T, data pmmAdminData) 
 	{
 		// Create fake api server
 		fapi := fakeapi.New()
-		defer fapi.Close()
 		fapi.AppendRoot()
 		fapi.AppendQanAPIPing()
-		fapi.AppendConsulV1StatusLeader(fapi.Host())
-		clientName, _ := os.Hostname()
-		node := &api.CatalogNode{
+		fapi.AppendConsulV1StatusLeader()
+		node := api.CatalogNode{
 			Node: &api.Node{},
 		}
+		clientName, _ := os.Hostname()
 		fapi.AppendConsulV1CatalogNode(clientName, node)
 		fapi.AppendConsulV1CatalogService()
 		fapi.AppendConsulV1CatalogRegister()
+		_, host, port := fapi.Start()
+		defer fapi.Close()
 
 		// Configure pmm
 		cmd := exec.Command(
 			data.bin,
 			"config",
 			"--server",
-			fmt.Sprintf("%s:%s", fapi.Host(), fapi.Port()),
+			fmt.Sprintf("%s:%s", host, port),
 		)
 		output, err := cmd.CombinedOutput()
 		assert.Nil(t, err, string(output))
@@ -1297,14 +1352,13 @@ EOF
 	{
 		// Create fake api server
 		fapi := fakeapi.New()
-		defer fapi.Close()
 		fapi.AppendRoot()
 		fapi.AppendQanAPIPing()
-		fapi.AppendConsulV1StatusLeader(fapi.Host())
-		clientName, _ := os.Hostname()
-		node := &api.CatalogNode{
+		fapi.AppendConsulV1StatusLeader()
+		node := api.CatalogNode{
 			Node: &api.Node{},
 		}
+		clientName, _ := os.Hostname()
 		fapi.AppendConsulV1CatalogNode(clientName, node)
 		fapi.AppendConsulV1CatalogService()
 		fapi.AppendConsulV1CatalogRegister()
@@ -1321,13 +1375,15 @@ EOF
 		fapi.AppendQanAPIInstances([]*proto.Instance{
 			mongodbInstance,
 		})
+		_, host, port := fapi.Start()
+		defer fapi.Close()
 
 		// Configure pmm
 		cmd := exec.Command(
 			data.bin,
 			"config",
 			"--server",
-			fmt.Sprintf("%s:%s", fapi.Host(), fapi.Port()),
+			fmt.Sprintf("%s:%s", host, port),
 		)
 		output, err := cmd.CombinedOutput()
 		assert.Nil(t, err, string(output))
@@ -1404,14 +1460,13 @@ EOF
 	{
 		// Create fake api server
 		fapi := fakeapi.New()
-		defer fapi.Close()
 		fapi.AppendRoot()
 		fapi.AppendQanAPIPing()
-		fapi.AppendConsulV1StatusLeader(fapi.Host())
-		clientName, _ := os.Hostname()
-		node := &api.CatalogNode{
+		fapi.AppendConsulV1StatusLeader()
+		node := api.CatalogNode{
 			Node: &api.Node{},
 		}
+		clientName, _ := os.Hostname()
 		fapi.AppendConsulV1CatalogNode(clientName, node)
 		fapi.AppendConsulV1CatalogService()
 		fapi.AppendConsulV1CatalogRegister()
@@ -1428,13 +1483,15 @@ EOF
 		fapi.AppendQanAPIInstances([]*proto.Instance{
 			mongodbInstance,
 		})
+		_, host, port := fapi.Start()
+		defer fapi.Close()
 
 		// Configure pmm
 		cmd := exec.Command(
 			data.bin,
 			"config",
 			"--server",
-			fmt.Sprintf("%s:%s", fapi.Host(), fapi.Port()),
+			fmt.Sprintf("%s:%s", host, port),
 		)
 		output, err := cmd.CombinedOutput()
 		assert.Nil(t, err, string(output))
