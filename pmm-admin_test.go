@@ -1493,7 +1493,7 @@ func testAddMySQLWithDisableSlowLogsRotation(t *testing.T, data pmmAdminData) {
 			"--port", "3307", // MySQL instance with slow query log enabled.
 			"--host", "127.0.0.1", // Force pmm-admin to ignore auto detection, otherwise it tries to connect to socket.
 			"--query-source=slowlog", // Force using slow query log.
-			"--disable-slow-logs-rotation",
+			"--slow-log-rotation=false",
 		)
 
 		output, err := cmd.CombinedOutput()
@@ -1508,15 +1508,15 @@ func testAddMySQLWithDisableSlowLogsRotation(t *testing.T, data pmmAdminData) {
 	// Check if correct config file was sent to qan-api.
 	{
 		exampleQueries := true
-		slowLogsRotation := false
-		slowLogsToKeep := 1
+		slowLogRotation := false
+		retainSlowLogs := 1
 		expected := pc.QAN{
-			UUID:             in.UUID,
-			CollectFrom:      "slowlog",
-			Interval:         60,
-			ExampleQueries:   &exampleQueries,
-			SlowLogsRotation: &slowLogsRotation,
-			SlowLogsToKeep:   &slowLogsToKeep,
+			UUID:            in.UUID,
+			CollectFrom:     "slowlog",
+			Interval:        60,
+			ExampleQueries:  &exampleQueries,
+			SlowLogRotation: &slowLogRotation,
+			RetainSlowLogs:  &retainSlowLogs,
 		}
 		assert.Equal(t, expected, config)
 	}
@@ -1637,15 +1637,15 @@ func testAddMySQLWithRetainSlowLogs(t *testing.T, data pmmAdminData) {
 	// Check if correct config file was sent to qan-api.
 	{
 		exampleQueries := true
-		slowLogsRotation := true
-		slowLogsToKeep := 42
+		slowLogRotation := true
+		retainSlowLogs := 42
 		expected := pc.QAN{
-			UUID:             in.UUID,
-			CollectFrom:      "slowlog",
-			Interval:         60,
-			ExampleQueries:   &exampleQueries,
-			SlowLogsRotation: &slowLogsRotation,
-			SlowLogsToKeep:   &slowLogsToKeep,
+			UUID:            in.UUID,
+			CollectFrom:     "slowlog",
+			Interval:        60,
+			ExampleQueries:  &exampleQueries,
+			SlowLogRotation: &slowLogRotation,
+			RetainSlowLogs:  &retainSlowLogs,
 		}
 		assert.Equal(t, expected, config)
 	}

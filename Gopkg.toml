@@ -5,7 +5,7 @@
 
 [[constraint]]
   name = "github.com/percona/pmm"
-  revision = "2705fbb6b1cc393660d9b3d25518d7bacd5db2ad"
+  revision = "88b7a3ea548f89aa63c3ec946c5a20db949db715"
 
 [[constraint]]
   name = "github.com/fatih/color"

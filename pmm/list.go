@@ -302,12 +302,14 @@ func (a *Admin) getSVCTable(node *consul.CatalogNode) []ServiceStatus {
 						dsn = string(kvp.Value)
 					case "qan_mysql_uuid", "qan_mongodb_uuid":
 						f := fmt.Sprintf("%s/config/qan-%s.conf", AgentBaseDir, kvp.Value)
-						querySource, _ := getQuerySource(f)
-						if querySource != "" {
-							opts = append(opts, fmt.Sprintf("query_source=%s", querySource))
+						config, err := getProtoQAN(f)
+						if err != nil {
+							opts = append(opts, err.Error())
 						}
-						queryExamples, _ := getQueryExamples(f)
-						opts = append(opts, fmt.Sprintf("query_examples=%t", queryExamples))
+						opts = append(opts, getQueriesOptions(config)...)
+						if key == "qan_mysql_uuid" {
+							opts = append(opts, getMySQLQueriesOptions(config)...)
+						}
 					}
 				}
 			}

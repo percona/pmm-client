@@ -110,3 +110,14 @@ func TestAdmin_StartStopQAN(t *testing.T) {
 		assert.Nil(t, err)
 	})
 }
+
+func TestGetQueriesOptions(t *testing.T) {
+	config, err := getProtoQAN("testdata/qan-2b6c3eb3669943c160502874036968ba.conf")
+	assert.NoError(t, err)
+	opts := getQueriesOptions(config)
+	expected := []string{
+		"query_source=perfschema",
+		"query_examples=true",
+	}
+	assert.Equal(t, expected, opts)
+}

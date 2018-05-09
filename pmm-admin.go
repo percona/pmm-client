@@ -1295,7 +1295,7 @@ func main() {
 
 	cmdAdd.PersistentFlags().IntVar(&flagServicePort, "service-port", 0, "service port")
 
-	cmdAnnotate.Flags().StringVar(&flagATags, "tags", "", "List of tags (sepatated by comma)")
+	cmdAnnotate.Flags().StringVar(&flagATags, "tags", "", "List of tags (separated by comma)")
 
 	cmdAddLinuxMetrics.Flags().BoolVar(&flagForce, "force", false, "force to add another linux:metrics instance with different name for testing purposes")
 
@@ -1320,7 +1320,7 @@ func main() {
 	cmdAddMySQL.Flags().BoolVar(&flagMySQLMetrics.DisableBinlogStats, "disable-binlogstats", false, "disable binlog statistics")
 	cmdAddMySQL.Flags().BoolVar(&flagMySQLMetrics.DisableProcesslist, "disable-processlist", false, "disable process state metrics")
 	cmdAddMySQL.Flags().BoolVar(&flagQueries.DisableQueryExamples, "disable-queryexamples", false, "disable collection of query examples")
-	cmdAddMySQL.Flags().BoolVar(&flagMySQLQueries.DisableSlowLogsRotation, "disable-slow-logs-rotation", false, "disable slow logs rotation")
+	cmdAddMySQL.Flags().BoolVar(&flagMySQLQueries.SlowLogRotation, "slow-log-rotation", true, "enable slow log rotation")
 	cmdAddMySQL.Flags().IntVar(&flagMySQLQueries.RetainSlowLogs, "retain-slow-logs", 1, "number of slow logs to retain after rotation")
 	cmdAddMySQL.Flags().StringVar(&flagMySQLQueries.QuerySource, "query-source", "auto", "source of SQL queries: auto, slowlog, perfschema")
 
@@ -1335,7 +1335,7 @@ func main() {
 	// mysql:queries
 	addCommonMySQLFlags(cmdAddMySQLQueries)
 	cmdAddMySQLQueries.Flags().BoolVar(&flagQueries.DisableQueryExamples, "disable-queryexamples", false, "disable collection of query examples")
-	cmdAddMySQLQueries.Flags().BoolVar(&flagMySQLQueries.DisableSlowLogsRotation, "disable-slow-logs-rotation", false, "disable slow logs rotation")
+	cmdAddMySQLQueries.Flags().BoolVar(&flagMySQLQueries.SlowLogRotation, "slow-log-rotation", true, "enable slow log rotation")
 	cmdAddMySQLQueries.Flags().IntVar(&flagMySQLQueries.RetainSlowLogs, "retain-slow-logs", 1, "number of slow logs to retain after rotation")
 	cmdAddMySQLQueries.Flags().StringVar(&flagMySQLQueries.QuerySource, "query-source", "auto", "source of SQL queries: auto, slowlog, perfschema")
 

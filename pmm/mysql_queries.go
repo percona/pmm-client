@@ -36,8 +36,8 @@ import (
 type MySQLQueriesFlags struct {
 	QuerySource string
 	// slowlog specific options.
-	RetainSlowLogs          int
-	DisableSlowLogsRotation bool
+	RetainSlowLogs  int
+	SlowLogRotation bool
 }
 
 // MySQLQueriesResult is result returned by AddMySQLQueries.
@@ -159,7 +159,6 @@ func (a *Admin) AddMySQLQueries(mi MySQLInfo, mf MySQLQueriesFlags, qf QueriesFl
 	}
 
 	exampleQueries := !qf.DisableQueryExamples
-	slowLogsRotation := !mf.DisableSlowLogsRotation
 	// Start QAN by associating instance with agent.
 	qanConfig := pc.QAN{
 		UUID:           instance.UUID,
@@ -167,8 +166,8 @@ func (a *Admin) AddMySQLQueries(mi MySQLInfo, mf MySQLQueriesFlags, qf QueriesFl
 		Interval:       60,
 		ExampleQueries: &exampleQueries,
 		// "slowlog" specific options.
-		SlowLogsRotation: &slowLogsRotation,
-		SlowLogsToKeep:   &mf.RetainSlowLogs,
+		SlowLogRotation: &mf.SlowLogRotation,
+		RetainSlowLogs:  &mf.RetainSlowLogs,
 	}
 	if err := a.startQAN(agentID, qanConfig); err != nil {
 		return nil, err
@@ -414,41 +413,11 @@ func (a *Admin) updateInstance(inUUID string, bytes []byte) error {
 	return nil
 }
 
-// getQuerySource read CollectFrom from mysql instance QAN config file.
-func getQuerySource(configFile string) (string, error) {
-	jsonData, err := ioutil.ReadFile(configFile)
-	if err != nil {
-		return "", err
+// getQueriesOptions reads Queries options from QAN config file.
+func getMySQLQueriesOptions(config *pc.QAN) (opts []string) {
+	if config.CollectFrom == "slowlog" {
+		opts = append(opts, fmt.Sprintf("slow_log_rotation=%t", boolValue(config.SlowLogRotation)))
+		opts = append(opts, fmt.Sprintf("retain_slow_logs=%d", intValue(config.RetainSlowLogs)))
 	}
-
-	config := &pc.QAN{}
-	if err := json.Unmarshal(jsonData, &config); err != nil {
-		return "", err
-	}
-
-	return config.CollectFrom, nil
-}
-
-// getQueryExamples read ExampleQueries from mysql instance QAN config file.
-func getQueryExamples(configFile string) (bool, error) {
-	jsonData, err := ioutil.ReadFile(configFile)
-	if err != nil {
-		return false, err
-	}
-
-	config := &pc.QAN{}
-	if err := json.Unmarshal(jsonData, &config); err != nil {
-		return false, err
-	}
-
-	return boolValue(config.ExampleQueries), nil
-}
-
-// boolValue returns the value of the bool pointer passed in or
-// false if the pointer is nil.
-func boolValue(v *bool) bool {
-	if v != nil {
-		return *v
-	}
-	return false
+	return opts
 }

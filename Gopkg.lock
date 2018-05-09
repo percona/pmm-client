@@ -203,7 +203,7 @@
     "proto",
     "proto/config"
   ]
-  revision = "2705fbb6b1cc393660d9b3d25518d7bacd5db2ad"
+  revision = "88b7a3ea548f89aa63c3ec946c5a20db949db715"
 
 [[projects]]
   name = "github.com/pkg/errors"
@@ -326,6 +326,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "5fb297dc12f75d68ff9a59e3b2ecb4ca7aa852edef7a40a63c3b9761e6079a39"
+  inputs-digest = "445617d6da9adf8e01aaf6c113971dcabca657736986b68970df2d57697cffc1"
   solver-name = "gps-cdcl"
   solver-version = 1
