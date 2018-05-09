@@ -6,6 +6,8 @@ services:
     image: ${MYSQL_IMAGE:-percona/percona-server}
     environment:
       - MYSQL_ALLOW_EMPTY_PASSWORD=yes
+    command:
+      - ${MYSQL_COMMAND:---verbose}
     ports:
       - 127.0.0.1:3306:3306
   mongodb:
