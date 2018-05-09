@@ -305,6 +305,7 @@ func (a *Admin) getSVCTable(node *consul.CatalogNode) []ServiceStatus {
 						config, err := getProtoQAN(f)
 						if err != nil {
 							opts = append(opts, err.Error())
+							continue
 						}
 						opts = append(opts, getQueriesOptions(config)...)
 						if key == "qan_mysql_uuid" {
