@@ -1291,7 +1291,7 @@ func main() {
 
 	cmdAdd.PersistentFlags().IntVar(&flagServicePort, "service-port", 0, "service port")
 
-	cmdAnnotate.Flags().StringVar(&flagATags, "tags", "", "List of tags (sepatated by comma)")
+	cmdAnnotate.Flags().StringVar(&flagATags, "tags", "", "List of tags (separated by comma)")
 
 	cmdAddLinuxMetrics.Flags().BoolVar(&flagForce, "force", false, "force to add another linux:metrics instance with different name for testing purposes")
 
