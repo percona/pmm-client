@@ -188,7 +188,7 @@ run 'pmm-admin repair' to remove orphaned services. Otherwise, please reinstall 
 		Example: `  pmm-admin annotate "Application deploy v1.2" --tags "UI, v1.2"`,
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) != 1 {
-				fmt.Println("Desctiption of annotation is required")
+				fmt.Println("Description of annotation is required")
 				os.Exit(1)
 			}
 			if err := admin.AddAnnotation(context.TODO(), args[0], flagATags); err != nil {
@@ -1291,7 +1291,7 @@ func main() {
 
 	cmdAdd.PersistentFlags().IntVar(&flagServicePort, "service-port", 0, "service port")
 
-	cmdAnnotate.Flags().StringVar(&flagATags, "tags", "", "List of tags (sepatated by comma)")
+	cmdAnnotate.Flags().StringVar(&flagATags, "tags", "", "List of tags (separated by comma)")
 
 	cmdAddLinuxMetrics.Flags().BoolVar(&flagForce, "force", false, "force to add another linux:metrics instance with different name for testing purposes")
 
