@@ -187,11 +187,11 @@ run 'pmm-admin repair' to remove orphaned services. Otherwise, please reinstall 
 		Long:    "Publish Application Events as Annotations to PMM Server.",
 		Example: `  pmm-admin annotate "Application deploy v1.2" --tags "UI, v1.2"`,
 		Run: func(cmd *cobra.Command, args []string) {
-			if len(args) != 1 {
+			if len(args) < 1 {
 				fmt.Println("Description of annotation is required")
 				os.Exit(1)
 			}
-			if err := admin.AddAnnotation(context.TODO(), args[0], flagATags); err != nil {
+			if err := admin.AddAnnotation(context.TODO(), strings.Join(args, " "), flagATags); err != nil {
 				fmt.Println("Your annotation could not be posted. Error message we received was:\n", err)
 				os.Exit(1)
 			}
