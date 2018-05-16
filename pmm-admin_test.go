@@ -1484,7 +1484,7 @@ func testAddMySQLWithDisableSlowLogsRotation(t *testing.T, data pmmAdminData) {
 		assert.Nil(t, err, string(output))
 	}
 
-	// Add new MySQL instance with --disable-slow-log-rotation.
+	// Add new MySQL instance with --disable-slow-logs-rotation.
 	{
 		cmd := exec.Command(
 			data.bin,
@@ -1493,7 +1493,7 @@ func testAddMySQLWithDisableSlowLogsRotation(t *testing.T, data pmmAdminData) {
 			"--port", "3307", // MySQL instance with slow query log enabled.
 			"--host", "127.0.0.1", // Force pmm-admin to ignore auto detection, otherwise it tries to connect to socket.
 			"--query-source=slowlog", // Force using slow query log.
-			"--disable-slow-log-rotation",
+			"--slow-log-rotation=false",
 		)
 
 		output, err := cmd.CombinedOutput()

@@ -36,8 +36,8 @@ import (
 type MySQLQueriesFlags struct {
 	QuerySource string
 	// slowlog specific options.
-	RetainSlowLogs         int
-	DisableSlowLogRotation bool
+	RetainSlowLogs  int
+	SlowLogRotation bool
 }
 
 // MySQLQueriesResult is result returned by AddMySQLQueries.
@@ -159,7 +159,6 @@ func (a *Admin) AddMySQLQueries(mi MySQLInfo, mf MySQLQueriesFlags, qf QueriesFl
 	}
 
 	exampleQueries := !qf.DisableQueryExamples
-	slowLogRotation := !mf.DisableSlowLogRotation
 	// Start QAN by associating instance with agent.
 	qanConfig := pc.QAN{
 		UUID:           instance.UUID,
@@ -167,7 +166,7 @@ func (a *Admin) AddMySQLQueries(mi MySQLInfo, mf MySQLQueriesFlags, qf QueriesFl
 		Interval:       60,
 		ExampleQueries: &exampleQueries,
 		// "slowlog" specific options.
-		SlowLogRotation: &slowLogRotation,
+		SlowLogRotation: &mf.SlowLogRotation,
 		RetainSlowLogs:  &mf.RetainSlowLogs,
 	}
 	if err := a.startQAN(agentID, qanConfig); err != nil {
