@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/percona/pmm-client/pmm/managed"
-	"github.com/percona/pmm-client/test/fakeapi"
+	"github.com/percona/pmm-client/tests/fakeapi"
 	"github.com/stretchr/testify/assert"
 )
 

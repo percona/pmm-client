@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net/http"
 	"os"
 	"os/exec"
 	"reflect"
@@ -29,12 +30,14 @@ import (
 	"strings"
 	"testing"
 
+	"gopkg.in/yaml.v2"
+
 	"github.com/hashicorp/consul/api"
 	"github.com/percona/pmm-client/pmm"
-	"github.com/percona/pmm-client/test/fakeapi"
+	"github.com/percona/pmm-client/tests/fakeapi"
 	"github.com/percona/pmm/proto"
+	pc "github.com/percona/pmm/proto/config"
 	"github.com/stretchr/testify/assert"
-	"gopkg.in/yaml.v2"
 )
 
 type pmmAdminData struct {
@@ -89,6 +92,9 @@ func TestPmmAdmin(t *testing.T) {
 	}
 	tests := []func(*testing.T, pmmAdminData){
 		testAddMongoDB,
+		testAddMySQL,
+		testAddMySQLWithDisableSlowLogsRotation,
+		testAddMySQLWithRetainSlowLogs,
 		testAddMongoDBQueries,
 		testAddLinuxMetricsWithAdditionalArgsOk,
 		testAddLinuxMetricsWithAdditionalArgsFail,
@@ -1297,6 +1303,352 @@ func testAddLinuxMetricsWithAdditionalArgsFail(t *testing.T, data pmmAdminData) 
 	assert.Error(t, err)
 	expected := `Too many parameters. Only service name is allowed but got: host1, too-many-params.`
 	assertRegexpLines(t, expected, string(output))
+}
+
+func testAddMySQL(t *testing.T, data pmmAdminData) {
+	defer func() {
+		err := os.RemoveAll(data.rootDir)
+		assert.Nil(t, err)
+	}()
+
+	os.MkdirAll(data.rootDir+pmm.PMMBaseDir, 0777)
+	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/bin", 0777)
+	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/config", 0777)
+	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/instance", 0777)
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/node_exporter")
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/mysqld_exporter")
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/mongodb_exporter")
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/proxysql_exporter")
+	os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent")
+
+	f, _ := os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent-installer")
+	f.WriteString("#!/bin/sh\n")
+	f.WriteString("echo 'it works'")
+	f.Close()
+	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
+
+	f, _ = os.Create(data.rootDir + pmm.AgentBaseDir + "/config/agent.conf")
+	f.WriteString(`{"UUID":"42","ApiHostname":"somehostname","ApiPath":"/qan-api","ServerUser":"pmm"}`)
+	f.WriteString("\n")
+	f.Close()
+	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
+	{
+		// Create fake api server
+		fapi := fakeapi.New()
+		fapi.AppendRoot()
+		fapi.AppendQanAPIPing()
+		fapi.AppendConsulV1StatusLeader()
+		node := api.CatalogNode{
+			Node: &api.Node{},
+		}
+		clientName, _ := os.Hostname()
+		fapi.AppendConsulV1CatalogNode(clientName, node)
+		fapi.AppendConsulV1CatalogService()
+		fapi.AppendConsulV1CatalogRegister()
+		in := &proto.Instance{
+			Subsystem: "mysql",
+			UUID:      "13",
+		}
+		agentInstance := &proto.Instance{
+			Subsystem: "agent",
+			UUID:      "42",
+		}
+		fapi.AppendQanAPIInstancesId(agentInstance.UUID, agentInstance)
+		fapi.AppendQanAPIAgents(agentInstance.UUID)
+		fapi.AppendQanAPIInstances([]*proto.Instance{
+			in,
+		})
+		_, host, port := fapi.Start()
+		defer fapi.Close()
+
+		// Configure pmm
+		cmd := exec.Command(
+			data.bin,
+			"config",
+			"--server",
+			fmt.Sprintf("%s:%s", host, port),
+		)
+		output, err := cmd.CombinedOutput()
+		assert.Nil(t, err, string(output))
+	}
+
+	cmd := exec.Command(
+		data.bin,
+		"add",
+		"mysql",
+		"--port", "3306", // MySQL instance with performance_schema enabled.
+		"--host", "127.0.0.1", // Force pmm-admin to ignore auto detection, otherwise it tries to connect to socket.
+	)
+
+	output, err := cmd.CombinedOutput()
+	assert.Nil(t, err)
+	expected := `\[linux:metrics\] OK, now monitoring this system.
+\[mysql:metrics\] OK, now monitoring MySQL metrics using DSN root:\*\*\*@tcp\(127.0.0.1:3306\)
+\[mysql:queries\] OK, now monitoring MySQL queries from perfschema using DSN root:\*\*\*@tcp\(127.0.0.1:3306\)
+`
+	assertRegexpLines(t, expected, string(output))
+}
+
+func testAddMySQLWithDisableSlowLogsRotation(t *testing.T, data pmmAdminData) {
+	defer func() {
+		err := os.RemoveAll(data.rootDir)
+		assert.Nil(t, err)
+	}()
+
+	os.MkdirAll(data.rootDir+pmm.PMMBaseDir, 0777)
+	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/bin", 0777)
+	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/config", 0777)
+	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/instance", 0777)
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/node_exporter")
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/mysqld_exporter")
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/mongodb_exporter")
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/proxysql_exporter")
+	os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent")
+
+	f, _ := os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent-installer")
+	f.WriteString("#!/bin/sh\n")
+	f.WriteString("echo 'it works'")
+	f.Close()
+	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
+
+	f, _ = os.Create(data.rootDir + pmm.AgentBaseDir + "/config/agent.conf")
+	f.WriteString(`{"UUID":"42","ApiHostname":"somehostname","ApiPath":"/qan-api","ServerUser":"pmm"}`)
+	f.WriteString("\n")
+	f.Close()
+	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
+	config := pc.QAN{}
+	in := &proto.Instance{
+		Subsystem: "mysql",
+		UUID:      "13",
+	}
+	// Create fake api server.
+	{
+		fapi := fakeapi.New()
+		fapi.AppendRoot()
+		fapi.AppendQanAPIPing()
+		fapi.AppendConsulV1StatusLeader()
+		node := api.CatalogNode{
+			Node: &api.Node{},
+		}
+		clientName, _ := os.Hostname()
+		fapi.AppendConsulV1CatalogNode(clientName, node)
+		fapi.AppendConsulV1CatalogService()
+		fapi.AppendConsulV1CatalogRegister()
+		in := &proto.Instance{
+			Subsystem: "mysql",
+			UUID:      "13",
+		}
+		agentInstance := &proto.Instance{
+			Subsystem: "agent",
+			UUID:      "42",
+		}
+		fapi.AppendQanAPIInstancesId(agentInstance.UUID, agentInstance)
+		fapi.Append(fmt.Sprintf("/qan-api/agents/%s/cmd", agentInstance.UUID), func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case "PUT":
+				body, err := ioutil.ReadAll(r.Body)
+				if err != nil {
+					panic(fmt.Sprintf("error reading body: %s", err))
+				}
+				defer r.Body.Close()
+
+				cmd := proto.Cmd{}
+				err = json.Unmarshal(body, &cmd)
+				if err != nil {
+					panic(fmt.Sprintf("error unmarshaling body: %s", err))
+				}
+				err = json.Unmarshal(cmd.Data, &config)
+				if err != nil {
+					panic(fmt.Sprintf("error unmarshaling body: %s", err))
+				}
+
+				w.WriteHeader(http.StatusOK)
+			default:
+				w.WriteHeader(600)
+			}
+		})
+		fapi.AppendQanAPIInstances([]*proto.Instance{
+			in,
+		})
+		_, host, port := fapi.Start()
+		defer fapi.Close()
+
+		// Configure pmm
+		cmd := exec.Command(
+			data.bin,
+			"config",
+			"--server",
+			fmt.Sprintf("%s:%s", host, port),
+		)
+		output, err := cmd.CombinedOutput()
+		assert.Nil(t, err, string(output))
+	}
+
+	// Add new MySQL instance with --disable-slow-logs-rotation.
+	{
+		cmd := exec.Command(
+			data.bin,
+			"add",
+			"mysql",
+			"--port", "3307", // MySQL instance with slow query log enabled.
+			"--host", "127.0.0.1", // Force pmm-admin to ignore auto detection, otherwise it tries to connect to socket.
+			"--query-source=slowlog", // Force using slow query log.
+			"--slow-log-rotation=false",
+		)
+
+		output, err := cmd.CombinedOutput()
+		assert.Nil(t, err)
+		expected := `\[linux:metrics\] OK, now monitoring this system.
+\[mysql:metrics\] OK, now monitoring MySQL metrics using DSN root:\*\*\*@tcp\(127.0.0.1:3307\)
+\[mysql:queries\] OK, now monitoring MySQL queries from slowlog using DSN root:\*\*\*@tcp\(127.0.0.1:3307\)
+`
+		assertRegexpLines(t, expected, string(output))
+	}
+
+	// Check if correct config file was sent to qan-api.
+	{
+		exampleQueries := true
+		slowLogRotation := false
+		retainSlowLogs := 1
+		expected := pc.QAN{
+			UUID:            in.UUID,
+			CollectFrom:     "slowlog",
+			Interval:        60,
+			ExampleQueries:  &exampleQueries,
+			SlowLogRotation: &slowLogRotation,
+			RetainSlowLogs:  &retainSlowLogs,
+		}
+		assert.Equal(t, expected, config)
+	}
+}
+
+func testAddMySQLWithRetainSlowLogs(t *testing.T, data pmmAdminData) {
+	defer func() {
+		err := os.RemoveAll(data.rootDir)
+		assert.Nil(t, err)
+	}()
+
+	os.MkdirAll(data.rootDir+pmm.PMMBaseDir, 0777)
+	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/bin", 0777)
+	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/config", 0777)
+	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/instance", 0777)
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/node_exporter")
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/mysqld_exporter")
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/mongodb_exporter")
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/proxysql_exporter")
+	os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent")
+
+	f, _ := os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent-installer")
+	f.WriteString("#!/bin/sh\n")
+	f.WriteString("echo 'it works'")
+	f.Close()
+	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
+
+	f, _ = os.Create(data.rootDir + pmm.AgentBaseDir + "/config/agent.conf")
+	f.WriteString(`{"UUID":"42","ApiHostname":"somehostname","ApiPath":"/qan-api","ServerUser":"pmm"}`)
+	f.WriteString("\n")
+	f.Close()
+	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
+	config := pc.QAN{}
+	in := &proto.Instance{
+		Subsystem: "mysql",
+		UUID:      "13",
+	}
+	// Create fake api server.
+	{
+		fapi := fakeapi.New()
+		fapi.AppendRoot()
+		fapi.AppendQanAPIPing()
+		fapi.AppendConsulV1StatusLeader()
+		node := api.CatalogNode{
+			Node: &api.Node{},
+		}
+		clientName, _ := os.Hostname()
+		fapi.AppendConsulV1CatalogNode(clientName, node)
+		fapi.AppendConsulV1CatalogService()
+		fapi.AppendConsulV1CatalogRegister()
+		agentInstance := &proto.Instance{
+			Subsystem: "agent",
+			UUID:      "42",
+		}
+		fapi.AppendQanAPIInstancesId(agentInstance.UUID, agentInstance)
+		fapi.Append(fmt.Sprintf("/qan-api/agents/%s/cmd", agentInstance.UUID), func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case "PUT":
+				body, err := ioutil.ReadAll(r.Body)
+				if err != nil {
+					panic(fmt.Sprintf("error reading body: %s", err))
+				}
+				defer r.Body.Close()
+
+				cmd := proto.Cmd{}
+				err = json.Unmarshal(body, &cmd)
+				if err != nil {
+					panic(fmt.Sprintf("error unmarshaling body: %s", err))
+				}
+				err = json.Unmarshal(cmd.Data, &config)
+				if err != nil {
+					panic(fmt.Sprintf("error unmarshaling body: %s", err))
+				}
+
+				w.WriteHeader(http.StatusOK)
+			default:
+				w.WriteHeader(600)
+			}
+		})
+		fapi.AppendQanAPIInstances([]*proto.Instance{
+			in,
+		})
+		_, host, port := fapi.Start()
+		defer fapi.Close()
+
+		// Configure pmm
+		cmd := exec.Command(
+			data.bin,
+			"config",
+			"--server",
+			fmt.Sprintf("%s:%s", host, port),
+		)
+		output, err := cmd.CombinedOutput()
+		assert.Nil(t, err, string(output))
+	}
+
+	// Add new MySQL instance with --retain-slow-logs=42.
+	{
+		cmd := exec.Command(
+			data.bin,
+			"add",
+			"mysql",
+			"--port", "3307", // MySQL instance with slow query log enabled.
+			"--host", "127.0.0.1", // Force pmm-admin to ignore auto detection, otherwise it tries to connect to socket.
+			"--query-source=slowlog", // Force using slow query log.
+			"--retain-slow-logs=42",
+		)
+
+		output, err := cmd.CombinedOutput()
+		assert.Nil(t, err)
+		expected := `\[linux:metrics\] OK, now monitoring this system.
+\[mysql:metrics\] OK, now monitoring MySQL metrics using DSN root:\*\*\*@tcp\(127.0.0.1:3307\)
+\[mysql:queries\] OK, now monitoring MySQL queries from slowlog using DSN root:\*\*\*@tcp\(127.0.0.1:3307\)
+`
+		assertRegexpLines(t, expected, string(output))
+	}
+
+	// Check if correct config file was sent to qan-api.
+	{
+		exampleQueries := true
+		slowLogRotation := true
+		retainSlowLogs := 42
+		expected := pc.QAN{
+			UUID:            in.UUID,
+			CollectFrom:     "slowlog",
+			Interval:        60,
+			ExampleQueries:  &exampleQueries,
+			SlowLogRotation: &slowLogRotation,
+			RetainSlowLogs:  &retainSlowLogs,
+		}
+		assert.Equal(t, expected, config)
+	}
 }
 
 func testAddMongoDB(t *testing.T, data pmmAdminData) {

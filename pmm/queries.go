@@ -28,8 +28,13 @@ import (
 	"time"
 
 	"github.com/percona/pmm/proto"
-	protocfg "github.com/percona/pmm/proto/config"
+	pc "github.com/percona/pmm/proto/config"
 )
+
+// QueriesFlags Queries specific flags.
+type QueriesFlags struct {
+	DisableQueryExamples bool
+}
 
 // deleteInstance delete instance on QAN API.
 func (a *Admin) deleteInstance(uuid string) error {
@@ -76,7 +81,7 @@ func getAgentID(configFile string) (string, error) {
 		return "", err
 	}
 
-	config := &protocfg.Agent{}
+	config := &pc.Agent{}
 	if err := json.Unmarshal(jsonData, &config); err != nil {
 		return "", err
 	}
@@ -89,7 +94,7 @@ func getAgentID(configFile string) (string, error) {
 }
 
 // startQan enable QAN on agent through QAN API.
-func (a *Admin) startQAN(agentID string, config map[string]interface{}) error {
+func (a *Admin) startQAN(agentID string, config pc.QAN) error {
 	cmdName := "StartTool"
 	data, err := json.Marshal(config)
 	if err != nil {
@@ -136,7 +141,7 @@ func (a *Admin) sendQANCmd(agentID, cmdName string, data []byte) error {
 		}
 		return a.qanAPI.Error("PUT", url, resp.StatusCode, http.StatusOK, content)
 	}
-	return errors.New("timeout 10s waiting on agent to connect to API.")
+	return errors.New("timeout 10s waiting on agent to connect to API")
 }
 
 // registerAgent register agent on QAN API using agent installer.
@@ -166,4 +171,46 @@ func (a *Admin) registerAgent() error {
 		return fmt.Errorf("problem with agent registration on QAN API: %s", err)
 	}
 	return nil
+}
+
+// getProtoQAN reads mysql instance from QAN config file.
+func getProtoQAN(configFile string) (*pc.QAN, error) {
+	jsonData, err := ioutil.ReadFile(configFile)
+	if err != nil {
+		return nil, err
+	}
+
+	config := &pc.QAN{}
+	if err := json.Unmarshal(jsonData, config); err != nil {
+		return nil, err
+	}
+
+	return config, nil
+}
+
+// getQueriesOptions reads Queries options from QAN config file.
+func getQueriesOptions(config *pc.QAN) (opts []string) {
+	if config.CollectFrom != "" {
+		opts = append(opts, fmt.Sprintf("query_source=%s", config.CollectFrom))
+	}
+	opts = append(opts, fmt.Sprintf("query_examples=%t", boolValue(config.ExampleQueries)))
+	return opts
+}
+
+// boolValue returns the value of the bool pointer passed in or
+// false if the pointer is nil.
+func boolValue(v *bool) bool {
+	if v != nil {
+		return *v
+	}
+	return false
+}
+
+// intValue returns the value of the int pointer passed in or
+// 0 if the pointer is nil.
+func intValue(v *int) int {
+	if v != nil {
+		return *v
+	}
+	return 0
 }
