@@ -192,12 +192,13 @@
   revision = "13b8f7cee7c65569ea0c79878aabed4956416853"
 
 [[projects]]
+  branch = "master"
   name = "github.com/percona/pmm"
   packages = [
     "proto",
     "proto/config"
   ]
-  revision = "88b7a3ea548f89aa63c3ec946c5a20db949db715"
+  revision = "8945f463c5e7f0b1a5e1cb82fb470cb97b0be330"
 
 [[projects]]
   name = "github.com/pkg/errors"
