@@ -18,16 +18,25 @@
 package pmm
 
 import (
+	"database/sql"
 	"fmt"
-	"strconv"
 	"strings"
 
 	consul "github.com/hashicorp/consul/api"
 	"github.com/percona/kardianos-service"
 )
 
+// MySQLMetricsFlags MySQL Metrics specific flags.
+type MySQLMetricsFlags struct {
+	DisableTableStats      bool
+	DisableTableStatsLimit uint16
+	DisableUserStats       bool
+	DisableBinlogStats     bool
+	DisableProcesslist     bool
+}
+
 // AddMySQLMetrics add mysql metrics service to monitoring.
-func (a *Admin) AddMySQLMetrics(info map[string]string, mf MySQLFlags) error {
+func (a *Admin) AddMySQLMetrics(mi MySQLInfo, mf MySQLMetricsFlags) error {
 	serviceType := "mysql:metrics"
 
 	// Check if we have already this service on Consul.
@@ -60,8 +69,17 @@ func (a *Admin) AddMySQLMetrics(info map[string]string, mf MySQLFlags) error {
 
 	// Opts to disable.
 	var optsToDisable []string
-	count, _ := strconv.ParseUint(info["table_count"], 10, 16)
-	if mf.DisableTableStats || uint16(count) > mf.DisableTableStatsLimit {
+	if !mf.DisableTableStats {
+		tableCount, err := tableStatsTableCount(mi.DSN)
+		if err != nil {
+			return err
+		}
+		// Disable table stats if number of tables is higher than limit.
+		if uint16(tableCount) > mf.DisableTableStatsLimit {
+			mf.DisableTableStats = true
+		}
+	}
+	if mf.DisableTableStats {
 		optsToDisable = append(optsToDisable, "tablestats")
 	}
 	if mf.DisableUserStats {
@@ -111,7 +129,7 @@ func (a *Admin) AddMySQLMetrics(info map[string]string, mf MySQLFlags) error {
 	}
 
 	d := &consul.KVPair{Key: fmt.Sprintf("%s/%s/dsn", a.Config.ClientName, serviceID),
-		Value: []byte(info["safe_dsn"])}
+		Value: []byte(mi.SafeDSN)}
 	a.consulAPI.KV().Put(d, nil)
 
 	// Check and generate certificate if needed.
@@ -135,7 +153,7 @@ func (a *Admin) AddMySQLMetrics(info map[string]string, mf MySQLFlags) error {
 		Description: fmt.Sprintf("PMM Prometheus mysqld_exporter %d", port),
 		Executable:  fmt.Sprintf("%s/mysqld_exporter", PMMBaseDir),
 		Arguments:   args,
-		Environment: []string{fmt.Sprintf("DATA_SOURCE_NAME=%s", info["dsn"])},
+		Environment: []string{fmt.Sprintf("DATA_SOURCE_NAME=%s", mi.DSN)},
 	}
 	if err := installService(svcConfig); err != nil {
 		return err
@@ -175,4 +193,16 @@ func (a *Admin) RemoveMySQLMetrics() error {
 	}
 
 	return nil
+}
+
+func tableStatsTableCount(userDSN string) (int, error) {
+	db, err := sql.Open("mysql", userDSN)
+	if err != nil {
+		return 0, err
+	}
+	defer db.Close()
+
+	tableCount := 0
+	err = db.QueryRow("SELECT COUNT(*) FROM information_schema.tables").Scan(&tableCount)
+	return tableCount, err
 }

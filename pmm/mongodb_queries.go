@@ -28,11 +28,12 @@ import (
 	consul "github.com/hashicorp/consul/api"
 	"github.com/percona/kardianos-service"
 	"github.com/percona/pmm/proto"
+	pc "github.com/percona/pmm/proto/config"
 	"gopkg.in/mgo.v2"
 )
 
 // AddMongoDBQueries add mongodb instance to Query Analytics.
-func (a *Admin) AddMongoDBQueries(buildInfo mgo.BuildInfo, uri string) error {
+func (a *Admin) AddMongoDBQueries(buildInfo mgo.BuildInfo, uri string, qf QueriesFlags) error {
 	serviceType := "mongodb:queries"
 	dsn := uri
 	safeDSN := SanitizeDSN(uri)
@@ -133,11 +134,12 @@ func (a *Admin) AddMongoDBQueries(buildInfo mgo.BuildInfo, uri string) error {
 		}
 	}
 
+	exampleQueries := !qf.DisableQueryExamples
 	// Start QAN by associating instance with agent.
-	qanConfig := map[string]interface{}{
-		"UUID":           instance.UUID,
-		"Interval":       60,
-		"ExampleQueries": true,
+	qanConfig := pc.QAN{
+		UUID:           instance.UUID,
+		Interval:       60,
+		ExampleQueries: &exampleQueries,
 	}
 	if err := a.startQAN(agentID, qanConfig); err != nil {
 		return err
