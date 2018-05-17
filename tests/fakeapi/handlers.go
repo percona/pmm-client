@@ -152,6 +152,7 @@ func (f *FakeApi) AppendConsulV1CatalogRegister() {
 			if err != nil {
 				panic(fmt.Sprintf("error reading body: %s", err))
 			}
+			defer r.Body.Close()
 
 			rr := structs.RegisterRequest{}
 			err = json.Unmarshal(body, &rr)

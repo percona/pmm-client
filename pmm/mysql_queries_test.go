@@ -23,14 +23,20 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestGetQuerySource(t *testing.T) {
-	querySource, err := getQuerySource("testdata/qan-2b6c3eb3669943c160502874036968ba.conf")
+func TestGetMySQLQueriesOptionsForPerfschema(t *testing.T) {
+	config, err := getProtoQAN("testdata/qan-2b6c3eb3669943c160502874036968ba.conf")
 	assert.NoError(t, err)
-	assert.Equal(t, "perfschema", querySource)
+	opts := getMySQLQueriesOptions(config)
+	assert.Empty(t, opts)
 }
 
-func TestGetQueryExamples(t *testing.T) {
-	querySource, err := getQueryExamples("testdata/qan-2b6c3eb3669943c160502874036968ba.conf")
+func TestGetMySQLQueriesOptions(t *testing.T) {
+	config, err := getProtoQAN("testdata/qan-2b6c3eb3669943c160502874036968bb.conf")
 	assert.NoError(t, err)
-	assert.True(t, querySource)
+	opts := getMySQLQueriesOptions(config)
+	expected := []string{
+		"slow_log_rotation=true",
+		"retain_slow_logs=23",
+	}
+	assert.Equal(t, expected, opts)
 }
