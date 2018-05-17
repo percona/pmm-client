@@ -2,14 +2,29 @@
 ---
 version: '3'
 services:
-  mysql:
+  mysql-perfschema:
     image: ${MYSQL_IMAGE:-percona/percona-server}
+    ports:
+      - 127.0.0.1:3306:3306
     environment:
       - MYSQL_ALLOW_EMPTY_PASSWORD=yes
     command:
+      - --log-output=NONE
       - ${MYSQL_COMMAND:---verbose}
+  mysql-slowlog:
+    image: ${MYSQL_IMAGE:-percona/percona-server}
     ports:
-      - 127.0.0.1:3306:3306
+      - 127.0.0.1:3307:3306
+    environment:
+      - MYSQL_ALLOW_EMPTY_PASSWORD=yes
+    command:
+      - --log-output=FILE
+      - --slow_query_log=ON
+      - --slow_query_log_file=/tmp/pmm-test/slow.log
+      - --long_query_time=0
+      - ${MYSQL_COMMAND:---verbose}
+    volumes:
+      - /tmp/pmm-test:/tmp/pmm-test
   mongodb:
     image: ${MONGODB_IMAGE:-percona/percona-server-mongodb}
     ports:
