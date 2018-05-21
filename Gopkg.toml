@@ -4,12 +4,12 @@
   unused-packages = true
 
 [[constraint]]
-  name = "github.com/fatih/color"
-  version = "^1.5.0"
+  name = "github.com/percona/pmm"
+  revision = "88b7a3ea548f89aa63c3ec946c5a20db949db715"
 
 [[constraint]]
-  name = "github.com/go-sql-driver/mysql"
-  version = "^1.3.0"
+  name = "github.com/fatih/color"
+  version = "^1.5.0"
 
 [[constraint]]
   name = "github.com/hashicorp/consul"

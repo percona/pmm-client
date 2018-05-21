@@ -15,7 +15,7 @@ install-race:
 	go install -v -race $(PACKAGES)
 	go test -v -race -i $(PACKAGES)
 
-test: install
+test:
 	go test -v $(PACKAGES)
 
 test-race: install-race
