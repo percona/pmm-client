@@ -4,10 +4,6 @@
   unused-packages = true
 
 [[constraint]]
-  name = "github.com/percona/pmm"
-  revision = "88b7a3ea548f89aa63c3ec946c5a20db949db715"
-
-[[constraint]]
   name = "github.com/fatih/color"
   version = "^1.5.0"
 
@@ -33,4 +29,4 @@
 
 [[constraint]]
   name = "github.com/go-sql-driver/mysql"
-  branch = "master"
+  revision = "154010235b534e16555ed80cb645076e9ad21a41"

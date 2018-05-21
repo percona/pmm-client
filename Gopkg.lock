@@ -49,10 +49,9 @@
   version = "v1.2.1"
 
 [[projects]]
-  branch = "master"
   name = "github.com/go-sql-driver/mysql"
   packages = ["."]
-  revision = "d03e4c28477ccf584ef564f3957b42550d5785f1"
+  revision = "154010235b534e16555ed80cb645076e9ad21a41"
 
 [[projects]]
   name = "github.com/hashicorp/consul"
@@ -198,12 +197,13 @@
   version = "0.5.1"
 
 [[projects]]
+  branch = "master"
   name = "github.com/percona/pmm"
   packages = [
     "proto",
     "proto/config"
   ]
-  revision = "88b7a3ea548f89aa63c3ec946c5a20db949db715"
+  revision = "ccbe6c9f56d2476b252fe4f0628e5ed5a8b73e7a"
 
 [[projects]]
   name = "github.com/pkg/errors"
@@ -332,6 +332,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "17494ef71d8c54645fd15cc7d142bbbf1a408798b10e1580f045d3afe74184db"
+  inputs-digest = "e6ea754688112785ad29ed634f01f5ab2a15278a2c1990b304dba9853c25bece"
   solver-name = "gps-cdcl"
   solver-version = 1
