@@ -67,12 +67,25 @@ func (a *Admin) CheckNetwork() error {
 
 		// Real time (ntp server time)
 		ntpHost := "0.pool.ntp.org"
-		ntpTime, ntpTimeErr := ntp.Time(ntpHost)
+		var ntpResponse *ntp.Response
+		var ntpTimeErr error
+		// ntp.Time() has default timeout of 5s, which should be enough,
+		// but still ntp.Time() fails to get time too often.
+		// Let's try smaller timeouts (1s) but try several times (5 times * 1 second = default 5s).
+		for i := 0; i <= 5; i++ {
+			ntpResponse, ntpTimeErr = ntp.QueryWithOptions(ntpHost, ntp.QueryOptions{
+				Timeout: 1 * time.Second,
+			})
+			if ntpTimeErr == nil {
+				break
+			}
+			time.Sleep(1 * time.Second)
+		}
 		ntpTimeText := ""
 		if ntpTimeErr != nil {
 			ntpTimeText = fmt.Sprintf("unable to get ntp time: %s", err)
 		} else {
-			ntpTimeText = ntpTime.Format(timeFormat)
+			ntpTimeText = ntpResponse.Time.Format(timeFormat)
 		}
 
 		// Server time
@@ -88,22 +101,20 @@ func (a *Admin) CheckNetwork() error {
 		clientTime := time.Now()
 
 		// Print times
-		if ntpTimeErr == nil {
-			fmt.Printf("%-35s | %s\n", fmt.Sprintf("NTP Server (%s)", ntpHost), ntpTimeText)
-		}
+		fmt.Printf("%-35s | %s\n", fmt.Sprintf("NTP Server (%s)", ntpHost), ntpTimeText)
 		fmt.Printf("%-35s | %s\n", "PMM Server", serverTime.Format(timeFormat))
 		fmt.Printf("%-35s | %s\n", "PMM Client", clientTime.Format(timeFormat))
 
 		allowedDriftTime := float64(60) // seconds
 		if ntpTimeErr == nil {
 			// Calculate time drift between NTP Server and PMM Server
-			drift := math.Abs(float64(serverTime.Unix()) - float64(ntpTime.Unix()))
+			drift := math.Abs(float64(serverTime.Unix()) - float64(ntpResponse.Time.Unix()))
 			fmt.Printf("%-35s | %s\n", "PMM Server Time Drift", colorStatus("OK", fmt.Sprintf("%.0fs", drift), drift <= allowedDriftTime))
 			if drift > allowedDriftTime {
 				fmt.Print("Time is out of sync. Please make sure the server time is correct to see the metrics.\n")
 			}
 			// Calculate time drift between NTP Server and PMM Client
-			drift = math.Abs(float64(clientTime.Unix()) - float64(ntpTime.Unix()))
+			drift = math.Abs(float64(clientTime.Unix()) - float64(ntpResponse.Time.Unix()))
 			fmt.Printf("%-35s | %s\n", "PMM Client Time Drift", colorStatus("OK", fmt.Sprintf("%.0fs", drift), drift <= allowedDriftTime))
 			if drift > allowedDriftTime {
 				fmt.Print("Time is out of sync. Please make sure the client time is correct to see the metrics.\n")
