@@ -21,8 +21,8 @@ test:
 test-race: install-race
 	go test -v -race $(PACKAGES)
 
-cover: install
-	gocoverutil test -v $(PACKAGES)
+test-race-cover: install
+	gocoverutil test -v -race $(PACKAGES)
 
 check: install
 	-gometalinter.v1 --tests --skip=api --deadline=180s ./...
