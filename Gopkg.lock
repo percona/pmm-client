@@ -198,7 +198,7 @@
     "proto",
     "proto/config"
   ]
-  revision = "8945f463c5e7f0b1a5e1cb82fb470cb97b0be330"
+  revision = "ca530ba01e84089f5236e26c9f28694f5cef054d"
 
 [[projects]]
   name = "github.com/pkg/errors"
