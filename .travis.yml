@@ -46,8 +46,7 @@ before_script:
 
 script:
   - make init
-  - make test-race
-  - make cover
+  - make test-race-cover
 
 after_success:
   - bash <(curl -s https://codecov.io/bash) -X fix
