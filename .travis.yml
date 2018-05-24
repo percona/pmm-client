@@ -1,11 +1,8 @@
-dist: trusty
-sudo: required
 language: go
 
 go:
   - 1.9.x
   - 1.10.x
-  - master
 
 env:
   matrix:
@@ -30,10 +27,6 @@ env:
     - MONGODB_IMAGE=percona/percona-server-mongodb:3.4
     - MONGODB_IMAGE=percona/percona-server-mongodb:3.6
 
-matrix:
-  allow_failures:
-    - go: master
-
 services:
   - docker
 
@@ -53,8 +46,7 @@ before_script:
 
 script:
   - make init
-  - make test-race
-  - make cover
+  - make test-race-cover
 
 after_success:
   - bash <(curl -s https://codecov.io/bash) -X fix
