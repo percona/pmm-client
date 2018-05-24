@@ -50,19 +50,30 @@ func (v *verboseRoundTripper) RoundTrip(req *http.Request) (resp *http.Response,
 
 // dumpRequest returns string representation of request
 func dumpRequest(req *http.Request) string {
-	reqDump, err := httputil.DumpRequestOut(req, true)
-	if err != nil {
-		return fmt.Sprintf("unable to dump request: %s", err)
+	reqDump, errBody := httputil.DumpRequestOut(req, true)
+	if errBody != nil {
+		// If there was an error, try to dump output without body.
+		reqDump, err := httputil.DumpRequestOut(req, false)
+		if err != nil {
+			return fmt.Sprintf("unable to dump request: %s", err)
+		}
+		reqDump = append(reqDump, []byte(fmt.Sprintf("unable to dump body: %s\n", errBody))...)
 	}
+
 	return formatDump(reqDump, `> `)
 
 }
 
 // dumpResponse returns string representation of response
 func dumpResponse(resp *http.Response) string {
-	respDump, err := httputil.DumpResponse(resp, true)
-	if err != nil {
-		return fmt.Sprintf("unable to dump response: %s", err)
+	respDump, errBody := httputil.DumpResponse(resp, true)
+	if errBody != nil {
+		// If there was an error, try to dump output without body.
+		respDump, err := httputil.DumpResponse(resp, false)
+		if err != nil {
+			return fmt.Sprintf("unable to dump response: %s", err)
+		}
+		respDump = append(respDump, []byte(fmt.Sprintf("unable to dump body: %s\n", errBody))...)
 	}
 	return formatDump(respDump, `< `)
 }
