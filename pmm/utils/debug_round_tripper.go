@@ -50,32 +50,44 @@ func (v *verboseRoundTripper) RoundTrip(req *http.Request) (resp *http.Response,
 
 // dumpRequest returns string representation of request
 func dumpRequest(req *http.Request) string {
-	reqDump, errBody := httputil.DumpRequestOut(req, true)
-	if errBody != nil {
-		// If there was an error, try to dump output without body.
-		reqDump, err := httputil.DumpRequestOut(req, false)
+	// Dump request.
+	dump, err := httputil.DumpRequestOut(req, true)
+
+	// If there was an error, try to dump request without body.
+	if err != nil {
+		// Save error from first call for later.
+		errBody := err
+		// Overwrite dump.
+		dump, err = httputil.DumpRequestOut(req, false)
 		if err != nil {
 			return fmt.Sprintf("unable to dump request: %s", err)
 		}
-		reqDump = append(reqDump, []byte(fmt.Sprintf("unable to dump body: %s\n", errBody))...)
+		dump = append(dump, fmt.Sprintf("unable to dump body: %s\n", errBody)...)
 	}
 
-	return formatDump(reqDump, `> `)
-
+	// Format and return dump.
+	return formatDump(dump, `> `)
 }
 
 // dumpResponse returns string representation of response
 func dumpResponse(resp *http.Response) string {
-	respDump, errBody := httputil.DumpResponse(resp, true)
-	if errBody != nil {
-		// If there was an error, try to dump output without body.
-		respDump, err := httputil.DumpResponse(resp, false)
+	// Dump request.
+	dump, err := httputil.DumpResponse(resp, true)
+
+	// If there was an error, try to dump output without body.
+	if err != nil {
+		// Save error from first call for later.
+		errBody := err
+		// Overwrite dump.
+		dump, err = httputil.DumpResponse(resp, false)
 		if err != nil {
 			return fmt.Sprintf("unable to dump response: %s", err)
 		}
-		respDump = append(respDump, []byte(fmt.Sprintf("unable to dump body: %s\n", errBody))...)
+		dump = append(dump, fmt.Sprintf("unable to dump body: %s\n", errBody)...)
 	}
-	return formatDump(respDump, `< `)
+
+	// Format and return dump.
+	return formatDump(dump, `< `)
 }
 
 // formatDump prefixes each line of dump with given string and changes \r\n to \n
