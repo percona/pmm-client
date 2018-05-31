@@ -192,18 +192,13 @@
   revision = "13b8f7cee7c65569ea0c79878aabed4956416853"
 
 [[projects]]
-  name = "github.com/percona/pmgo"
-  packages = ["."]
-  revision = "9566dc76df319b856a12f24a3b6852a0c6463eff"
-  version = "0.5.1"
-
-[[projects]]
+  branch = "master"
   name = "github.com/percona/pmm"
   packages = [
     "proto",
     "proto/config"
   ]
-  revision = "9cb15efc1ab783e17a03174254356a7b800cd1bd"
+  revision = "ca530ba01e84089f5236e26c9f28694f5cef054d"
 
 [[projects]]
   name = "github.com/pkg/errors"
@@ -311,18 +306,11 @@
   packages = [
     ".",
     "bson",
-    "dbtest",
     "internal/json",
     "internal/sasl",
     "internal/scram"
   ]
   revision = "3f83fa5005286a7fe593b055f0d7771a7dce4655"
-
-[[projects]]
-  branch = "v2"
-  name = "gopkg.in/tomb.v2"
-  packages = ["."]
-  revision = "d5d1b5820637886def9eef33e03a27a9f166942c"
 
 [[projects]]
   name = "gopkg.in/yaml.v2"
@@ -332,6 +320,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "fadfd73bbd47f77b7bc198da2449848ec5ca49426d38fba23c78f8cb1e75e6b8"
+  inputs-digest = "6ca5d5fba65d03cdff0c92a55d202a26f4362e09d7e297774cc8debf9479f01c"
   solver-name = "gps-cdcl"
   solver-version = 1

@@ -220,11 +220,11 @@ Table statistics is automatically disabled when there are more than 10000 tables
 			if len(admin.Args) > 0 {
 				fmt.Printf("We can't determine which monitor should receive additional flags: %s.\n", strings.Join(admin.Args, ", "))
 				fmt.Println("To pass additional arguments to specific exporter you need to add it separately e.g.:")
-				fmt.Println("pmm-admin add linux:metrics -- ", strings.Join(admin.Args, ", "))
+				fmt.Println("pmm-admin add linux:metrics -- ", strings.Join(admin.Args, " "))
 				fmt.Println("or")
-				fmt.Println("pmm-admin add mysql:metrics -- ", strings.Join(admin.Args, ", "))
+				fmt.Println("pmm-admin add mysql:metrics -- ", strings.Join(admin.Args, " "))
 				fmt.Println("or")
-				fmt.Println("pmm-admin add mysql:queries -- ", strings.Join(admin.Args, ", "))
+				fmt.Println("pmm-admin add mysql:queries -- ", strings.Join(admin.Args, " "))
 				os.Exit(1)
 			}
 
@@ -376,11 +376,11 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 			if len(admin.Args) > 0 {
 				fmt.Printf("We can't determine which monitor should receive additional flags: %s.\n", strings.Join(admin.Args, ", "))
 				fmt.Println("To pass additional arguments to specific exporter you need to add it separately e.g.:")
-				fmt.Println("pmm-admin add linux:metrics -- ", strings.Join(admin.Args, ", "))
+				fmt.Println("pmm-admin add linux:metrics -- ", strings.Join(admin.Args, " "))
 				fmt.Println("or")
-				fmt.Println("pmm-admin add mongodb:metrics -- ", strings.Join(admin.Args, ", "))
+				fmt.Println("pmm-admin add mongodb:metrics -- ", strings.Join(admin.Args, " "))
 				fmt.Println("or")
-				fmt.Println("pmm-admin add mongodb:queries -- ", strings.Join(admin.Args, ", "))
+				fmt.Println("pmm-admin add mongodb:queries -- ", strings.Join(admin.Args, " "))
 				os.Exit(1)
 			}
 

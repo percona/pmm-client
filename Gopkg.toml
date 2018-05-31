@@ -4,20 +4,12 @@
   unused-packages = true
 
 [[constraint]]
-  name = "github.com/percona/pmm"
-  revision = "9cb15efc1ab783e17a03174254356a7b800cd1bd"
-
-[[constraint]]
   name = "github.com/fatih/color"
   version = "^1.5.0"
 
 [[constraint]]
   name = "github.com/hashicorp/consul"
   version = "^0.9.2"
-
-[[constraint]]
-  name = "github.com/percona/pmgo"
-  version = "^0.5.1"
 
 [[constraint]]
   name = "github.com/prometheus/client_golang"
