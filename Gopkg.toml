@@ -12,10 +12,6 @@
   version = "^0.9.2"
 
 [[constraint]]
-  name = "github.com/percona/pmgo"
-  version = "^0.5.1"
-
-[[constraint]]
   name = "github.com/prometheus/client_golang"
   version = "^0.8.0"
 

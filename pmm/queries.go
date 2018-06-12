@@ -180,12 +180,12 @@ func getProtoQAN(configFile string) (*pc.QAN, error) {
 		return nil, err
 	}
 
-	config := &pc.QAN{}
-	if err := json.Unmarshal(jsonData, config); err != nil {
+	config := pc.NewQAN()
+	if err := json.Unmarshal(jsonData, &config); err != nil {
 		return nil, err
 	}
 
-	return config, nil
+	return &config, nil
 }
 
 // getQueriesOptions reads Queries options from QAN config file.
