@@ -1,6 +1,6 @@
 all: test
 
-PACKAGES := $(shell go list ./... | grep -v vendor)
+PACKAGES := ./...
 
 init:
 	go get -u github.com/AlekSi/gocoverutil
