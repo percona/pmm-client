@@ -22,3 +22,8 @@
 [[constraint]]
   name = "gopkg.in/DATA-DOG/go-sqlmock.v1"
   version = "^1.2.0"
+
+# PMM-2569: Version 1.4.0 introduces support for new auth methods in MySQL 8.
+[[constraint]]
+  name = "github.com/go-sql-driver/mysql"
+  version = "^1.4.0"

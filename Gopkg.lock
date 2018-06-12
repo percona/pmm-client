@@ -49,10 +49,10 @@
   version = "v1.2.1"
 
 [[projects]]
-  branch = "master"
   name = "github.com/go-sql-driver/mysql"
   packages = ["."]
-  revision = "3287d94d4c6a48a63e16fffaabf27ab20203af2a"
+  revision = "d523deb1b23d913de5bdada721a6071e71283618"
+  version = "v1.4.0"
 
 [[projects]]
   name = "github.com/hashicorp/consul"
@@ -320,6 +320,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "6ca5d5fba65d03cdff0c92a55d202a26f4362e09d7e297774cc8debf9479f01c"
+  inputs-digest = "e84b0b20e9a4a1b632deea913ed1bf18d57bcace0fd5caaa42e49683f458ad37"
   solver-name = "gps-cdcl"
   solver-version = 1
