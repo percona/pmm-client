@@ -132,9 +132,11 @@ func TestMakeGrants(t *testing.T) {
 			hosts: []string{"localhost", "127.0.0.1"},
 			conn:  5,
 			grants: []string{
-				"GRANT SELECT, PROCESS, REPLICATION CLIENT, RELOAD, SUPER ON *.* TO 'root'@'localhost' IDENTIFIED BY 'abc123' WITH MAX_USER_CONNECTIONS 5",
+				"CREATE USER IF NOT EXISTS 'root'@'localhost' IDENTIFIED BY 'abc123' WITH MAX_USER_CONNECTIONS 5",
+				"GRANT SELECT, PROCESS, REPLICATION CLIENT, RELOAD, SUPER ON *.* TO 'root'@'localhost'",
 				"GRANT UPDATE, DELETE, DROP ON `performance_schema`.* TO 'root'@'localhost'",
-				"GRANT SELECT, PROCESS, REPLICATION CLIENT, RELOAD, SUPER ON *.* TO 'root'@'127.0.0.1' IDENTIFIED BY 'abc123' WITH MAX_USER_CONNECTIONS 5",
+				"CREATE USER IF NOT EXISTS 'root'@'127.0.0.1' IDENTIFIED BY 'abc123' WITH MAX_USER_CONNECTIONS 5",
+				"GRANT SELECT, PROCESS, REPLICATION CLIENT, RELOAD, SUPER ON *.* TO 'root'@'127.0.0.1'",
 				"GRANT UPDATE, DELETE, DROP ON `performance_schema`.* TO 'root'@'127.0.0.1'",
 			},
 		},
@@ -142,7 +144,8 @@ func TestMakeGrants(t *testing.T) {
 			hosts: []string{"%"},
 			conn:  20,
 			grants: []string{
-				"GRANT SELECT, PROCESS, REPLICATION CLIENT, RELOAD, SUPER ON *.* TO 'admin'@'%' IDENTIFIED BY '23;,_-asd' WITH MAX_USER_CONNECTIONS 20",
+				"CREATE USER IF NOT EXISTS 'admin'@'%' IDENTIFIED BY '23;,_-asd' WITH MAX_USER_CONNECTIONS 20",
+				"GRANT SELECT, PROCESS, REPLICATION CLIENT, RELOAD, SUPER ON *.* TO 'admin'@'%'",
 				"GRANT UPDATE, DELETE, DROP ON `performance_schema`.* TO 'admin'@'%'",
 			},
 		},
