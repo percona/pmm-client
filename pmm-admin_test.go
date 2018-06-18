@@ -38,6 +38,7 @@ import (
 	"github.com/percona/pmm/proto"
 	pc "github.com/percona/pmm/proto/config"
 	"github.com/stretchr/testify/assert"
+	"database/sql"
 )
 
 type pmmAdminData struct {
@@ -93,6 +94,9 @@ func TestPmmAdmin(t *testing.T) {
 	tests := []func(*testing.T, pmmAdminData){
 		testAddMongoDB,
 		testAddMySQL,
+		// Below test fails on some systems as IP received by MySQL in docker container is not 127.0.0.1
+		// but it's an ip of the bridge e.g. 172.20.0.1 https://github.com/docker/for-mac/issues/180
+		// testAddMySQLWithCreateUser,
 		testAddMySQLWithDisableSlowLogsRotation,
 		testAddMySQLWithRetainSlowLogs,
 		testAddMongoDBQueries,
@@ -1376,6 +1380,7 @@ func testAddMySQL(t *testing.T, data pmmAdminData) {
 		data.bin,
 		"add",
 		"mysql",
+		"--user", "root",
 		"--port", "3306", // MySQL instance with performance_schema enabled.
 		"--host", "127.0.0.1", // Force pmm-admin to ignore auto detection, otherwise it tries to connect to socket.
 	)
@@ -1385,6 +1390,100 @@ func testAddMySQL(t *testing.T, data pmmAdminData) {
 	expected := `\[linux:metrics\] OK, now monitoring this system.
 \[mysql:metrics\] OK, now monitoring MySQL metrics using DSN root:\*\*\*@tcp\(127.0.0.1:3306\)
 \[mysql:queries\] OK, now monitoring MySQL queries from perfschema using DSN root:\*\*\*@tcp\(127.0.0.1:3306\)
+`
+	assertRegexpLines(t, expected, string(output))
+}
+
+func testAddMySQLWithCreateUser(t *testing.T, data pmmAdminData) {
+	defer func() {
+		err := os.RemoveAll(data.rootDir)
+		assert.Nil(t, err)
+	}()
+
+	defer func() {
+		db, err := sql.Open("mysql", "root@tcp(127.0.0.1:3306)/")
+		assert.Nil(t, err)
+		defer db.Close()
+		_, err = db.Exec("DROP USER IF EXISTS 'pmm'")
+		assert.Nil(t, err)
+	}()
+
+	os.MkdirAll(data.rootDir+pmm.PMMBaseDir, 0777)
+	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/bin", 0777)
+	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/config", 0777)
+	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/instance", 0777)
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/node_exporter")
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/mysqld_exporter")
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/mongodb_exporter")
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/proxysql_exporter")
+	os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent")
+
+	f, _ := os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent-installer")
+	f.WriteString("#!/bin/sh\n")
+	f.WriteString("echo 'it works'")
+	f.Close()
+	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
+
+	f, _ = os.Create(data.rootDir + pmm.AgentBaseDir + "/config/agent.conf")
+	f.WriteString(`{"UUID":"42","ApiHostname":"somehostname","ApiPath":"/qan-api","ServerUser":"pmm"}`)
+	f.WriteString("\n")
+	f.Close()
+	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
+	{
+		// Create fake api server
+		fapi := fakeapi.New()
+		fapi.AppendRoot()
+		fapi.AppendQanAPIPing()
+		fapi.AppendConsulV1StatusLeader()
+		node := api.CatalogNode{
+			Node: &api.Node{},
+		}
+		clientName, _ := os.Hostname()
+		fapi.AppendConsulV1CatalogNode(clientName, node)
+		fapi.AppendConsulV1CatalogService()
+		fapi.AppendConsulV1CatalogRegister()
+		in := &proto.Instance{
+			Subsystem: "mysql",
+			UUID:      "13",
+		}
+		agentInstance := &proto.Instance{
+			Subsystem: "agent",
+			UUID:      "42",
+		}
+		fapi.AppendQanAPIInstancesId(agentInstance.UUID, agentInstance)
+		fapi.AppendQanAPIAgents(agentInstance.UUID)
+		fapi.AppendQanAPIInstances([]*proto.Instance{
+			in,
+		})
+		_, host, port := fapi.Start()
+		defer fapi.Close()
+
+		// Configure pmm
+		cmd := exec.Command(
+			data.bin,
+			"config",
+			"--server",
+			fmt.Sprintf("%s:%s", host, port),
+		)
+		output, err := cmd.CombinedOutput()
+		assert.Nil(t, err, string(output))
+	}
+
+	cmd := exec.Command(
+		data.bin,
+		"add",
+		"mysql",
+		"--user", "root",
+		"--port", "3306", // MySQL instance with performance_schema enabled.
+		"--host", "127.0.0.1", // Force pmm-admin to ignore auto detection, otherwise it tries to connect to socket.
+		"--create-user",
+	)
+
+	output, err := cmd.CombinedOutput()
+	assert.NoError(t, err)
+	expected := `\[linux:metrics\] OK, now monitoring this system.
+\[mysql:metrics\] OK, now monitoring MySQL metrics using DSN pmm:\*\*\*@tcp\(127.0.0.1:3306\)
+\[mysql:queries\] OK, now monitoring MySQL queries from perfschema using DSN pmm:\*\*\*@tcp\(127.0.0.1:3306\)
 `
 	assertRegexpLines(t, expected, string(output))
 }
@@ -1490,6 +1589,7 @@ func testAddMySQLWithDisableSlowLogsRotation(t *testing.T, data pmmAdminData) {
 			data.bin,
 			"add",
 			"mysql",
+			"--user", "root",
 			"--port", "3307", // MySQL instance with slow query log enabled.
 			"--host", "127.0.0.1", // Force pmm-admin to ignore auto detection, otherwise it tries to connect to socket.
 			"--query-source=slowlog", // Force using slow query log.
@@ -1619,6 +1719,7 @@ func testAddMySQLWithRetainSlowLogs(t *testing.T, data pmmAdminData) {
 			data.bin,
 			"add",
 			"mysql",
+			"--user", "root",
 			"--port", "3307", // MySQL instance with slow query log enabled.
 			"--host", "127.0.0.1", // Force pmm-admin to ignore auto detection, otherwise it tries to connect to socket.
 			"--query-source=slowlog", // Force using slow query log.
