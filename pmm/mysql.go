@@ -60,10 +60,10 @@ func (a *Admin) DetectMySQL(mf MySQLFlags) (*MySQLInfo, error) {
 		return nil, errors.New("flags --socket and --host are mutually exclusive")
 	}
 	if mf.Socket != "" && mf.Port != "" {
-		return nil, errors.New("lags --socket and --port are mutually exclusive")
+		return nil, errors.New("flags --socket and --port are mutually exclusive")
 	}
 	if !mf.CreateUser && mf.CreateUserPassword != "" {
-		return nil, errors.New("lag --create-user-password should be used along with --create-user")
+		return nil, errors.New("flag --create-user-password should be used along with --create-user")
 	}
 
 	userDSN := dsn.DSN{
@@ -170,7 +170,7 @@ func createMySQLUser(db *sql.DB, userDSN dsn.DSN, mf MySQLFlags) (dsn.DSN, error
 
 	// Verify new MySQL user works. If this fails, the new DSN or grant statements are wrong.
 	if err := testConnection(userDSN.String()); err != nil {
-		err = fmt.Errorf("problem creating a new MySQL user. Insufficient privileges: %s", err)
+		err = fmt.Errorf("Problem creating a new MySQL user. Insufficient privileges: %s", err)
 		return dsn.DSN{}, err
 	}
 
@@ -230,10 +230,13 @@ func makeGrants(dsn dsn.DSN, hosts []string, conn uint16) []string {
 		// SUPER - for qan-agent to set global variables (not clear it is still required)
 		// Grants for performance_schema - for qan-agent to manage query digest tables.
 		grants = append(grants,
-			fmt.Sprintf("GRANT SELECT, PROCESS, REPLICATION CLIENT, RELOAD, SUPER ON *.* TO '%s'@'%s' IDENTIFIED BY '%s' WITH MAX_USER_CONNECTIONS %d",
+			fmt.Sprintf("CREATE USER '%s'@'%s' IDENTIFIED BY '%s' WITH MAX_USER_CONNECTIONS %d",
 				dsn.Username, host, dsn.Password, conn),
+			fmt.Sprintf("GRANT SELECT, PROCESS, REPLICATION CLIENT, RELOAD, SUPER ON *.* TO '%s'@'%s'",
+				dsn.Username, host),
 			fmt.Sprintf("GRANT UPDATE, DELETE, DROP ON `performance_schema`.* TO '%s'@'%s'",
-				dsn.Username, host))
+				dsn.Username, host),
+		)
 	}
 
 	return grants
