@@ -57,7 +57,7 @@ var (
 				admin.Format = flagFormat
 			}
 
-			if flagJson {
+			if flagJSON {
 				admin.Format = "{{ json . }}"
 			}
 
@@ -180,6 +180,25 @@ run 'pmm-admin repair' to remove orphaned services. Otherwise, please reinstall 
 			}
 		},
 	}
+
+	cmdAnnotate = &cobra.Command{
+		Use:     "annotate TEXT",
+		Short:   "Annotate application events.",
+		Long:    "Publish Application Events as Annotations to PMM Server.",
+		Example: `  pmm-admin annotate "Application deploy v1.2" --tags "UI, v1.2"`,
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) < 1 {
+				fmt.Println("Description of annotation is required")
+				os.Exit(1)
+			}
+			if err := admin.AddAnnotation(context.TODO(), strings.Join(args, " "), flagATags); err != nil {
+				fmt.Println("Your annotation could not be posted. Error message we received was:\n", err)
+				os.Exit(1)
+			}
+			fmt.Println("Your annotation was successfully posted.")
+		},
+	}
+
 	cmdAddMySQL = &cobra.Command{
 		Use:   "mysql [flags] [name]",
 		Short: "Add complete monitoring for MySQL instance (linux and mysql metrics, queries).",
@@ -201,16 +220,16 @@ Table statistics is automatically disabled when there are more than 10000 tables
 			if len(admin.Args) > 0 {
 				fmt.Printf("We can't determine which monitor should receive additional flags: %s.\n", strings.Join(admin.Args, ", "))
 				fmt.Println("To pass additional arguments to specific exporter you need to add it separately e.g.:")
-				fmt.Println("pmm-admin add linux:metrics -- ", strings.Join(admin.Args, ", "))
+				fmt.Println("pmm-admin add linux:metrics -- ", strings.Join(admin.Args, " "))
 				fmt.Println("or")
-				fmt.Println("pmm-admin add mysql:metrics -- ", strings.Join(admin.Args, ", "))
+				fmt.Println("pmm-admin add mysql:metrics -- ", strings.Join(admin.Args, " "))
 				fmt.Println("or")
-				fmt.Println("pmm-admin add mysql:queries -- ", strings.Join(admin.Args, ", "))
+				fmt.Println("pmm-admin add mysql:queries -- ", strings.Join(admin.Args, " "))
 				os.Exit(1)
 			}
 
 			// Check --query-source flag.
-			if flagM.QuerySource != "auto" && flagM.QuerySource != "slowlog" && flagM.QuerySource != "perfschema" {
+			if flagMySQLQueries.QuerySource != "auto" && flagMySQLQueries.QuerySource != "slowlog" && flagMySQLQueries.QuerySource != "perfschema" {
 				fmt.Println("Flag --query-source can take the following values: auto, slowlog, perfschema.")
 				os.Exit(1)
 			}
@@ -225,31 +244,31 @@ Table statistics is automatically disabled when there are more than 10000 tables
 				fmt.Println("[linux:metrics] OK, now monitoring this system.")
 			}
 
-			info, err := admin.DetectMySQL(flagM)
+			mi, err := admin.DetectMySQL(flagM)
 			if err != nil {
 				fmt.Printf("[mysql:metrics] %s\n", err)
 				os.Exit(1)
 			}
 
-			err = admin.AddMySQLMetrics(info, flagM)
+			err = admin.AddMySQLMetrics(*mi, flagMySQLMetrics)
 			if err == pmm.ErrDuplicate {
 				fmt.Println("[mysql:metrics] OK, already monitoring MySQL metrics.")
 			} else if err != nil {
 				fmt.Println("[mysql:metrics] Error adding MySQL metrics:", err)
 				os.Exit(1)
 			} else {
-				fmt.Println("[mysql:metrics] OK, now monitoring MySQL metrics using DSN", info["safe_dsn"])
+				fmt.Println("[mysql:metrics] OK, now monitoring MySQL metrics using DSN", mi.SafeDSN)
 			}
 
-			err = admin.AddMySQLQueries(info)
+			mr, err := admin.AddMySQLQueries(*mi, flagMySQLQueries, flagQueries)
 			if err == pmm.ErrDuplicate {
 				fmt.Println("[mysql:queries] OK, already monitoring MySQL queries.")
 			} else if err != nil {
 				fmt.Println("[mysql:queries] Error adding MySQL queries:", err)
 				os.Exit(1)
 			} else {
-				fmt.Println("[mysql:queries] OK, now monitoring MySQL queries from", info["query_source"], "using DSN",
-					info["safe_dsn"])
+				fmt.Println("[mysql:queries] OK, now monitoring MySQL queries from", mr.QuerySource,
+					"using DSN", mi.SafeDSN)
 			}
 		},
 	}
@@ -294,16 +313,16 @@ Table statistics is automatically disabled when there are more than 10000 tables
   pmm-admin add mysql:metrics -- --collect.perf_schema.eventsstatements
   pmm-admin add mysql:metrics -- --collect.perf_schema.eventswaits=false`,
 		Run: func(cmd *cobra.Command, args []string) {
-			info, err := admin.DetectMySQL(flagM)
+			mi, err := admin.DetectMySQL(flagM)
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
 			}
-			if err := admin.AddMySQLMetrics(info, flagM); err != nil {
+			if err := admin.AddMySQLMetrics(*mi, flagMySQLMetrics); err != nil {
 				fmt.Println("Error adding MySQL metrics:", err)
 				os.Exit(1)
 			}
-			fmt.Println("OK, now monitoring MySQL metrics using DSN", info["safe_dsn"])
+			fmt.Println("OK, now monitoring MySQL metrics using DSN", mi.SafeDSN)
 		},
 	}
 	cmdAddMySQLQueries = &cobra.Command{
@@ -323,21 +342,22 @@ a new user 'pmm@' automatically using the given (auto-detected) MySQL credential
   pmm-admin add mysql:queries --user rdsuser --password abc123 --host my-rds.1234567890.us-east-1.rds.amazonaws.com my-rds`,
 		Run: func(cmd *cobra.Command, args []string) {
 			// Check --query-source flag.
-			if flagM.QuerySource != "auto" && flagM.QuerySource != "slowlog" && flagM.QuerySource != "perfschema" {
+			if flagMySQLQueries.QuerySource != "auto" && flagMySQLQueries.QuerySource != "slowlog" && flagMySQLQueries.QuerySource != "perfschema" {
 				fmt.Println("Flag --query-source can take the following values: auto, slowlog, perfschema.")
 				os.Exit(1)
 			}
-			info, err := admin.DetectMySQL(flagM)
+			mi, err := admin.DetectMySQL(flagM)
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
 			}
-			if err := admin.AddMySQLQueries(info); err != nil {
+			mr, err := admin.AddMySQLQueries(*mi, flagMySQLQueries, flagQueries)
+			if err != nil {
 				fmt.Println("Error adding MySQL queries:", err)
 				os.Exit(1)
 			}
-			fmt.Println("OK, now monitoring MySQL queries from", info["query_source"], "using DSN",
-				info["safe_dsn"])
+			fmt.Println("OK, now monitoring MySQL queries from", mr.QuerySource,
+				"using DSN", mi.SafeDSN)
 		},
 	}
 	cmdAddMongoDB = &cobra.Command{
@@ -356,11 +376,11 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 			if len(admin.Args) > 0 {
 				fmt.Printf("We can't determine which monitor should receive additional flags: %s.\n", strings.Join(admin.Args, ", "))
 				fmt.Println("To pass additional arguments to specific exporter you need to add it separately e.g.:")
-				fmt.Println("pmm-admin add linux:metrics -- ", strings.Join(admin.Args, ", "))
+				fmt.Println("pmm-admin add linux:metrics -- ", strings.Join(admin.Args, " "))
 				fmt.Println("or")
-				fmt.Println("pmm-admin add mongodb:metrics -- ", strings.Join(admin.Args, ", "))
+				fmt.Println("pmm-admin add mongodb:metrics -- ", strings.Join(admin.Args, " "))
 				fmt.Println("or")
-				fmt.Println("pmm-admin add mongodb:queries -- ", strings.Join(admin.Args, ", "))
+				fmt.Println("pmm-admin add mongodb:queries -- ", strings.Join(admin.Args, " "))
 				os.Exit(1)
 			}
 
@@ -388,7 +408,7 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 			} else {
 				fmt.Println("[mongodb:metrics] OK, now monitoring MongoDB metrics using URI", pmm.SanitizeDSN(flagMongoURI))
 			}
-			err = admin.AddMongoDBQueries(buildInfo, flagMongoURI)
+			err = admin.AddMongoDBQueries(buildInfo, flagMongoURI, flagQueries)
 			if err == pmm.ErrDuplicate {
 				fmt.Println("[mongodb:queries] OK, already monitoring MongoDB queries.")
 			} else if err != nil {
@@ -444,7 +464,7 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 				fmt.Println(err)
 				os.Exit(1)
 			}
-			if err := admin.AddMongoDBQueries(buildInfo, flagMongoURI); err != nil {
+			if err := admin.AddMongoDBQueries(buildInfo, flagMongoURI, flagQueries); err != nil {
 				fmt.Println("Error adding MongoDB queries:", err)
 				os.Exit(1)
 			}
@@ -1195,16 +1215,20 @@ despite PMM server is alive or not.
 	}
 
 	flagMongoURI, flagCluster, flagDSN, flagFormat string
+	flagATags                                      string
 
-	flagVersion, flagJson, flagAll, flagForce bool
+	flagVersion, flagJSON, flagAll, flagForce bool
 
 	flagServicePort int
 
 	flagExtInterval, flagExtTimeout time.Duration
 	flagExtPath, flagExtScheme      string
 
-	flagM pmm.MySQLFlags
-	flagC pmm.Config
+	flagM            pmm.MySQLFlags
+	flagQueries      pmm.QueriesFlags
+	flagMySQLMetrics pmm.MySQLMetricsFlags
+	flagMySQLQueries pmm.MySQLQueriesFlags
+	flagC            pmm.Config
 )
 
 func main() {
@@ -1213,6 +1237,7 @@ func main() {
 	rootCmd.AddCommand(
 		cmdConfig,
 		cmdAdd,
+		cmdAnnotate,
 		cmdRemove,
 		cmdList,
 		cmdInfo,
@@ -1270,6 +1295,8 @@ func main() {
 
 	cmdAdd.PersistentFlags().IntVar(&flagServicePort, "service-port", 0, "service port")
 
+	cmdAnnotate.Flags().StringVar(&flagATags, "tags", "", "List of tags (separated by comma)")
+
 	cmdAddLinuxMetrics.Flags().BoolVar(&flagForce, "force", false, "force to add another linux:metrics instance with different name for testing purposes")
 
 	addCommonMySQLFlags := func(cmd *cobra.Command) {
@@ -1285,24 +1312,32 @@ func main() {
 		cmd.Flags().BoolVar(&flagM.Force, "force", false, "force to create/update MySQL user")
 	}
 
+	// mysql
 	addCommonMySQLFlags(cmdAddMySQL)
-	cmdAddMySQL.Flags().BoolVar(&flagM.DisableTableStats, "disable-tablestats", false, "disable table statistics")
-	cmdAddMySQL.Flags().Uint16Var(&flagM.DisableTableStatsLimit, "disable-tablestats-limit", 1000, "number of tables after which table stats are disabled automatically")
-	cmdAddMySQL.Flags().BoolVar(&flagM.DisableUserStats, "disable-userstats", false, "disable user statistics")
-	cmdAddMySQL.Flags().BoolVar(&flagM.DisableBinlogStats, "disable-binlogstats", false, "disable binlog statistics")
-	cmdAddMySQL.Flags().BoolVar(&flagM.DisableProcesslist, "disable-processlist", false, "disable process state metrics")
-	cmdAddMySQL.Flags().BoolVar(&flagM.DisableQueryExamples, "disable-queryexamples", false, "disable collection of query examples")
-	cmdAddMySQL.Flags().StringVar(&flagM.QuerySource, "query-source", "auto", "source of SQL queries: auto, slowlog, perfschema")
+	cmdAddMySQL.Flags().BoolVar(&flagMySQLMetrics.DisableTableStats, "disable-tablestats", false, "disable table statistics")
+	cmdAddMySQL.Flags().Uint16Var(&flagMySQLMetrics.DisableTableStatsLimit, "disable-tablestats-limit", 1000, "number of tables after which table stats are disabled automatically")
+	cmdAddMySQL.Flags().BoolVar(&flagMySQLMetrics.DisableUserStats, "disable-userstats", false, "disable user statistics")
+	cmdAddMySQL.Flags().BoolVar(&flagMySQLMetrics.DisableBinlogStats, "disable-binlogstats", false, "disable binlog statistics")
+	cmdAddMySQL.Flags().BoolVar(&flagMySQLMetrics.DisableProcesslist, "disable-processlist", false, "disable process state metrics")
+	cmdAddMySQL.Flags().BoolVar(&flagQueries.DisableQueryExamples, "disable-queryexamples", false, "disable collection of query examples")
+	cmdAddMySQL.Flags().BoolVar(&flagMySQLQueries.SlowLogRotation, "slow-log-rotation", true, "enable slow log rotation")
+	cmdAddMySQL.Flags().IntVar(&flagMySQLQueries.RetainSlowLogs, "retain-slow-logs", 1, "number of slow logs to retain after rotation")
+	cmdAddMySQL.Flags().StringVar(&flagMySQLQueries.QuerySource, "query-source", "auto", "source of SQL queries: auto, slowlog, perfschema")
 
+	// mysql:metrics
 	addCommonMySQLFlags(cmdAddMySQLMetrics)
-	cmdAddMySQLMetrics.Flags().BoolVar(&flagM.DisableTableStats, "disable-tablestats", false, "disable table statistics")
-	cmdAddMySQLMetrics.Flags().Uint16Var(&flagM.DisableTableStatsLimit, "disable-tablestats-limit", 1000, "number of tables after which table stats are disabled automatically")
-	cmdAddMySQLMetrics.Flags().BoolVar(&flagM.DisableUserStats, "disable-userstats", false, "disable user statistics")
-	cmdAddMySQLMetrics.Flags().BoolVar(&flagM.DisableBinlogStats, "disable-binlogstats", false, "disable binlog statistics")
-	cmdAddMySQLMetrics.Flags().BoolVar(&flagM.DisableProcesslist, "disable-processlist", false, "disable process state metrics")
+	cmdAddMySQLMetrics.Flags().BoolVar(&flagMySQLMetrics.DisableTableStats, "disable-tablestats", false, "disable table statistics")
+	cmdAddMySQLMetrics.Flags().Uint16Var(&flagMySQLMetrics.DisableTableStatsLimit, "disable-tablestats-limit", 1000, "number of tables after which table stats are disabled automatically")
+	cmdAddMySQLMetrics.Flags().BoolVar(&flagMySQLMetrics.DisableUserStats, "disable-userstats", false, "disable user statistics")
+	cmdAddMySQLMetrics.Flags().BoolVar(&flagMySQLMetrics.DisableBinlogStats, "disable-binlogstats", false, "disable binlog statistics")
+	cmdAddMySQLMetrics.Flags().BoolVar(&flagMySQLMetrics.DisableProcesslist, "disable-processlist", false, "disable process state metrics")
+
+	// mysql:queries
 	addCommonMySQLFlags(cmdAddMySQLQueries)
-	cmdAddMySQLQueries.Flags().BoolVar(&flagM.DisableQueryExamples, "disable-queryexamples", false, "disable collection of query examples")
-	cmdAddMySQLQueries.Flags().StringVar(&flagM.QuerySource, "query-source", "auto", "source of SQL queries: auto, slowlog, perfschema")
+	cmdAddMySQLQueries.Flags().BoolVar(&flagQueries.DisableQueryExamples, "disable-queryexamples", false, "disable collection of query examples")
+	cmdAddMySQLQueries.Flags().BoolVar(&flagMySQLQueries.SlowLogRotation, "slow-log-rotation", true, "enable slow log rotation")
+	cmdAddMySQLQueries.Flags().IntVar(&flagMySQLQueries.RetainSlowLogs, "retain-slow-logs", 1, "number of slow logs to retain after rotation")
+	cmdAddMySQLQueries.Flags().StringVar(&flagMySQLQueries.QuerySource, "query-source", "auto", "source of SQL queries: auto, slowlog, perfschema")
 
 	addCommonMongoDBFlags := func(cmd *cobra.Command) {
 		cmd.Flags().StringVar(&flagMongoURI, "uri", "localhost:27017", "MongoDB URI, format: [mongodb://][user:pass@]host[:port][/database][?options]")
@@ -1312,6 +1347,7 @@ func main() {
 	addCommonMongoDBFlags(cmdAddMongoDBMetrics)
 	cmdAddMongoDBMetrics.Flags().StringVar(&flagCluster, "cluster", "", "cluster name")
 	addCommonMongoDBFlags(cmdAddMongoDBQueries)
+	cmdAddMongoDBQueries.Flags().BoolVar(&flagQueries.DisableQueryExamples, "disable-queryexamples", false, "disable collection of query examples")
 
 	cmdAddProxySQLMetrics.Flags().StringVar(&flagDSN, "dsn", "stats:stats@tcp(localhost:6032)/", "ProxySQL connection DSN")
 
@@ -1334,7 +1370,7 @@ func main() {
 	cmdRemoveExternalService.Flags().IntVar(&flagServicePort, "service-port", 0, "service port")
 
 	cmdList.Flags().StringVar(&flagFormat, "format", "", "print result using a Go template")
-	cmdList.Flags().BoolVar(&flagJson, "json", false, "print result as json")
+	cmdList.Flags().BoolVar(&flagJSON, "json", false, "print result as json")
 
 	cmdStart.Flags().BoolVar(&flagAll, "all", false, "start all monitoring services")
 	cmdStop.Flags().BoolVar(&flagAll, "all", false, "stop all monitoring services")

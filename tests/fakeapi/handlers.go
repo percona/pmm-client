@@ -26,11 +26,15 @@ import (
 	"path"
 	"time"
 
+	"net"
+	"net/url"
+
 	"github.com/hashicorp/consul/agent/structs"
 	"github.com/hashicorp/consul/api"
 	"github.com/percona/pmm/proto"
 )
 
+// AppendRoot adds "/" route to API.
 func (f *FakeApi) AppendRoot() {
 	f.Append("/", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
@@ -59,10 +63,12 @@ func (f *FakeApi) AppendPrometheusAPIV1Query() {
 	})
 }
 
+// AppendQanAPIPing adds "/qan-api/ping" route to API.
 func (f *FakeApi) AppendQanAPIPing() {
 	f.Append("/qan-api/ping", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case "GET":
+			w.Header().Add("Content-Type", "text/plain; charset=utf-8")
 			w.Header().Add("X-Percona-Qan-Api-Version", "gotest")
 			w.WriteHeader(http.StatusOK)
 		default:
@@ -79,8 +85,13 @@ func (f *FakeApi) AppendQanAPIInstancesId(id string, protoInstance *proto.Instan
 	})
 }
 
-func (f *FakeApi) AppendConsulV1StatusLeader(xRemoteIP string) {
+// AppendConsulV1StatusLeader adds "/v1/status/leader" route to API.
+func (f *FakeApi) AppendConsulV1StatusLeader() {
 	f.Append("/v1/status/leader", func(w http.ResponseWriter, r *http.Request) {
+		f.RLock()
+		defer f.RUnlock()
+		u, _ := url.Parse(f.baseURL)
+		xRemoteIP, _, _ := net.SplitHostPort(u.Host)
 		w.Header().Add("X-Remote-IP", xRemoteIP)
 		w.Header().Add("X-Server-Time", fmt.Sprintf("%d", time.Now().Unix()))
 		w.WriteHeader(http.StatusOK)
@@ -88,7 +99,8 @@ func (f *FakeApi) AppendConsulV1StatusLeader(xRemoteIP string) {
 	})
 }
 
-func (f *FakeApi) AppendConsulV1CatalogNode(name string, node *api.CatalogNode) {
+// AppendConsulV1CatalogNode adds "/v1/catalog/node/<name>" route to API.
+func (f *FakeApi) AppendConsulV1CatalogNode(name string, node api.CatalogNode) {
 	f.Append("/v1/catalog/node/"+name, func(w http.ResponseWriter, r *http.Request) {
 		data, _ := json.Marshal(node)
 		w.WriteHeader(http.StatusOK)
@@ -140,6 +152,7 @@ func (f *FakeApi) AppendConsulV1CatalogRegister() {
 			if err != nil {
 				panic(fmt.Sprintf("error reading body: %s", err))
 			}
+			defer r.Body.Close()
 
 			rr := structs.RegisterRequest{}
 			err = json.Unmarshal(body, &rr)
@@ -206,5 +219,17 @@ func (f *FakeApi) AppendManaged() {
 	f.Append("/managed/v0/scrape-configs", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte("{}"))
+	})
+}
+
+// AddAnnotation allows test annotation endpoint.
+func (f *FakeApi) AddAnnotation() {
+	f.Append("/managed/v0/annotations", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case "POST":
+			w.WriteHeader(http.StatusOK)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
 	})
 }

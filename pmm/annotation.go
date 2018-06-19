@@ -18,25 +18,21 @@
 package pmm
 
 import (
-	"testing"
+	"context"
+	"errors"
+	"regexp"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/percona/pmm-client/pmm/managed"
 )
 
-func TestGetMySQLQueriesOptionsForPerfschema(t *testing.T) {
-	config, err := getProtoQAN("testdata/qan-2b6c3eb3669943c160502874036968ba.conf")
-	assert.NoError(t, err)
-	opts := getMySQLQueriesOptions(config)
-	assert.Empty(t, opts)
-}
-
-func TestGetMySQLQueriesOptions(t *testing.T) {
-	config, err := getProtoQAN("testdata/qan-2b6c3eb3669943c160502874036968bb.conf")
-	assert.NoError(t, err)
-	opts := getMySQLQueriesOptions(config)
-	expected := []string{
-		"slow_log_rotation=true",
-		"retain_slow_logs=23",
+// AddAnnotation posts annotation to managed.
+func (a *Admin) AddAnnotation(ctx context.Context, text string, tags string) error {
+	if text == "" {
+		return errors.New("failed to save annotation (empty annotation is not allowed)")
 	}
-	assert.Equal(t, expected, opts)
+	return a.managedAPI.AnnotationCreate(ctx, &managed.APIAnnotationCreateRequest{
+		Text: text,
+		// split by comma and trim spaces if they were after comma
+		Tags: regexp.MustCompile(`,\s*`).Split(tags, -1),
+	})
 }

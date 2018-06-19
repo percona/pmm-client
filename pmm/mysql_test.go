@@ -132,9 +132,11 @@ func TestMakeGrants(t *testing.T) {
 			hosts: []string{"localhost", "127.0.0.1"},
 			conn:  5,
 			grants: []string{
-				"GRANT SELECT, PROCESS, REPLICATION CLIENT, RELOAD, SUPER ON *.* TO 'root'@'localhost' IDENTIFIED BY 'abc123' WITH MAX_USER_CONNECTIONS 5",
+				"CREATE USER 'root'@'localhost' IDENTIFIED BY 'abc123' WITH MAX_USER_CONNECTIONS 5",
+				"GRANT SELECT, PROCESS, REPLICATION CLIENT, RELOAD, SUPER ON *.* TO 'root'@'localhost'",
 				"GRANT UPDATE, DELETE, DROP ON `performance_schema`.* TO 'root'@'localhost'",
-				"GRANT SELECT, PROCESS, REPLICATION CLIENT, RELOAD, SUPER ON *.* TO 'root'@'127.0.0.1' IDENTIFIED BY 'abc123' WITH MAX_USER_CONNECTIONS 5",
+				"CREATE USER 'root'@'127.0.0.1' IDENTIFIED BY 'abc123' WITH MAX_USER_CONNECTIONS 5",
+				"GRANT SELECT, PROCESS, REPLICATION CLIENT, RELOAD, SUPER ON *.* TO 'root'@'127.0.0.1'",
 				"GRANT UPDATE, DELETE, DROP ON `performance_schema`.* TO 'root'@'127.0.0.1'",
 			},
 		},
@@ -142,7 +144,8 @@ func TestMakeGrants(t *testing.T) {
 			hosts: []string{"%"},
 			conn:  20,
 			grants: []string{
-				"GRANT SELECT, PROCESS, REPLICATION CLIENT, RELOAD, SUPER ON *.* TO 'admin'@'%' IDENTIFIED BY '23;,_-asd' WITH MAX_USER_CONNECTIONS 20",
+				"CREATE USER 'admin'@'%' IDENTIFIED BY '23;,_-asd' WITH MAX_USER_CONNECTIONS 20",
+				"GRANT SELECT, PROCESS, REPLICATION CLIENT, RELOAD, SUPER ON *.* TO 'admin'@'%'",
 				"GRANT UPDATE, DELETE, DROP ON `performance_schema`.* TO 'admin'@'%'",
 			},
 		},
@@ -163,16 +166,12 @@ func TestGetMysqlInfo(t *testing.T) {
 	rows := sqlmock.NewRows(columns).AddRow("db01", "3306", "MySQL", "1.2.3")
 	mock.ExpectQuery("SELECT @@hostname, @@port, @@version_comment, @@version").WillReturnRows(rows)
 
-	rows = sqlmock.NewRows([]string{"count"}).AddRow("500")
-	mock.ExpectQuery(sanitizeQuery("SELECT COUNT(*) FROM information_schema.tables")).WillReturnRows(rows)
-
-	res := getMysqlInfo(db, false)
-	expected := map[string]string{
-		"hostname":    "db01",
-		"port":        "3306",
-		"distro":      "MySQL",
-		"version":     "1.2.3",
-		"table_count": "500",
+	res := *getMysqlInfo(db)
+	expected := MySQLInfo{
+		Hostname: "db01",
+		Port:     "3306",
+		Distro:   "MySQL",
+		Version:  "1.2.3",
 	}
 	assert.Equal(t, expected, res)
 

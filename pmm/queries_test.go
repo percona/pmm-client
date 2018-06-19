@@ -21,12 +21,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"net/url"
 	"os"
 	"testing"
 	"time"
 
-	"github.com/percona/pmm-client/test/fakeapi"
+	"github.com/percona/pmm-client/tests/fakeapi"
+	pc "github.com/percona/pmm/proto/config"
 	protocfg "github.com/percona/pmm/proto/config"
 	"github.com/stretchr/testify/assert"
 )
@@ -75,16 +75,16 @@ func TestAdmin_StartStopQAN(t *testing.T) {
 
 	// create fakeapi
 	api := fakeapi.New()
-	defer api.Close()
 	api.AppendQanAPIAgents(agentID)
+	defer api.Close()
+	_, host, port := api.Start()
 
-	u, _ := url.Parse(api.URL())
-
+	exampleQueries := true
 	// create qan config
-	qanConfig := map[string]interface{}{
-		"UUID":           "xyz",
-		"Interval":       60,
-		"ExampleQueries": true,
+	qanConfig := pc.QAN{
+		UUID:           "xyz",
+		Interval:       60,
+		ExampleQueries: &exampleQueries,
 	}
 
 	// create pmm-admin instance
@@ -95,11 +95,10 @@ func TestAdmin_StartStopQAN(t *testing.T) {
 	admin.qanAPI = NewAPI(insecureFlag, timeout, debug)
 
 	// point pmm-admin to fake http api
-	admin.serverURL = u.Host
+	admin.serverURL = fmt.Sprintf("%s:%s", host, port)
 	scheme := "http"
 	authStr := ""
-	host := u.Host // u.Host delivers host:port
-	admin.serverURL = fmt.Sprintf("%s://%s%s", scheme, authStr, host)
+	admin.serverURL = fmt.Sprintf("%s://%s%s:%s", scheme, authStr, host, port)
 
 	t.Run("startQAN", func(t *testing.T) {
 		err := admin.startQAN(agentID, qanConfig)
@@ -110,4 +109,15 @@ func TestAdmin_StartStopQAN(t *testing.T) {
 		err := admin.stopQAN(agentID, "qwe")
 		assert.Nil(t, err)
 	})
+}
+
+func TestGetQueriesOptions(t *testing.T) {
+	config, err := getProtoQAN("testdata/qan-2b6c3eb3669943c160502874036968ba.conf")
+	assert.NoError(t, err)
+	opts := getQueriesOptions(config)
+	expected := []string{
+		"query_source=perfschema",
+		"query_examples=true",
+	}
+	assert.Equal(t, expected, opts)
 }
