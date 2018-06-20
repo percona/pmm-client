@@ -47,11 +47,13 @@ func (a *Admin) DetectMongoDB(uri string) (mgo.BuildInfo, error) {
 
 	b, err := cmd.CombinedOutput()
 	if err != nil {
+		err = fmt.Errorf("cannot verify MongoDB connection: %s: %s", err, string(b))
 		return mgo.BuildInfo{}, err
 	}
 	buildInfo := mgo.BuildInfo{}
 	err = json.Unmarshal(b, &buildInfo)
 	if err != nil {
+		err = fmt.Errorf("cannot read BuildInfo from output: %s: %s", err, string(b))
 		return mgo.BuildInfo{}, err
 	}
 
