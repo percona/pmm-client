@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	"gopkg.in/mgo.v2"
@@ -33,6 +34,7 @@ func (a *Admin) DetectMongoDB(uri string) (mgo.BuildInfo, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	path := fmt.Sprintf("%s/mongodb_exporter", PMMBaseDir)
 	args := []string{
 		"--test",
 	}
@@ -40,20 +42,20 @@ func (a *Admin) DetectMongoDB(uri string) (mgo.BuildInfo, error) {
 	args = append(args, a.Args...)
 	cmd := exec.CommandContext(
 		ctx,
-		fmt.Sprintf("%s/mongodb_exporter", PMMBaseDir),
+		path,
 		args...,
 	)
 	cmd.Env = append(os.Environ(), fmt.Sprintf("MONGODB_URI=%s", uri))
 
 	b, err := cmd.CombinedOutput()
 	if err != nil {
-		err = fmt.Errorf("cannot verify MongoDB connection: %s: %s", err, string(b))
+		err = fmt.Errorf("cannot verify MongoDB connection with `%s %s`: %s: %s", path, strings.Join(args, " "), err, string(b))
 		return mgo.BuildInfo{}, err
 	}
 	buildInfo := mgo.BuildInfo{}
 	err = json.Unmarshal(b, &buildInfo)
 	if err != nil {
-		err = fmt.Errorf("cannot read BuildInfo from output: %s: %s", err, string(b))
+		err = fmt.Errorf("cannot read BuildInfo from output of `%s %s`: %s: %s", path, strings.Join(args, " "), err, string(b))
 		return mgo.BuildInfo{}, err
 	}
 
