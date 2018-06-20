@@ -19,6 +19,7 @@ package main
 
 import (
 	"bufio"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -30,15 +31,13 @@ import (
 	"strings"
 	"testing"
 
-	"gopkg.in/yaml.v2"
-
 	"github.com/hashicorp/consul/api"
 	"github.com/percona/pmm-client/pmm"
 	"github.com/percona/pmm-client/tests/fakeapi"
 	"github.com/percona/pmm/proto"
 	pc "github.com/percona/pmm/proto/config"
 	"github.com/stretchr/testify/assert"
-	"database/sql"
+	"gopkg.in/yaml.v2"
 )
 
 type pmmAdminData struct {
