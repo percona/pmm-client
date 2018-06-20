@@ -19,7 +19,6 @@ package main
 
 import (
 	"bufio"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -93,9 +92,7 @@ func TestPmmAdmin(t *testing.T) {
 	tests := []func(*testing.T, pmmAdminData){
 		testAddMongoDB,
 		testAddMySQL,
-		// Below test fails on some systems as IP received by MySQL in docker container is not 127.0.0.1
-		// but it's an ip of the bridge e.g. 172.20.0.1 https://github.com/docker/for-mac/issues/180
-		// testAddMySQLWithCreateUser,
+		testAddMySQLWithCreateUser,
 		testAddMySQLWithDisableSlowLogsRotation,
 		testAddMySQLWithRetainSlowLogs,
 		testAddMongoDBQueries,
@@ -1394,16 +1391,15 @@ func testAddMySQL(t *testing.T, data pmmAdminData) {
 }
 
 func testAddMySQLWithCreateUser(t *testing.T, data pmmAdminData) {
-	defer func() {
-		err := os.RemoveAll(data.rootDir)
-		assert.Nil(t, err)
-	}()
+	t.Skip(`
+		pmm-admin restricts user to connect only from 127.0.0.1 if it detects it's localhost.
+		However IP received by MySQL in docker container is not 127.0.0.1
+		but it's an ip of the bridge e.g. 172.20.0.1 https://github.com/docker/for-mac/issues/180
+		As a result connection from 172.20.0.1 gets rejected and this test fails.
+	`)
 
 	defer func() {
-		db, err := sql.Open("mysql", "root@tcp(127.0.0.1:3306)/")
-		assert.Nil(t, err)
-		defer db.Close()
-		_, err = db.Exec("DROP USER IF EXISTS 'pmm'")
+		err := os.RemoveAll(data.rootDir)
 		assert.Nil(t, err)
 	}()
 
@@ -1476,6 +1472,7 @@ func testAddMySQLWithCreateUser(t *testing.T, data pmmAdminData) {
 		"--port", "3306", // MySQL instance with performance_schema enabled.
 		"--host", "127.0.0.1", // Force pmm-admin to ignore auto detection, otherwise it tries to connect to socket.
 		"--create-user",
+		"--force",
 	)
 
 	output, err := cmd.CombinedOutput()
