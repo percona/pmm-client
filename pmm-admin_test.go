@@ -19,6 +19,7 @@ package main
 
 import (
 	"bufio"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -30,15 +31,13 @@ import (
 	"strings"
 	"testing"
 
-	"gopkg.in/yaml.v2"
-
 	"github.com/hashicorp/consul/api"
 	"github.com/percona/pmm-client/pmm"
 	"github.com/percona/pmm-client/tests/fakeapi"
 	"github.com/percona/pmm/proto"
 	pc "github.com/percona/pmm/proto/config"
 	"github.com/stretchr/testify/assert"
-	"database/sql"
+	"gopkg.in/yaml.v2"
 )
 
 type pmmAdminData struct {
@@ -142,7 +141,7 @@ func testVersion(t *testing.T, data pmmAdminData) {
 	assert.Nil(t, err)
 
 	// sanity check that version number was changed with ldflag for this test build
-	assert.Equal(t, "1.11.0", pmm.Version)
+	assert.Equal(t, "1.12.0", pmm.Version)
 	expected := `gotest`
 
 	assertRegexpLines(t, expected, string(output))
