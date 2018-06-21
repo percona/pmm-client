@@ -159,7 +159,10 @@ func createMySQLUser(db *sql.DB, userDSN dsn.DSN, mf MySQLFlags) (dsn.DSN, error
 	}
 
 	// Create a new MySQL user with the necessary privs.
-	grants := makeGrants(userDSN, hosts, mf.MaxUserConn)
+	grants, err := makeGrants(db, userDSN, hosts, mf.MaxUserConn)
+	if err != nil {
+		return dsn.DSN{}, err
+	}
 	for _, grant := range grants {
 		if _, err := db.Exec(grant); err != nil {
 			err = fmt.Errorf("Problem creating a new MySQL user. Failed to execute %s: %s\n\n%s",
@@ -220,7 +223,7 @@ func mysqlCheck(db *sql.DB, hosts []string) error {
 	return nil
 }
 
-func makeGrants(dsn dsn.DSN, hosts []string, conn uint16) []string {
+func makeGrants(db *sql.DB, dsn dsn.DSN, hosts []string, conn uint16) ([]string, error) {
 	var grants []string
 	for _, host := range hosts {
 		// Privileges:
@@ -229,9 +232,22 @@ func makeGrants(dsn dsn.DSN, hosts []string, conn uint16) []string {
 		// RELOAD - for qan-agent to run `FLUSH SLOW LOGS`
 		// SUPER - for qan-agent to set global variables (not clear it is still required)
 		// Grants for performance_schema - for qan-agent to manage query digest tables.
+		exists, err := userExists(db, dsn.Username, host)
+		if err != nil {
+			return nil, err
+		}
+		if exists {
+			grants = append(grants,
+				fmt.Sprintf("ALTER USER '%s'@'%s' IDENTIFIED BY '%s' WITH MAX_USER_CONNECTIONS %d",
+					dsn.Username, host, dsn.Password, conn),
+			)
+		} else {
+			grants = append(grants,
+				fmt.Sprintf("CREATE USER '%s'@'%s' IDENTIFIED BY '%s' WITH MAX_USER_CONNECTIONS %d",
+					dsn.Username, host, dsn.Password, conn),
+			)
+		}
 		grants = append(grants,
-			fmt.Sprintf("CREATE USER '%s'@'%s' IDENTIFIED BY '%s' WITH MAX_USER_CONNECTIONS %d",
-				dsn.Username, host, dsn.Password, conn),
 			fmt.Sprintf("GRANT SELECT, PROCESS, REPLICATION CLIENT, RELOAD, SUPER ON *.* TO '%s'@'%s'",
 				dsn.Username, host),
 			fmt.Sprintf("GRANT UPDATE, DELETE, DROP ON `performance_schema`.* TO '%s'@'%s'",
@@ -239,7 +255,22 @@ func makeGrants(dsn dsn.DSN, hosts []string, conn uint16) []string {
 		)
 	}
 
-	return grants
+	return grants, nil
+}
+
+func userExists(db *sql.DB, user, host string) (bool, error) {
+	count := 0
+	err := db.QueryRow("SELECT 1 FROM mysql.user WHERE user=? AND host=?", user, host).Scan(&count)
+	switch {
+	case err == sql.ErrNoRows:
+		return false, nil
+	case err != nil:
+		return false, err
+	case count == 0:
+		// Shouldn't happen but just in case, if we get row and 0 value then user doesn't exists.
+		return false, nil
+	}
+	return true, nil
 }
 
 func testConnection(dsn string) error {
