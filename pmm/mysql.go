@@ -232,7 +232,7 @@ func makeGrants(db *sql.DB, dsn dsn.DSN, hosts []string, conn uint16) ([]string,
 		// RELOAD - for qan-agent to run `FLUSH SLOW LOGS`
 		// SUPER - for qan-agent to set global variables (not clear it is still required)
 		// Grants for performance_schema - for qan-agent to manage query digest tables.
-		exists, err := userExists(db, dsn)
+		exists, err := userExists(db, dsn.Username, host)
 		if err != nil {
 			return nil, err
 		}
@@ -258,14 +258,17 @@ func makeGrants(db *sql.DB, dsn dsn.DSN, hosts []string, conn uint16) ([]string,
 	return grants, nil
 }
 
-func userExists(db *sql.DB, dsn dsn.DSN) (bool, error) {
+func userExists(db *sql.DB, user, host string) (bool, error) {
 	count := 0
-	err := db.QueryRow("SELECT 1 FROM mysql.user WHERE user=?", dsn.Username).Scan(&count)
+	err := db.QueryRow("SELECT 1 FROM mysql.user WHERE user=? AND host=?", user, host).Scan(&count)
 	switch {
 	case err == sql.ErrNoRows:
 		return false, nil
 	case err != nil:
 		return false, err
+	case count == 0:
+		// Shouldn't happen but just in case, if we get row and 0 value then user doesn't exists.
+		return false, nil
 	}
 	return true, nil
 }

@@ -121,6 +121,18 @@ func TestMySQLCheck4(t *testing.T) {
 }
 
 func TestMakeGrants(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("error opening a stub database connection: %s", err)
+	}
+	defer db.Close()
+
+	columns := []string{"exists"}
+	rows := sqlmock.NewRows(columns)
+	mock.ExpectQuery("SELECT 1 FROM mysql.user WHERE user=?").WithArgs("root", "localhost").WillReturnRows(rows)
+	mock.ExpectQuery("SELECT 1 FROM mysql.user WHERE user=?").WithArgs("root", "127.0.0.1").WillReturnRows(rows)
+	mock.ExpectQuery("SELECT 1 FROM mysql.user WHERE user=?").WithArgs("admin", "%").WillReturnRows(rows)
+
 	type sample struct {
 		dsn    dsn.DSN
 		hosts  []string
@@ -151,7 +163,9 @@ func TestMakeGrants(t *testing.T) {
 		},
 	}
 	for _, s := range samples {
-		assert.Equal(t, s.grants, makeGrants(s.dsn, s.hosts, s.conn))
+		grants, err := makeGrants(db, s.dsn, s.hosts, s.conn)
+		assert.NoError(t, err)
+		assert.Equal(t, s.grants, grants)
 	}
 }
 
