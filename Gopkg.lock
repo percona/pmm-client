@@ -2,6 +2,12 @@
 
 
 [[projects]]
+  name = "github.com/Masterminds/semver"
+  packages = ["."]
+  revision = "c7af12943936e8c39859482e61f0574c2fd7fc75"
+  version = "v1.4.2"
+
+[[projects]]
   name = "github.com/StackExchange/wmi"
   packages = ["."]
   revision = "5d049714c4a64225c3c79a7cf7d02f7fb5b96338"
@@ -320,6 +326,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "e84b0b20e9a4a1b632deea913ed1bf18d57bcace0fd5caaa42e49683f458ad37"
+  inputs-digest = "3c10f25d5d7961b4966ae506418d9477f80194f37cfbc376d5a7ddf7e638d5ca"
   solver-name = "gps-cdcl"
   solver-version = 1

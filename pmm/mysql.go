@@ -22,9 +22,11 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"regexp"
 	"strings"
 	"time"
 
+	"github.com/Masterminds/semver"
 	"github.com/percona/go-mysql/dsn"
 )
 
@@ -232,26 +234,38 @@ func makeGrants(db *sql.DB, dsn dsn.DSN, hosts []string, conn uint16) ([]string,
 		// RELOAD - for qan-agent to run `FLUSH SLOW LOGS`
 		// SUPER - for qan-agent to set global variables (not clear it is still required)
 		// Grants for performance_schema - for qan-agent to manage query digest tables.
-		exists, err := userExists(db, dsn.Username, host)
+		atLeastMySQL57, err := versionConstraint(db, ">= 5.7.0")
 		if err != nil {
 			return nil, err
 		}
-		if exists {
+		if atLeastMySQL57 {
+			exists, err := userExists(db, dsn.Username, host)
+			if err != nil {
+				return nil, err
+			}
+			if exists {
+				grants = append(grants,
+					fmt.Sprintf("ALTER USER '%s'@'%s' IDENTIFIED BY '%s' WITH MAX_USER_CONNECTIONS %d",
+						dsn.Username, host, dsn.Password, conn),
+				)
+			} else {
+				grants = append(grants,
+					fmt.Sprintf("CREATE USER '%s'@'%s' IDENTIFIED BY '%s' WITH MAX_USER_CONNECTIONS %d",
+						dsn.Username, host, dsn.Password, conn),
+				)
+			}
 			grants = append(grants,
-				fmt.Sprintf("ALTER USER '%s'@'%s' IDENTIFIED BY '%s' WITH MAX_USER_CONNECTIONS %d",
-					dsn.Username, host, dsn.Password, conn),
+				fmt.Sprintf("GRANT SELECT, PROCESS, REPLICATION CLIENT, RELOAD, SUPER ON *.* TO '%s'@'%s'",
+					dsn.Username, host),
 			)
 		} else {
 			grants = append(grants,
-				fmt.Sprintf("CREATE USER '%s'@'%s' IDENTIFIED BY '%s' WITH MAX_USER_CONNECTIONS %d",
+				fmt.Sprintf("GRANT SELECT, PROCESS, REPLICATION CLIENT, RELOAD, SUPER ON *.* TO '%s'@'%s' IDENTIFIED BY '%s' WITH MAX_USER_CONNECTIONS %d",
 					dsn.Username, host, dsn.Password, conn),
 			)
 		}
 		grants = append(grants,
-			fmt.Sprintf("GRANT SELECT, PROCESS, REPLICATION CLIENT, RELOAD, SUPER ON *.* TO '%s'@'%s'",
-				dsn.Username, host),
-			fmt.Sprintf("GRANT UPDATE, DELETE, DROP ON `performance_schema`.* TO '%s'@'%s'",
-				dsn.Username, host),
+			fmt.Sprintf("GRANT UPDATE, DELETE, DROP ON `performance_schema`.* TO '%s'@'%s'", dsn.Username, host),
 		)
 	}
 
@@ -316,4 +330,27 @@ func generatePassword(size int) string {
 		b[pos2] = a
 	}
 	return string(b)[:size]
+}
+
+// versionConstraint checks if version fits given constraint.
+func versionConstraint(db *sql.DB, constraint string) (bool, error) {
+	version := sql.NullString{}
+	err := db.QueryRow("SELECT @@GLOBAL.version").Scan(&version)
+	if err != nil {
+		return false, err
+	}
+
+	// Strip everything after the first dash
+	re := regexp.MustCompile("-.*$")
+	version.String = re.ReplaceAllString(version.String, "")
+	v, err := semver.NewVersion(version.String)
+	if err != nil {
+		return false, err
+	}
+
+	constraints, err := semver.NewConstraint(constraint)
+	if err != nil {
+		return false, err
+	}
+	return constraints.Check(v), nil
 }
