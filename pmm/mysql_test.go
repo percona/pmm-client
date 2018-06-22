@@ -127,11 +127,41 @@ func TestMakeGrants(t *testing.T) {
 	}
 	defer db.Close()
 
-	columns := []string{"exists"}
-	rows := sqlmock.NewRows(columns)
-	mock.ExpectQuery("SELECT 1 FROM mysql.user WHERE user=?").WithArgs("root", "localhost").WillReturnRows(rows)
-	mock.ExpectQuery("SELECT 1 FROM mysql.user WHERE user=?").WithArgs("root", "127.0.0.1").WillReturnRows(rows)
-	mock.ExpectQuery("SELECT 1 FROM mysql.user WHERE user=?").WithArgs("admin", "%").WillReturnRows(rows)
+	{
+		columns := []string{"version"}
+		rows := sqlmock.NewRows(columns).AddRow("8.1.0")
+		mock.ExpectQuery("SELECT @@GLOBAL.version").WillReturnRows(rows)
+	}
+
+	{
+		columns := []string{"exists"}
+		rows := sqlmock.NewRows(columns)
+		mock.ExpectQuery("SELECT 1 FROM mysql.user WHERE user=?").WithArgs("root", "localhost").WillReturnRows(rows)
+	}
+
+	{
+		columns := []string{"version"}
+		rows := sqlmock.NewRows(columns).AddRow("8.1.0")
+		mock.ExpectQuery("SELECT @@GLOBAL.version").WillReturnRows(rows)
+	}
+
+	{
+		columns := []string{"exists"}
+		rows := sqlmock.NewRows(columns)
+		mock.ExpectQuery("SELECT 1 FROM mysql.user WHERE user=?").WithArgs("root", "127.0.0.1").WillReturnRows(rows)
+	}
+
+	{
+		columns := []string{"version"}
+		rows := sqlmock.NewRows(columns).AddRow("8.1.0")
+		mock.ExpectQuery("SELECT @@GLOBAL.version").WillReturnRows(rows)
+	}
+
+	{
+		columns := []string{"exists"}
+		rows := sqlmock.NewRows(columns)
+		mock.ExpectQuery("SELECT 1 FROM mysql.user WHERE user=?").WithArgs("admin", "%").WillReturnRows(rows)
+	}
 
 	type sample struct {
 		dsn    dsn.DSN
