@@ -52,7 +52,7 @@ var (
 	errNoInstance = errors.New("no instance found on QAN API.")
 )
 
-const nodeExporterArgs = "-collectors.enabled=diskstats,filefd,filesystem,loadavg,meminfo,netdev,netstat,stat,time,uname,vmstat -collector.textfile.directory=/var/lib/node_exporter/textfile_collector"
+const nodeExporterArgs = "-collectors.enabled=diskstats,filefd,filesystem,loadavg,meminfo,netdev,netstat,stat,time,uname,vmstat,textfile -collector.textfile.directory=/var/lib/node_exporter/textfile_collector"
 
 var mysqldExporterArgs = []string{
 	"-collect.auto_increment.columns=true",
