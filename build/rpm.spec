@@ -34,6 +34,13 @@ as possible.
 %endif
 install -m 0755 -d $RPM_BUILD_ROOT/usr/local/percona/pmm-client
 install -m 0755 -d $RPM_BUILD_ROOT/usr/local/percona/qan-agent/bin
+install -m 0755 -d $RPM_BUILD_ROOT/etc/conf.d
+install -m 0755 -d $RPM_BUILD_ROOT/var/lib/node_exporter/textfile_collector
+
+cat > $RPM_BUILD_ROOT/etc/conf.d/files_size.cron <<EOL
+*/1 * * * *     echo -n "" > /var/lib/node_exporter/textfile_collector/file_size.prom;for i in `find / -name "ibtmp1" -o -name "ibdata1"`; do let counter=counter+1; echo $counter; du -sb $i | sed -ne 's/^\([0-9]\+\)\t\(.*\)$/node_directory_size_bytes{directory="\2"} \1/p' > /var/lib/node_exporter/textfile_collector/file_size.prom.$$ && cat /var/lib/node_exporter/textfile_collector/file_size.prom.$$ >> /var/lib/node_exporter/textfile_collector/file_size.prom;done;
+EOL
+
 install -m 0755 bin/node_exporter $RPM_BUILD_ROOT/usr/local/percona/pmm-client/
 install -m 0755 bin/mysqld_exporter $RPM_BUILD_ROOT/usr/local/percona/pmm-client/
 install -m 0755 bin/mongodb_exporter $RPM_BUILD_ROOT/usr/local/percona/pmm-client/
@@ -85,6 +92,9 @@ fi
 %files
 %dir /usr/local/percona/pmm-client
 %dir /usr/local/percona/qan-agent/bin
+%dir /var/lib/node_exporter/textfile_collector
+
+/etc/cron.d/files_size.cron
 /usr/local/percona/pmm-client/*
 /usr/local/percona/qan-agent/bin/*
 %if 0%{?rhel} == 5
