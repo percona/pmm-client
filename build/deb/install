@@ -8,3 +8,4 @@ pt-mysql-summary /usr/local/percona/qan-agent/bin/
 pt-mongodb-summary /usr/local/percona/qan-agent/bin/
 percona-qan-agent /usr/local/percona/qan-agent/bin/
 percona-qan-agent-installer /usr/local/percona/qan-agent/bin/
+files_size /etc/cron.d/

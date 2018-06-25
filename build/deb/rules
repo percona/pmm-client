@@ -41,6 +41,7 @@ override_dh_usrlocal:
 override_dh_auto_install:
 	@echo "RULES.$@"
 	mkdir -p $(TMP)
+	install -m 0644 debian/extra/files_size $(TMP)/files_size
 	cp distro/pmm-admin $(TMP)/pmm-admin
 	cp -f distro/node_exporter $(TMP)/node_exporter
 	cp -f distro/mysqld_exporter $(TMP)/mysqld_exporter
