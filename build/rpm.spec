@@ -36,7 +36,7 @@ as possible.
 install -m 0755 -d $RPM_BUILD_ROOT/usr/local/percona/pmm-client
 install -m 0755 -d $RPM_BUILD_ROOT/usr/local/percona/qan-agent/bin
 install -m 0755 -d $RPM_BUILD_ROOT/etc/cron.d
-install -m 0644 ${SOURCE1} $RPM_BUILD_ROOT/etc/cron.d/files_size
+install -m 0644 %{SOURCE1} $RPM_BUILD_ROOT/etc/cron.d/files_size
 install -m 0755 -d $RPM_BUILD_ROOT/var/lib/node_exporter/textfile_collector
 
 install -m 0755 bin/node_exporter $RPM_BUILD_ROOT/usr/local/percona/pmm-client/
