@@ -8,6 +8,7 @@ License:        AGPLv3
 Vendor:         Percona LLC
 URL:            https://percona.com
 Source:         pmm-client-%{version}.tar.gz
+Source1:        files_size
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root
 AutoReq:        no
 
@@ -35,12 +36,8 @@ as possible.
 install -m 0755 -d $RPM_BUILD_ROOT/usr/local/percona/pmm-client
 install -m 0755 -d $RPM_BUILD_ROOT/usr/local/percona/qan-agent/bin
 install -m 0755 -d $RPM_BUILD_ROOT/etc/cron.d
-install -m 0644 /dev/null $RPM_BUILD_ROOT/etc/cron.d/files_size
+install -m 0644 ${SOURCE1} $RPM_BUILD_ROOT/etc/cron.d/files_size
 install -m 0755 -d $RPM_BUILD_ROOT/var/lib/node_exporter/textfile_collector
-
-cat > $RPM_BUILD_ROOT/etc/cron.d/files_size <<EOL
-*/1 * * * *     root	echo -n "" > /var/lib/node_exporter/textfile_collector/files_size.prom;for i in $(find / -name "ibtmp1" -o -name "ibdata1"); do du -sb $i | sed -ne 's/^\([0-9]\+\)\t\(.*\)$/node_file_size_bytes{file="\2"} \1/p' > /var/lib/node_exporter/textfile_collector/files_size.prom.$$ && cat /var/lib/node_exporter/textfile_collector/files_size.prom.$$ >> /var/lib/node_exporter/textfile_collector/files_size.prom && rm -f /var/lib/node_exporter/textfile_collector/files_size.prom.$$;done;
-EOL
 
 install -m 0755 bin/node_exporter $RPM_BUILD_ROOT/usr/local/percona/pmm-client/
 install -m 0755 bin/mysqld_exporter $RPM_BUILD_ROOT/usr/local/percona/pmm-client/
