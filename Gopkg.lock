@@ -2,6 +2,12 @@
 
 
 [[projects]]
+  name = "github.com/Masterminds/semver"
+  packages = ["."]
+  revision = "c7af12943936e8c39859482e61f0574c2fd7fc75"
+  version = "v1.4.2"
+
+[[projects]]
   name = "github.com/StackExchange/wmi"
   packages = ["."]
   revision = "5d049714c4a64225c3c79a7cf7d02f7fb5b96338"
@@ -49,10 +55,10 @@
   version = "v1.2.1"
 
 [[projects]]
-  branch = "master"
   name = "github.com/go-sql-driver/mysql"
   packages = ["."]
-  revision = "3287d94d4c6a48a63e16fffaabf27ab20203af2a"
+  revision = "d523deb1b23d913de5bdada721a6071e71283618"
+  version = "v1.4.0"
 
 [[projects]]
   name = "github.com/hashicorp/consul"
@@ -192,18 +198,13 @@
   revision = "13b8f7cee7c65569ea0c79878aabed4956416853"
 
 [[projects]]
-  name = "github.com/percona/pmgo"
-  packages = ["."]
-  revision = "9566dc76df319b856a12f24a3b6852a0c6463eff"
-  version = "0.5.1"
-
-[[projects]]
+  branch = "master"
   name = "github.com/percona/pmm"
   packages = [
     "proto",
     "proto/config"
   ]
-  revision = "88b7a3ea548f89aa63c3ec946c5a20db949db715"
+  revision = "ca530ba01e84089f5236e26c9f28694f5cef054d"
 
 [[projects]]
   name = "github.com/pkg/errors"
@@ -311,18 +312,11 @@
   packages = [
     ".",
     "bson",
-    "dbtest",
     "internal/json",
     "internal/sasl",
     "internal/scram"
   ]
   revision = "3f83fa5005286a7fe593b055f0d7771a7dce4655"
-
-[[projects]]
-  branch = "v2"
-  name = "gopkg.in/tomb.v2"
-  packages = ["."]
-  revision = "d5d1b5820637886def9eef33e03a27a9f166942c"
 
 [[projects]]
   name = "gopkg.in/yaml.v2"
@@ -332,6 +326,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "0709229395b75e0e6f6fcdfada59621766e8cc96f5386e986a283b65247153cc"
+  inputs-digest = "3c10f25d5d7961b4966ae506418d9477f80194f37cfbc376d5a7ddf7e638d5ca"
   solver-name = "gps-cdcl"
   solver-version = 1

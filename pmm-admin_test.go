@@ -30,14 +30,13 @@ import (
 	"strings"
 	"testing"
 
-	"gopkg.in/yaml.v2"
-
 	"github.com/hashicorp/consul/api"
 	"github.com/percona/pmm-client/pmm"
 	"github.com/percona/pmm-client/tests/fakeapi"
 	"github.com/percona/pmm/proto"
 	pc "github.com/percona/pmm/proto/config"
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/yaml.v2"
 )
 
 type pmmAdminData struct {
@@ -93,6 +92,7 @@ func TestPmmAdmin(t *testing.T) {
 	tests := []func(*testing.T, pmmAdminData){
 		testAddMongoDB,
 		testAddMySQL,
+		testAddMySQLWithCreateUser,
 		testAddMySQLWithDisableSlowLogsRotation,
 		testAddMySQLWithRetainSlowLogs,
 		testAddMongoDBQueries,
@@ -138,7 +138,7 @@ func testVersion(t *testing.T, data pmmAdminData) {
 	assert.Nil(t, err)
 
 	// sanity check that version number was changed with ldflag for this test build
-	assert.Equal(t, "1.11.0", pmm.Version)
+	assert.Equal(t, "1.12.0", pmm.Version)
 	expected := `gotest`
 
 	assertRegexpLines(t, expected, string(output))
@@ -1376,6 +1376,7 @@ func testAddMySQL(t *testing.T, data pmmAdminData) {
 		data.bin,
 		"add",
 		"mysql",
+		"--user", "root",
 		"--port", "3306", // MySQL instance with performance_schema enabled.
 		"--host", "127.0.0.1", // Force pmm-admin to ignore auto detection, otherwise it tries to connect to socket.
 	)
@@ -1385,6 +1386,100 @@ func testAddMySQL(t *testing.T, data pmmAdminData) {
 	expected := `\[linux:metrics\] OK, now monitoring this system.
 \[mysql:metrics\] OK, now monitoring MySQL metrics using DSN root:\*\*\*@tcp\(127.0.0.1:3306\)
 \[mysql:queries\] OK, now monitoring MySQL queries from perfschema using DSN root:\*\*\*@tcp\(127.0.0.1:3306\)
+`
+	assertRegexpLines(t, expected, string(output))
+}
+
+func testAddMySQLWithCreateUser(t *testing.T, data pmmAdminData) {
+	t.Skip(`
+		pmm-admin restricts user to connect only from 127.0.0.1 if it detects it's localhost.
+		However IP received by MySQL in docker container is not 127.0.0.1
+		but it's an ip of the bridge e.g. 172.20.0.1 https://github.com/docker/for-mac/issues/180
+		As a result connection from 172.20.0.1 gets rejected and this test fails.
+	`)
+
+	defer func() {
+		err := os.RemoveAll(data.rootDir)
+		assert.Nil(t, err)
+	}()
+
+	os.MkdirAll(data.rootDir+pmm.PMMBaseDir, 0777)
+	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/bin", 0777)
+	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/config", 0777)
+	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/instance", 0777)
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/node_exporter")
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/mysqld_exporter")
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/mongodb_exporter")
+	os.Create(data.rootDir + pmm.PMMBaseDir + "/proxysql_exporter")
+	os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent")
+
+	f, _ := os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent-installer")
+	f.WriteString("#!/bin/sh\n")
+	f.WriteString("echo 'it works'")
+	f.Close()
+	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
+
+	f, _ = os.Create(data.rootDir + pmm.AgentBaseDir + "/config/agent.conf")
+	f.WriteString(`{"UUID":"42","ApiHostname":"somehostname","ApiPath":"/qan-api","ServerUser":"pmm"}`)
+	f.WriteString("\n")
+	f.Close()
+	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
+	{
+		// Create fake api server
+		fapi := fakeapi.New()
+		fapi.AppendRoot()
+		fapi.AppendQanAPIPing()
+		fapi.AppendConsulV1StatusLeader()
+		node := api.CatalogNode{
+			Node: &api.Node{},
+		}
+		clientName, _ := os.Hostname()
+		fapi.AppendConsulV1CatalogNode(clientName, node)
+		fapi.AppendConsulV1CatalogService()
+		fapi.AppendConsulV1CatalogRegister()
+		in := &proto.Instance{
+			Subsystem: "mysql",
+			UUID:      "13",
+		}
+		agentInstance := &proto.Instance{
+			Subsystem: "agent",
+			UUID:      "42",
+		}
+		fapi.AppendQanAPIInstancesId(agentInstance.UUID, agentInstance)
+		fapi.AppendQanAPIAgents(agentInstance.UUID)
+		fapi.AppendQanAPIInstances([]*proto.Instance{
+			in,
+		})
+		_, host, port := fapi.Start()
+		defer fapi.Close()
+
+		// Configure pmm
+		cmd := exec.Command(
+			data.bin,
+			"config",
+			"--server",
+			fmt.Sprintf("%s:%s", host, port),
+		)
+		output, err := cmd.CombinedOutput()
+		assert.Nil(t, err, string(output))
+	}
+
+	cmd := exec.Command(
+		data.bin,
+		"add",
+		"mysql",
+		"--user", "root",
+		"--port", "3306", // MySQL instance with performance_schema enabled.
+		"--host", "127.0.0.1", // Force pmm-admin to ignore auto detection, otherwise it tries to connect to socket.
+		"--create-user",
+		"--force",
+	)
+
+	output, err := cmd.CombinedOutput()
+	assert.NoError(t, err)
+	expected := `\[linux:metrics\] OK, now monitoring this system.
+\[mysql:metrics\] OK, now monitoring MySQL metrics using DSN pmm:\*\*\*@tcp\(127.0.0.1:3306\)
+\[mysql:queries\] OK, now monitoring MySQL queries from perfschema using DSN pmm:\*\*\*@tcp\(127.0.0.1:3306\)
 `
 	assertRegexpLines(t, expected, string(output))
 }
@@ -1490,6 +1585,7 @@ func testAddMySQLWithDisableSlowLogsRotation(t *testing.T, data pmmAdminData) {
 			data.bin,
 			"add",
 			"mysql",
+			"--user", "root",
 			"--port", "3307", // MySQL instance with slow query log enabled.
 			"--host", "127.0.0.1", // Force pmm-admin to ignore auto detection, otherwise it tries to connect to socket.
 			"--query-source=slowlog", // Force using slow query log.
@@ -1619,6 +1715,7 @@ func testAddMySQLWithRetainSlowLogs(t *testing.T, data pmmAdminData) {
 			data.bin,
 			"add",
 			"mysql",
+			"--user", "root",
 			"--port", "3307", // MySQL instance with slow query log enabled.
 			"--host", "127.0.0.1", // Force pmm-admin to ignore auto detection, otherwise it tries to connect to socket.
 			"--query-source=slowlog", // Force using slow query log.
@@ -1663,11 +1760,34 @@ func testAddMongoDB(t *testing.T, data pmmAdminData) {
 	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/instance", 0777)
 	os.Create(data.rootDir + pmm.PMMBaseDir + "/node_exporter")
 	os.Create(data.rootDir + pmm.PMMBaseDir + "/mysqld_exporter")
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/mongodb_exporter")
 	os.Create(data.rootDir + pmm.PMMBaseDir + "/proxysql_exporter")
 	os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent")
 
-	f, _ := os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent-installer")
+	f, _ := os.Create(data.rootDir + pmm.PMMBaseDir + "/mongodb_exporter")
+	f.WriteString("#!/bin/sh\n")
+	f.WriteString(`cat << 'EOF'
+{
+  "Version": "3.4.12",
+  "VersionArray": [
+    3,
+    4,
+    12,
+    0
+  ],
+  "GitVersion": "bfde702b19c1baad532ed183a871c12630c1bbba",
+  "OpenSSLVersion": "",
+  "SysInfo": "",
+  "Bits": 64,
+  "Debug": false,
+  "MaxObjectSize": 16777216
+}
+
+EOF
+`)
+	f.Close()
+	os.Chmod(data.rootDir+pmm.PMMBaseDir+"/mongodb_exporter", 0777)
+
+	f, _ = os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent-installer")
 	f.WriteString("#!/bin/sh\n")
 	f.WriteString("echo 'it works'")
 	f.Close()
@@ -1748,11 +1868,34 @@ func testAddMongoDBQueries(t *testing.T, data pmmAdminData) {
 	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/instance", 0777)
 	os.Create(data.rootDir + pmm.PMMBaseDir + "/node_exporter")
 	os.Create(data.rootDir + pmm.PMMBaseDir + "/mysqld_exporter")
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/mongodb_exporter")
 	os.Create(data.rootDir + pmm.PMMBaseDir + "/proxysql_exporter")
 	os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent")
 
-	f, _ := os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent-installer")
+	f, _ := os.Create(data.rootDir + pmm.PMMBaseDir + "/mongodb_exporter")
+	f.WriteString("#!/bin/sh\n")
+	f.WriteString(`cat << 'EOF'
+{
+  "Version": "3.4.12",
+  "VersionArray": [
+    3,
+    4,
+    12,
+    0
+  ],
+  "GitVersion": "bfde702b19c1baad532ed183a871c12630c1bbba",
+  "OpenSSLVersion": "",
+  "SysInfo": "",
+  "Bits": 64,
+  "Debug": false,
+  "MaxObjectSize": 16777216
+}
+
+EOF
+`)
+	f.Close()
+	os.Chmod(data.rootDir+pmm.PMMBaseDir+"/mongodb_exporter", 0777)
+
+	f, _ = os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent-installer")
 	f.WriteString("#!/bin/sh\n")
 	f.WriteString("echo 'it works'")
 	f.Close()
