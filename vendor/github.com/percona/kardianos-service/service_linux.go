@@ -71,7 +71,9 @@ var tf = map[string]interface{}{
 		return `'` + strings.Replace(s, `'`, `'"'"'`, -1) + `'`
 	},
 	"cmdSystemD": func(s string) string {
-		return `"` + strings.Replace(s, `"`, `\"`, -1) + `"`
+		s = strings.Replace(s, `%`, `%%`, -1)
+		s = `"` + strings.Replace(s, `"`, `\"`, -1) + `"`
+		return s
 	},
 	"cmdEscape": func(s string) string {
 		return strings.Replace(s, " ", `\x20`, -1)
