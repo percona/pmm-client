@@ -1,15 +1,30 @@
-dist: trusty
-sudo: required
 language: go
 
 go:
-  - 1.9.x
   - 1.10.x
-  - master
 
-matrix:
-  allow_failures:
-    - go: master
+env:
+  matrix:
+    - MYSQL_IMAGE=mysql:5.5
+    - MYSQL_IMAGE=mysql:5.6
+    - MYSQL_IMAGE=mysql:5.7
+    - MYSQL_IMAGE=mysql:8.0
+    - MYSQL_IMAGE=percona/percona-server:5.6
+    - MYSQL_IMAGE=percona/percona-server:5.7
+    - MYSQL_IMAGE=percona:5.5
+    - MYSQL_IMAGE=percona:5.6
+    - MYSQL_IMAGE=percona:5.7
+    - MYSQL_IMAGE=mariadb:5.5
+    - MYSQL_IMAGE=mariadb:10.0
+    - MYSQL_IMAGE=mariadb:10.1
+    - MYSQL_IMAGE=mariadb:10.2
+    - MYSQL_IMAGE=mariadb:10.3
+    - MONGODB_IMAGE=mongo:3.2
+    - MONGODB_IMAGE=mongo:3.4
+    - MONGODB_IMAGE=mongo:3.6
+    - MONGODB_IMAGE=percona/percona-server-mongodb:3.2
+    - MONGODB_IMAGE=percona/percona-server-mongodb:3.4
+    - MONGODB_IMAGE=percona/percona-server-mongodb:3.6
 
 services:
   - docker
@@ -30,8 +45,7 @@ before_script:
 
 script:
   - make init
-  - make test-race
-  - make cover
+  - make test-race-cover
 
 after_success:
   - bash <(curl -s https://codecov.io/bash) -X fix

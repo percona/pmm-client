@@ -33,7 +33,7 @@ const (
 var (
 	// you can use `-ldflags -X github.com/percona/pmm-client/pmm.Version=`
 	// to set build version number
-	Version = "1.10.0"
+	Version = "1.12.0"
 
 	// you can use `-ldflags -X github.com/percona/pmm-client/pmm.RootDir=`
 	// to set root filesystem for pmm-admin
@@ -60,6 +60,8 @@ var mysqldExporterArgs = []string{
 	"-collect.global_status=true",
 	"-collect.global_variables=true",
 	"-collect.info_schema.innodb_metrics=true",
+	"-collect.info_schema.innodb_cmp=true",
+	"-collect.info_schema.innodb_cmpmem=true",
 	"-collect.info_schema.processlist=true",
 	"-collect.info_schema.query_response_time=true",
 	"-collect.info_schema.tables=true",

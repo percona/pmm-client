@@ -18,33 +18,45 @@
 package pmm
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
+	"os"
+	"os/exec"
+	"strings"
 	"time"
 
-	"github.com/percona/pmgo"
 	"gopkg.in/mgo.v2"
 )
 
 // DetectMongoDB verifies MongoDB connection.
 func (a *Admin) DetectMongoDB(uri string) (mgo.BuildInfo, error) {
-	dialInfo, err := pmgo.ParseURL(uri)
-	if err != nil {
-		return mgo.BuildInfo{}, fmt.Errorf("Bad MongoDB uri %s: %s", uri, err)
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
-	dialInfo.Direct = true
-	dialInfo.Timeout = 10 * time.Second
-	dialer := pmgo.NewDialer()
-	session, err := dialer.DialWithInfo(dialInfo)
-	if err != nil {
-		return mgo.BuildInfo{}, fmt.Errorf("Cannot connect to MongoDB using uri %s: %s", uri, err)
+	path := fmt.Sprintf("%s/mongodb_exporter", PMMBaseDir)
+	args := []string{
+		"--test",
 	}
-	defer session.Close()
-	session.SetMode(mgo.Eventual, true)
+	// Add additional args passed to pmm-admin
+	args = append(args, a.Args...)
+	cmd := exec.CommandContext(
+		ctx,
+		path,
+		args...,
+	)
+	cmd.Env = append(os.Environ(), fmt.Sprintf("MONGODB_URI=%s", uri))
 
-	buildInfo, err := session.BuildInfo()
+	b, err := cmd.CombinedOutput()
 	if err != nil {
-		return mgo.BuildInfo{}, fmt.Errorf("Cannot get buildInfo() for MongoDB using uri %s: %s", uri, err)
+		err = fmt.Errorf("cannot verify MongoDB connection with `%s %s`: %s: %s", path, strings.Join(args, " "), err, string(b))
+		return mgo.BuildInfo{}, err
+	}
+	buildInfo := mgo.BuildInfo{}
+	err = json.Unmarshal(b, &buildInfo)
+	if err != nil {
+		err = fmt.Errorf("cannot read BuildInfo from output of `%s %s`: %s: %s", path, strings.Join(args, " "), err, string(b))
+		return mgo.BuildInfo{}, err
 	}
 
 	return buildInfo, nil

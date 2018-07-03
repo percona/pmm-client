@@ -22,15 +22,15 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
-	"os"
-	"strconv"
+	"regexp"
 	"strings"
 	"time"
 
+	"github.com/Masterminds/semver"
 	"github.com/percona/go-mysql/dsn"
 )
 
-// MySQLFlags MySQL specific flags.
+// MySQLFlags are MySQL specific flags.
 type MySQLFlags struct {
 	DefaultsFile string
 	User         string
@@ -39,32 +39,33 @@ type MySQLFlags struct {
 	Port         string
 	Socket       string
 
-	QuerySource string
-
 	CreateUser         bool
 	CreateUserPassword string
 	MaxUserConn        uint16
 	Force              bool
+}
 
-	DisableTableStats      bool
-	DisableTableStatsLimit uint16
-	DisableUserStats       bool
-	DisableBinlogStats     bool
-	DisableProcesslist     bool
-	DisableQueryExamples   bool
+// MySQLInfo describes running MySQL instance.
+type MySQLInfo struct {
+	Hostname string
+	Port     string
+	Distro   string
+	Version  string
+	DSN      string
+	SafeDSN  string
 }
 
 // DetectMySQL detect MySQL, create user if needed, return DSN and MySQL info strings.
-func (a *Admin) DetectMySQL(mf MySQLFlags) (map[string]string, error) {
+func (a *Admin) DetectMySQL(mf MySQLFlags) (*MySQLInfo, error) {
 	// Check for invalid mix of flags.
 	if mf.Socket != "" && mf.Host != "" {
-		return nil, errors.New("Flags --socket and --host are mutually exclusive.")
+		return nil, errors.New("flags --socket and --host are mutually exclusive")
 	}
 	if mf.Socket != "" && mf.Port != "" {
-		return nil, errors.New("Flags --socket and --port are mutually exclusive.")
+		return nil, errors.New("flags --socket and --port are mutually exclusive")
 	}
 	if !mf.CreateUser && mf.CreateUserPassword != "" {
-		return nil, errors.New("Flag --create-user-password should be used along with --create-user.")
+		return nil, errors.New("flag --create-user-password should be used along with --create-user")
 	}
 
 	userDSN := dsn.DSN{
@@ -79,7 +80,7 @@ func (a *Admin) DetectMySQL(mf MySQLFlags) (map[string]string, error) {
 	// Populate defaults to DSN for missing options.
 	userDSN, err := userDSN.AutoDetect()
 	if err != nil && err != dsn.ErrNoSocket {
-		err = fmt.Errorf("Problem with MySQL auto-detection: %s", err)
+		err = fmt.Errorf("problem with MySQL auto-detection: %s", err)
 		return nil, err
 	}
 
@@ -117,19 +118,6 @@ func (a *Admin) DetectMySQL(mf MySQLFlags) (map[string]string, error) {
 	// At this point, we verified the MySQL access, so no need to handle SQL errors below
 	// if our queries are predictably good.
 
-	// Get MySQL variables.
-	info := getMysqlInfo(db, mf.DisableTableStats)
-
-	if mf.QuerySource == "auto" {
-		// MySQL is local if the server hostname == MySQL hostname.
-		osHostname, _ := os.Hostname()
-		if osHostname == info["hostname"] {
-			mf.QuerySource = "slowlog"
-		} else {
-			mf.QuerySource = "perfschema"
-		}
-	}
-
 	// Create a new MySQL user.
 	if mf.CreateUser {
 		userDSN, err = createMySQLUser(db, userDSN, mf)
@@ -142,12 +130,12 @@ func (a *Admin) DetectMySQL(mf MySQLFlags) (map[string]string, error) {
 		a.writeConfig()
 	}
 
-	info["query_source"] = mf.QuerySource
-	info["query_examples"] = strconv.FormatBool(!mf.DisableQueryExamples)
-	info["dsn"] = userDSN.String()
-	info["safe_dsn"] = SanitizeDSN(userDSN.String())
+	// Get MySQL variables.
+	mi := getMysqlInfo(db)
+	mi.DSN = userDSN.String()
+	mi.SafeDSN = SanitizeDSN(userDSN.String())
 
-	return info, nil
+	return mi, nil
 }
 
 func createMySQLUser(db *sql.DB, userDSN dsn.DSN, mf MySQLFlags) (dsn.DSN, error) {
@@ -173,7 +161,10 @@ func createMySQLUser(db *sql.DB, userDSN dsn.DSN, mf MySQLFlags) (dsn.DSN, error
 	}
 
 	// Create a new MySQL user with the necessary privs.
-	grants := makeGrants(userDSN, hosts, mf.MaxUserConn)
+	grants, err := makeGrants(db, userDSN, hosts, mf.MaxUserConn)
+	if err != nil {
+		return dsn.DSN{}, err
+	}
 	for _, grant := range grants {
 		if _, err := db.Exec(grant); err != nil {
 			err = fmt.Errorf("Problem creating a new MySQL user. Failed to execute %s: %s\n\n%s",
@@ -234,7 +225,7 @@ func mysqlCheck(db *sql.DB, hosts []string) error {
 	return nil
 }
 
-func makeGrants(dsn dsn.DSN, hosts []string, conn uint16) []string {
+func makeGrants(db *sql.DB, dsn dsn.DSN, hosts []string, conn uint16) ([]string, error) {
 	var grants []string
 	for _, host := range hosts {
 		// Privileges:
@@ -243,14 +234,57 @@ func makeGrants(dsn dsn.DSN, hosts []string, conn uint16) []string {
 		// RELOAD - for qan-agent to run `FLUSH SLOW LOGS`
 		// SUPER - for qan-agent to set global variables (not clear it is still required)
 		// Grants for performance_schema - for qan-agent to manage query digest tables.
+		atLeastMySQL57, err := versionConstraint(db, ">= 5.7.0")
+		if err != nil {
+			return nil, err
+		}
+		if atLeastMySQL57 {
+			exists, err := userExists(db, dsn.Username, host)
+			if err != nil {
+				return nil, err
+			}
+			if exists {
+				grants = append(grants,
+					fmt.Sprintf("ALTER USER '%s'@'%s' IDENTIFIED BY '%s' WITH MAX_USER_CONNECTIONS %d",
+						dsn.Username, host, dsn.Password, conn),
+				)
+			} else {
+				grants = append(grants,
+					fmt.Sprintf("CREATE USER '%s'@'%s' IDENTIFIED BY '%s' WITH MAX_USER_CONNECTIONS %d",
+						dsn.Username, host, dsn.Password, conn),
+				)
+			}
+			grants = append(grants,
+				fmt.Sprintf("GRANT SELECT, PROCESS, REPLICATION CLIENT, RELOAD, SUPER ON *.* TO '%s'@'%s'",
+					dsn.Username, host),
+			)
+		} else {
+			grants = append(grants,
+				fmt.Sprintf("GRANT SELECT, PROCESS, REPLICATION CLIENT, RELOAD, SUPER ON *.* TO '%s'@'%s' IDENTIFIED BY '%s' WITH MAX_USER_CONNECTIONS %d",
+					dsn.Username, host, dsn.Password, conn),
+			)
+		}
 		grants = append(grants,
-			fmt.Sprintf("GRANT SELECT, PROCESS, REPLICATION CLIENT, RELOAD, SUPER ON *.* TO '%s'@'%s' IDENTIFIED BY '%s' WITH MAX_USER_CONNECTIONS %d",
-				dsn.Username, host, dsn.Password, conn),
-			fmt.Sprintf("GRANT UPDATE, DELETE, DROP ON `performance_schema`.* TO '%s'@'%s'",
-				dsn.Username, host))
+			fmt.Sprintf("GRANT UPDATE, DELETE, DROP ON `performance_schema`.* TO '%s'@'%s'", dsn.Username, host),
+		)
 	}
 
-	return grants
+	return grants, nil
+}
+
+func userExists(db *sql.DB, user, host string) (bool, error) {
+	count := 0
+	err := db.QueryRow("SELECT 1 FROM mysql.user WHERE user=? AND host=?", user, host).Scan(&count)
+	switch {
+	case err == sql.ErrNoRows:
+		return false, nil
+	case err != nil:
+		return false, err
+	case count == 0:
+		// Shouldn't happen but just in case, if we get row and 0 value then user doesn't exists.
+		return false, nil
+	}
+	return true, nil
 }
 
 func testConnection(dsn string) error {
@@ -267,21 +301,10 @@ func testConnection(dsn string) error {
 	return nil
 }
 
-func getMysqlInfo(db *sql.DB, disableTableStats bool) map[string]string {
-	var hostname, port, distro, version, tableCount string
-	db.QueryRow("SELECT @@hostname, @@port, @@version_comment, @@version").Scan(&hostname, &port, &distro, &version)
-	// Do not count number of tables if we explicitly disable table stats.
-	if !disableTableStats {
-		db.QueryRow("SELECT COUNT(*) FROM information_schema.tables").Scan(&tableCount)
-	}
-
-	return map[string]string{
-		"hostname":    hostname,
-		"port":        port,
-		"distro":      distro,
-		"version":     version,
-		"table_count": tableCount,
-	}
+func getMysqlInfo(db *sql.DB) *MySQLInfo {
+	mi := &MySQLInfo{}
+	db.QueryRow("SELECT @@hostname, @@port, @@version_comment, @@version").Scan(&mi.Hostname, &mi.Port, &mi.Distro, &mi.Version)
+	return mi
 }
 
 // generatePassword generate password to satisfy MySQL 5.7 default password policy.
@@ -307,4 +330,27 @@ func generatePassword(size int) string {
 		b[pos2] = a
 	}
 	return string(b)[:size]
+}
+
+// versionConstraint checks if version fits given constraint.
+func versionConstraint(db *sql.DB, constraint string) (bool, error) {
+	version := sql.NullString{}
+	err := db.QueryRow("SELECT @@GLOBAL.version").Scan(&version)
+	if err != nil {
+		return false, err
+	}
+
+	// Strip everything after the first dash
+	re := regexp.MustCompile("-.*$")
+	version.String = re.ReplaceAllString(version.String, "")
+	v, err := semver.NewVersion(version.String)
+	if err != nil {
+		return false, err
+	}
+
+	constraints, err := semver.NewConstraint(constraint)
+	if err != nil {
+		return false, err
+	}
+	return constraints.Check(v), nil
 }

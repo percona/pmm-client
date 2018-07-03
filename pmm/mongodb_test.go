@@ -18,12 +18,47 @@
 package pmm
 
 import (
+	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestAdmin_DetectMongoDB(t *testing.T) {
+	rootDir, err := ioutil.TempDir("/tmp", "pmm-client-test-rootdir-")
+	assert.Nil(t, err)
+	defer func() {
+		err := os.RemoveAll(rootDir)
+		assert.Nil(t, err)
+	}()
+
+	os.MkdirAll(rootDir+PMMBaseDir, 0777)
+	f, _ := os.Create(rootDir + PMMBaseDir + "/mongodb_exporter")
+	f.WriteString("#!/bin/sh\n")
+	f.WriteString(`cat << 'EOF'
+{
+  "Version": "3.4.12",
+  "VersionArray": [
+    3,
+    4,
+    12,
+    0
+  ],
+  "GitVersion": "bfde702b19c1baad532ed183a871c12630c1bbba",
+  "OpenSSLVersion": "",
+  "SysInfo": "",
+  "Bits": 64,
+  "Debug": false,
+  "MaxObjectSize": 16777216
+}
+
+EOF
+`)
+	f.Close()
+	os.Chmod(rootDir+PMMBaseDir+"/mongodb_exporter", 0777)
+	PMMBaseDir = rootDir + PMMBaseDir
+
 	admin := Admin{}
 	buildInfo, err := admin.DetectMongoDB("")
 	assert.Nil(t, err)
