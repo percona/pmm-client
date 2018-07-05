@@ -38,7 +38,6 @@ install:
 
 before_script:
   - sudo service mysql stop
-
   - docker --version
   - docker-compose --version
   - docker-compose up -d
