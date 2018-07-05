@@ -33,7 +33,7 @@ const (
 var (
 	// you can use `-ldflags -X github.com/percona/pmm-client/pmm.Version=`
 	// to set build version number
-	Version = "1.12.0"
+	Version = "1.13.0"
 
 	// you can use `-ldflags -X github.com/percona/pmm-client/pmm.RootDir=`
 	// to set root filesystem for pmm-admin
