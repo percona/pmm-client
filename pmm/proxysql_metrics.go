@@ -26,7 +26,7 @@ import (
 )
 
 // AddProxySQLMetrics add proxysql service to monitoring.
-func (a *Admin) AddProxySQLMetrics(dsn string) error {
+func (a *Admin) AddProxySQLMetrics(dsn string, disableSSL bool) error {
 	// Check if we have already this service on Consul.
 	consulSvc, err := a.getConsulService("proxysql:metrics", a.ServiceName)
 	if err != nil {
@@ -53,12 +53,19 @@ func (a *Admin) AddProxySQLMetrics(dsn string) error {
 		return err
 	}
 
+	var tags []string
+	if disableSSL {
+		tags = []string{fmt.Sprintf("alias_%s", a.ServiceName), "scheme_http"}
+	} else {
+		tags = []string{fmt.Sprintf("alias_%s", a.ServiceName), "scheme_https"}
+	}
+
 	// Add service to Consul.
 	serviceID := fmt.Sprintf("proxysql:metrics-%d", port)
 	srv := consul.AgentService{
 		ID:      serviceID,
 		Service: "proxysql:metrics",
-		Tags:    []string{fmt.Sprintf("alias_%s", a.ServiceName), "scheme_https"},
+		Tags:    tags,
 		Port:    port,
 	}
 	reg := consul.CatalogRegistration{
@@ -75,17 +82,19 @@ func (a *Admin) AddProxySQLMetrics(dsn string) error {
 		Value: []byte(SanitizeDSN(dsn))}
 	a.consulAPI.KV().Put(d, nil)
 
-	// Check and generate certificate if needed.
-	if err := a.checkSSLCertificate(); err != nil {
-		return err
-	}
-
 	args := []string{
 		fmt.Sprintf("-web.listen-address=%s:%d", a.Config.BindAddress, port),
 		fmt.Sprintf("-web.auth-file=%s", ConfigFile),
-		fmt.Sprintf("-web.ssl-cert-file=%s", SSLCertFile),
-		fmt.Sprintf("-web.ssl-key-file=%s", SSLKeyFile),
 	}
+
+	if !disableSSL {
+		// Check and generate certificate if needed.
+		if err := a.checkSSLCertificate(); err != nil {
+			return err
+		}
+		args = append(args, fmt.Sprintf("-web.ssl-key-file=%s", SSLKeyFile), fmt.Sprintf("-web.ssl-cert-file=%s", SSLCertFile))
+	}
+
 	// Add additional args passed to pmm-admin
 	args = append(args, a.Args...)
 

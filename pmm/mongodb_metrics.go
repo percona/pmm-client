@@ -25,7 +25,7 @@ import (
 )
 
 // AddMongoDBMetrics add mongodb metrics service to monitoring.
-func (a *Admin) AddMongoDBMetrics(uri, cluster string) error {
+func (a *Admin) AddMongoDBMetrics(uri, cluster string, disableSSL bool) error {
 	serviceType := "mongodb:metrics"
 
 	// Check if we have already this service on Consul.
@@ -54,7 +54,13 @@ func (a *Admin) AddMongoDBMetrics(uri, cluster string) error {
 		return err
 	}
 
-	tags := []string{fmt.Sprintf("alias_%s", a.ServiceName), "scheme_https"}
+	var tags []string
+	if disableSSL {
+		tags = []string{fmt.Sprintf("alias_%s", a.ServiceName), "scheme_http"}
+	} else {
+		tags = []string{fmt.Sprintf("alias_%s", a.ServiceName), "scheme_https"}
+	}
+
 	if cluster != "" {
 		tags = append(tags, fmt.Sprintf("cluster_%s", cluster))
 	}
@@ -81,17 +87,19 @@ func (a *Admin) AddMongoDBMetrics(uri, cluster string) error {
 		Value: []byte(SanitizeDSN(uri))}
 	a.consulAPI.KV().Put(d, nil)
 
-	// Check and generate certificate if needed.
-	if err := a.checkSSLCertificate(); err != nil {
-		return err
-	}
-
 	args := []string{
 		fmt.Sprintf("-web.listen-address=%s:%d", a.Config.BindAddress, port),
 		fmt.Sprintf("-web.auth-file=%s", ConfigFile),
-		fmt.Sprintf("-web.ssl-cert-file=%s", SSLCertFile),
-		fmt.Sprintf("-web.ssl-key-file=%s", SSLKeyFile),
 	}
+
+	if !disableSSL {
+		// Check and generate certificate if needed.
+		if err := a.checkSSLCertificate(); err != nil {
+			return err
+		}
+		args = append(args, fmt.Sprintf("-web.ssl-key-file=%s", SSLKeyFile), fmt.Sprintf("-web.ssl-cert-file=%s", SSLCertFile))
+	}
+
 	// Add additional args passed to pmm-admin
 	args = append(args, a.Args...)
 

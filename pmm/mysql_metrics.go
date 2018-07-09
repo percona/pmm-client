@@ -36,7 +36,7 @@ type MySQLMetricsFlags struct {
 }
 
 // AddMySQLMetrics add mysql metrics service to monitoring.
-func (a *Admin) AddMySQLMetrics(mi MySQLInfo, mf MySQLMetricsFlags) error {
+func (a *Admin) AddMySQLMetrics(mi MySQLInfo, mf MySQLMetricsFlags, disableSSL bool) error {
 	serviceType := "mysql:metrics"
 
 	// Check if we have already this service on Consul.
@@ -91,7 +91,13 @@ func (a *Admin) AddMySQLMetrics(mi MySQLInfo, mf MySQLMetricsFlags) error {
 	if mf.DisableProcesslist {
 		optsToDisable = append(optsToDisable, "processlist")
 	}
-	tags := []string{fmt.Sprintf("alias_%s", a.ServiceName), "scheme_https"}
+
+	var tags []string
+	if disableSSL {
+		tags = []string{fmt.Sprintf("alias_%s", a.ServiceName), "scheme_http"}
+	} else {
+		tags = []string{fmt.Sprintf("alias_%s", a.ServiceName), "scheme_https"}
+	}
 
 	// Add service to Consul.
 	serviceID := fmt.Sprintf("%s-%d", serviceType, port)
@@ -132,17 +138,19 @@ func (a *Admin) AddMySQLMetrics(mi MySQLInfo, mf MySQLMetricsFlags) error {
 		Value: []byte(mi.SafeDSN)}
 	a.consulAPI.KV().Put(d, nil)
 
-	// Check and generate certificate if needed.
-	if err := a.checkSSLCertificate(); err != nil {
-		return err
-	}
-
 	args = append(args,
 		fmt.Sprintf("-web.listen-address=%s:%d", a.Config.BindAddress, port),
 		fmt.Sprintf("-web.auth-file=%s", ConfigFile),
-		fmt.Sprintf("-web.ssl-cert-file=%s", SSLCertFile),
-		fmt.Sprintf("-web.ssl-key-file=%s", SSLKeyFile),
 	)
+
+	if !disableSSL {
+		// Check and generate certificate if needed.
+		if err := a.checkSSLCertificate(); err != nil {
+			return err
+		}
+		args = append(args, fmt.Sprintf("-web.ssl-key-file=%s", SSLKeyFile), fmt.Sprintf("-web.ssl-cert-file=%s", SSLCertFile))
+	}
+
 	// Add additional args passed to pmm-admin
 	args = append(args, a.Args...)
 
