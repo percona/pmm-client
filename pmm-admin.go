@@ -31,6 +31,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// Context used to cancel pmm-admin command if it runs for too long.
+// Cobra library doesn't help with passing context: https://github.com/spf13/cobra/issues/563
 var (
 	ctx    context.Context
 	cancel context.CancelFunc
