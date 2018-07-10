@@ -18,6 +18,7 @@
 package pmm
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -56,7 +57,7 @@ type MySQLInfo struct {
 }
 
 // DetectMySQL detect MySQL, create user if needed, return DSN and MySQL info strings.
-func (a *Admin) DetectMySQL(mf MySQLFlags) (*MySQLInfo, error) {
+func (a *Admin) DetectMySQL(ctx context.Context, mf MySQLFlags) (*MySQLInfo, error) {
 	// Check for invalid mix of flags.
 	if mf.Socket != "" && mf.Host != "" {
 		return nil, errors.New("flags --socket and --host are mutually exclusive")
@@ -78,7 +79,7 @@ func (a *Admin) DetectMySQL(mf MySQLFlags) (*MySQLInfo, error) {
 		Params:       []string{dsn.ParseTimeParam, dsn.TimezoneParam, dsn.LocationParam},
 	}
 	// Populate defaults to DSN for missing options.
-	userDSN, err := userDSN.AutoDetect()
+	userDSN, err := userDSN.AutoDetect(ctx)
 	if err != nil && err != dsn.ErrNoSocket {
 		err = fmt.Errorf("problem with MySQL auto-detection: %s", err)
 		return nil, err
@@ -96,7 +97,7 @@ func (a *Admin) DetectMySQL(mf MySQLFlags) (*MySQLInfo, error) {
 		pmmDSN := userDSN
 		pmmDSN.Username = "pmm"
 		pmmDSN.Password = a.Config.MySQLPassword
-		if err := testConnection(pmmDSN.String()); err == nil {
+		if err := testConnection(ctx, pmmDSN.String()); err == nil {
 			//fmt.Println("Using stored credentials, DSN is", pmmDSN.String())
 			accessOK = true
 			userDSN = pmmDSN
@@ -107,7 +108,7 @@ func (a *Admin) DetectMySQL(mf MySQLFlags) (*MySQLInfo, error) {
 
 	// If the above fails, test MySQL access simply using detected credentials.
 	if !accessOK {
-		if err := testConnection(userDSN.String()); err != nil {
+		if err := testConnection(ctx, userDSN.String()); err != nil {
 			err = fmt.Errorf("Cannot connect to MySQL: %s\n\n%s\n%s", err,
 				"Verify that MySQL user exists and has the correct privileges.",
 				"Use additional flags --user, --password, --host, --port, --socket if needed.")
@@ -120,7 +121,7 @@ func (a *Admin) DetectMySQL(mf MySQLFlags) (*MySQLInfo, error) {
 
 	// Create a new MySQL user.
 	if mf.CreateUser {
-		userDSN, err = createMySQLUser(db, userDSN, mf)
+		userDSN, err = createMySQLUser(ctx, db, userDSN, mf)
 		if err != nil {
 			return nil, err
 		}
@@ -131,14 +132,14 @@ func (a *Admin) DetectMySQL(mf MySQLFlags) (*MySQLInfo, error) {
 	}
 
 	// Get MySQL variables.
-	mi := getMysqlInfo(db)
+	mi := getMysqlInfo(ctx, db)
 	mi.DSN = userDSN.String()
 	mi.SafeDSN = SanitizeDSN(userDSN.String())
 
 	return mi, nil
 }
 
-func createMySQLUser(db *sql.DB, userDSN dsn.DSN, mf MySQLFlags) (dsn.DSN, error) {
+func createMySQLUser(ctx context.Context, db *sql.DB, userDSN dsn.DSN, mf MySQLFlags) (dsn.DSN, error) {
 	// New DSN has same host:port or socket, but different user and pass.
 	userDSN.Username = "pmm"
 	if mf.CreateUserPassword != "" {
@@ -155,13 +156,13 @@ func createMySQLUser(db *sql.DB, userDSN dsn.DSN, mf MySQLFlags) (dsn.DSN, error
 	}
 
 	if !mf.Force {
-		if err := mysqlCheck(db, hosts); err != nil {
+		if err := mysqlCheck(ctx, db, hosts); err != nil {
 			return dsn.DSN{}, err
 		}
 	}
 
 	// Create a new MySQL user with the necessary privs.
-	grants, err := makeGrants(db, userDSN, hosts, mf.MaxUserConn)
+	grants, err := makeGrants(ctx, db, userDSN, hosts, mf.MaxUserConn)
 	if err != nil {
 		return dsn.DSN{}, err
 	}
@@ -174,7 +175,7 @@ func createMySQLUser(db *sql.DB, userDSN dsn.DSN, mf MySQLFlags) (dsn.DSN, error
 	}
 
 	// Verify new MySQL user works. If this fails, the new DSN or grant statements are wrong.
-	if err := testConnection(userDSN.String()); err != nil {
+	if err := testConnection(ctx, userDSN.String()); err != nil {
 		err = fmt.Errorf("Problem creating a new MySQL user. Insufficient privileges: %s", err)
 		return dsn.DSN{}, err
 	}
@@ -182,19 +183,19 @@ func createMySQLUser(db *sql.DB, userDSN dsn.DSN, mf MySQLFlags) (dsn.DSN, error
 	return userDSN, nil
 }
 
-func mysqlCheck(db *sql.DB, hosts []string) error {
+func mysqlCheck(ctx context.Context, db *sql.DB, hosts []string) error {
 	var (
 		errMsg []string
 		varVal string
 	)
 
 	// Check for read_only.
-	if db.QueryRow("SELECT @@read_only").Scan(&varVal); varVal == "1" {
+	if db.QueryRowContext(ctx, "SELECT @@read_only").Scan(&varVal); varVal == "1" {
 		errMsg = append(errMsg, "* You are trying to write on read-only MySQL host.")
 	}
 
 	// Check for slave.
-	if slaveStatusRows, err := db.Query("SHOW SLAVE STATUS"); err == nil {
+	if slaveStatusRows, err := db.QueryContext(ctx, "SHOW SLAVE STATUS"); err == nil {
 		if slaveStatusRows.Next() {
 			errMsg = append(errMsg, "* You are trying to write on MySQL replication slave.")
 		}
@@ -202,7 +203,7 @@ func mysqlCheck(db *sql.DB, hosts []string) error {
 
 	// Check if user exists.
 	for _, host := range hosts {
-		if rows, err := db.Query(fmt.Sprintf("SHOW GRANTS FOR 'pmm'@'%s'", host)); err == nil {
+		if rows, err := db.QueryContext(ctx, fmt.Sprintf("SHOW GRANTS FOR 'pmm'@'%s'", host)); err == nil {
 			// MariaDB requires to check .Next() because err is always nil even user doesn't exist %)
 			if !rows.Next() {
 				continue
@@ -225,7 +226,7 @@ func mysqlCheck(db *sql.DB, hosts []string) error {
 	return nil
 }
 
-func makeGrants(db *sql.DB, dsn dsn.DSN, hosts []string, conn uint16) ([]string, error) {
+func makeGrants(ctx context.Context, db *sql.DB, dsn dsn.DSN, hosts []string, conn uint16) ([]string, error) {
 	var grants []string
 	for _, host := range hosts {
 		// Privileges:
@@ -234,12 +235,12 @@ func makeGrants(db *sql.DB, dsn dsn.DSN, hosts []string, conn uint16) ([]string,
 		// RELOAD - for qan-agent to run `FLUSH SLOW LOGS`
 		// SUPER - for qan-agent to set global variables (not clear it is still required)
 		// Grants for performance_schema - for qan-agent to manage query digest tables.
-		atLeastMySQL57, err := versionConstraint(db, ">= 5.7.0")
+		atLeastMySQL57, err := versionConstraint(ctx, db, ">= 5.7.0")
 		if err != nil {
 			return nil, err
 		}
 		if atLeastMySQL57 {
-			exists, err := userExists(db, dsn.Username, host)
+			exists, err := userExists(ctx, db, dsn.Username, host)
 			if err != nil {
 				return nil, err
 			}
@@ -272,9 +273,9 @@ func makeGrants(db *sql.DB, dsn dsn.DSN, hosts []string, conn uint16) ([]string,
 	return grants, nil
 }
 
-func userExists(db *sql.DB, user, host string) (bool, error) {
+func userExists(ctx context.Context, db *sql.DB, user, host string) (bool, error) {
 	count := 0
-	err := db.QueryRow("SELECT 1 FROM mysql.user WHERE user=? AND host=?", user, host).Scan(&count)
+	err := db.QueryRowContext(ctx, "SELECT 1 FROM mysql.user WHERE user=? AND host=?", user, host).Scan(&count)
 	switch {
 	case err == sql.ErrNoRows:
 		return false, nil
@@ -287,23 +288,23 @@ func userExists(db *sql.DB, user, host string) (bool, error) {
 	return true, nil
 }
 
-func testConnection(dsn string) error {
+func testConnection(ctx context.Context, dsn string) error {
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
 		return err
 	}
 	defer db.Close()
 
-	if err = db.Ping(); err != nil {
+	if err = db.PingContext(ctx); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func getMysqlInfo(db *sql.DB) *MySQLInfo {
+func getMysqlInfo(ctx context.Context, db *sql.DB) *MySQLInfo {
 	mi := &MySQLInfo{}
-	db.QueryRow("SELECT @@hostname, @@port, @@version_comment, @@version").Scan(&mi.Hostname, &mi.Port, &mi.Distro, &mi.Version)
+	db.QueryRowContext(ctx, "SELECT @@hostname, @@port, @@version_comment, @@version").Scan(&mi.Hostname, &mi.Port, &mi.Distro, &mi.Version)
 	return mi
 }
 
@@ -333,9 +334,9 @@ func generatePassword(size int) string {
 }
 
 // versionConstraint checks if version fits given constraint.
-func versionConstraint(db *sql.DB, constraint string) (bool, error) {
+func versionConstraint(ctx context.Context, db *sql.DB, constraint string) (bool, error) {
 	version := sql.NullString{}
-	err := db.QueryRow("SELECT @@GLOBAL.version").Scan(&version)
+	err := db.QueryRowContext(ctx, "SELECT @@GLOBAL.version").Scan(&version)
 	if err != nil {
 		return false, err
 	}

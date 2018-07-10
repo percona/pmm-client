@@ -18,9 +18,11 @@
 package pmm
 
 import (
+	"context"
 	"io/ioutil"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -59,8 +61,10 @@ EOF
 	os.Chmod(rootDir+PMMBaseDir+"/mongodb_exporter", 0777)
 	PMMBaseDir = rootDir + PMMBaseDir
 
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
 	admin := Admin{}
-	buildInfo, err := admin.DetectMongoDB("")
+	buildInfo, err := admin.DetectMongoDB(ctx, "")
 	assert.Nil(t, err)
 	assert.NotEmpty(t, buildInfo)
 }

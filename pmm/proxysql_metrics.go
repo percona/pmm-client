@@ -18,6 +18,7 @@
 package pmm
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/go-sql-driver/mysql"
@@ -137,13 +138,13 @@ func (a *Admin) RemoveProxySQLMetrics() error {
 }
 
 // DetectProxySQL verify ProxySQL connection.
-func (a *Admin) DetectProxySQL(dsnString string) error {
+func (a *Admin) DetectProxySQL(ctx context.Context, dsnString string) error {
 	dsn, err := mysql.ParseDSN(dsnString)
 	if err != nil {
 		return fmt.Errorf("Bad dsn %s: %s", dsnString, err)
 	}
 
-	if err := testConnection(dsn.FormatDSN()); err != nil {
+	if err := testConnection(ctx, dsn.FormatDSN()); err != nil {
 		return fmt.Errorf("Cannot connect to ProxySQL using DSN %s: %s", dsnString, err)
 	}
 
