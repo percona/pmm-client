@@ -24,16 +24,12 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"time"
 
 	"gopkg.in/mgo.v2"
 )
 
 // DetectMongoDB verifies MongoDB connection.
-func (a *Admin) DetectMongoDB(uri string) (mgo.BuildInfo, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
+func (a *Admin) DetectMongoDB(ctx context.Context, uri string) (mgo.BuildInfo, error) {
 	path := fmt.Sprintf("%s/mongodb_exporter", PMMBaseDir)
 	args := []string{
 		"--test",

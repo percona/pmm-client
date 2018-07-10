@@ -188,11 +188,8 @@
 [[projects]]
   branch = "master"
   name = "github.com/percona/go-mysql"
-  packages = [
-    "dsn",
-    "dsn/lsof"
-  ]
-  revision = "847a20d1528fe874dee258b3f51f8dd7dea7511a"
+  packages = ["dsn"]
+  revision = "d287a1223a9c7a2e493072cc269b55fbd289a469"
 
 [[projects]]
   branch = "master"

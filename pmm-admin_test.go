@@ -175,6 +175,7 @@ Available Commands:
 Flags:
   -c, --config-file string   PMM config file \(default ".*"\)
   -h, --help                 help for pmm-admin
+      --timeout duration     timeout \(default 5s\)
       --verbose              verbose output
   -v, --version              show version
 
