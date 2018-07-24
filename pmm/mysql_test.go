@@ -18,9 +18,10 @@
 package pmm
 
 import (
+	"context"
 	"regexp"
-	"strings"
 	"testing"
+	"time"
 
 	"github.com/percona/go-mysql/dsn"
 	"github.com/stretchr/testify/assert"
@@ -42,7 +43,9 @@ func TestMySQLCheck1(t *testing.T) {
 
 	mock.ExpectQuery("SHOW GRANTS FOR 'pmm'@'localhost'").WillReturnError(err)
 
-	assert.Nil(t, mysqlCheck(db, []string{"localhost"}))
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	assert.Nil(t, mysqlCheck(ctx, db, []string{"localhost"}))
 
 	// Ensure all SQL queries were executed
 	if err := mock.ExpectationsWereMet(); err != nil {
@@ -65,7 +68,9 @@ func TestMySQLCheck2(t *testing.T) {
 
 	mock.ExpectQuery("SHOW GRANTS FOR 'pmm'@'localhost'").WillReturnError(err)
 
-	assert.NotNil(t, mysqlCheck(db, []string{"localhost"}))
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	assert.NotNil(t, mysqlCheck(ctx, db, []string{"localhost"}))
 
 	// Ensure all SQL queries were executed
 	if err := mock.ExpectationsWereMet(); err != nil {
@@ -88,7 +93,9 @@ func TestMySQLCheck3(t *testing.T) {
 
 	mock.ExpectQuery("SHOW GRANTS FOR 'pmm'@'localhost'").WillReturnError(err)
 
-	assert.NotNil(t, mysqlCheck(db, []string{"localhost"}))
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	assert.NotNil(t, mysqlCheck(ctx, db, []string{"localhost"}))
 
 	// Ensure all SQL queries were executed
 	if err := mock.ExpectationsWereMet(); err != nil {
@@ -112,7 +119,9 @@ func TestMySQLCheck4(t *testing.T) {
 	rows = sqlmock.NewRows([]string{"col1"}).AddRow("grants...")
 	mock.ExpectQuery("SHOW GRANTS FOR 'pmm'@'localhost'").WillReturnRows(rows)
 
-	assert.NotNil(t, mysqlCheck(db, []string{"localhost"}))
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	assert.NotNil(t, mysqlCheck(ctx, db, []string{"localhost"}))
 
 	// Ensure all SQL queries were executed
 	if err := mock.ExpectationsWereMet(); err != nil {
@@ -192,8 +201,10 @@ func TestMakeGrants(t *testing.T) {
 			},
 		},
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
 	for _, s := range samples {
-		grants, err := makeGrants(db, s.dsn, s.hosts, s.conn)
+		grants, err := makeGrants(ctx, db, s.dsn, s.hosts, s.conn)
 		assert.NoError(t, err)
 		assert.Equal(t, s.grants, grants)
 	}
@@ -210,7 +221,9 @@ func TestGetMysqlInfo(t *testing.T) {
 	rows := sqlmock.NewRows(columns).AddRow("db01", "3306", "MySQL", "1.2.3")
 	mock.ExpectQuery("SELECT @@hostname, @@port, @@version_comment, @@version").WillReturnRows(rows)
 
-	res := *getMysqlInfo(db)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	res := *getMysqlInfo(ctx, db)
 	expected := MySQLInfo{
 		Hostname: "db01",
 		Port:     "3306",
@@ -240,12 +253,4 @@ func TestGeneratePassword(t *testing.T) {
 		c := r.Match([]byte(p)) && r1.Match([]byte(p)) && r2.Match([]byte(p)) && r3.Match([]byte(p)) && r4.Match([]byte(p))
 		assert.True(t, c)
 	}
-}
-
-func sanitizeQuery(q string) string {
-	return strings.NewReplacer(
-		"(", "\\(",
-		")", "\\)",
-		"*", "\\*",
-	).Replace(q)
 }

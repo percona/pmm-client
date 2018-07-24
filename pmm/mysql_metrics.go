@@ -22,6 +22,8 @@ import (
 	"fmt"
 	"strings"
 
+	"context"
+
 	consul "github.com/hashicorp/consul/api"
 	"github.com/percona/kardianos-service"
 )
@@ -36,7 +38,7 @@ type MySQLMetricsFlags struct {
 }
 
 // AddMySQLMetrics add mysql metrics service to monitoring.
-func (a *Admin) AddMySQLMetrics(mi MySQLInfo, mf MySQLMetricsFlags) error {
+func (a *Admin) AddMySQLMetrics(ctx context.Context, mi MySQLInfo, mf MySQLMetricsFlags) error {
 	serviceType := "mysql:metrics"
 
 	// Check if we have already this service on Consul.
@@ -70,7 +72,7 @@ func (a *Admin) AddMySQLMetrics(mi MySQLInfo, mf MySQLMetricsFlags) error {
 	// Opts to disable.
 	var optsToDisable []string
 	if !mf.DisableTableStats {
-		tableCount, err := tableStatsTableCount(mi.DSN)
+		tableCount, err := tableStatsTableCount(ctx, mi.DSN)
 		if err != nil {
 			return err
 		}
@@ -195,7 +197,7 @@ func (a *Admin) RemoveMySQLMetrics() error {
 	return nil
 }
 
-func tableStatsTableCount(userDSN string) (int, error) {
+func tableStatsTableCount(ctx context.Context, userDSN string) (int, error) {
 	db, err := sql.Open("mysql", userDSN)
 	if err != nil {
 		return 0, err
@@ -203,6 +205,6 @@ func tableStatsTableCount(userDSN string) (int, error) {
 	defer db.Close()
 
 	tableCount := 0
-	err = db.QueryRow("SELECT COUNT(*) FROM information_schema.tables").Scan(&tableCount)
+	err = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM information_schema.tables").Scan(&tableCount)
 	return tableCount, err
 }

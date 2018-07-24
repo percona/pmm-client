@@ -189,7 +189,7 @@
   branch = "master"
   name = "github.com/percona/go-mysql"
   packages = ["dsn"]
-  revision = "d88869effd270fbaabceaabc9df1d732ae44efba"
+  revision = "251dbc2e6a0c734cba315e66bf694b4b0b011e0c"
 
 [[projects]]
   branch = "master"
@@ -235,6 +235,7 @@
   revision = "e2103e2c35297fb7e17febb81e49b312087a2372"
 
 [[projects]]
+  branch = "master"
   name = "github.com/shirou/gopsutil"
   packages = [
     "cpu",
@@ -244,8 +245,7 @@
     "net",
     "process"
   ]
-  revision = "5776ff9c7c5d063d574ef53d740f75c68b448e53"
-  version = "v2.18.02"
+  revision = "63728fcf6b24475ecfea044e22242447666c2f52"
 
 [[projects]]
   branch = "master"

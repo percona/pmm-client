@@ -31,18 +31,35 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// Context used to cancel pmm-admin command if it runs for too long.
+// Cobra library doesn't help with passing context: https://github.com/spf13/cobra/issues/563
+var (
+	ctx    context.Context
+	cancel context.CancelFunc
+)
+
 var (
 	admin pmm.Admin
 
 	rootCmd = &cobra.Command{
 		Use: "pmm-admin",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			// This function pre-runs with every command or sub-command.
-			// Two exceptions are "pmm-admin config" and "pmm-admin uninstall" which bypass it.
+			ctx, cancel = context.WithTimeout(context.Background(), flagTimeout)
 
-			// Skip pre-run for "help" command.
-			// You should always be able to get help even if pmm is not configured yet.
-			if cmd.Name() == "help" {
+			switch cmd.Name() {
+			case "help":
+				// Skip pre-run for "help" command.
+				// You should always be able to get help even if pmm is not configured yet.
+				return
+			case "uninstall":
+				return
+			case "config":
+				// Skip pre-run as we do not require config file to exist here.
+				// If the config does not exist, we will init an empty and write on Run.
+				if err := admin.LoadConfig(); err != nil {
+					fmt.Printf("Cannot read config file %s: %s\n", pmm.ConfigFile, err)
+					os.Exit(1)
+				}
 				return
 			}
 
@@ -139,6 +156,9 @@ run 'pmm-admin repair' to remove orphaned services. Otherwise, please reinstall 
 		Run: func(cmd *cobra.Command, args []string) {
 			cmd.Usage()
 			os.Exit(1)
+		},
+		PersistentPostRun: func(cmd *cobra.Command, args []string) {
+			cancel()
 		},
 	}
 
@@ -244,13 +264,13 @@ Table statistics is automatically disabled when there are more than 10000 tables
 				fmt.Println("[linux:metrics] OK, now monitoring this system.")
 			}
 
-			mi, err := admin.DetectMySQL(flagM)
+			mi, err := admin.DetectMySQL(ctx, flagM)
 			if err != nil {
 				fmt.Printf("[mysql:metrics] %s\n", err)
 				os.Exit(1)
 			}
 
-			err = admin.AddMySQLMetrics(*mi, flagMySQLMetrics)
+			err = admin.AddMySQLMetrics(ctx, *mi, flagMySQLMetrics)
 			if err == pmm.ErrDuplicate {
 				fmt.Println("[mysql:metrics] OK, already monitoring MySQL metrics.")
 			} else if err != nil {
@@ -313,12 +333,12 @@ Table statistics is automatically disabled when there are more than 10000 tables
   pmm-admin add mysql:metrics -- --collect.perf_schema.eventsstatements
   pmm-admin add mysql:metrics -- --collect.perf_schema.eventswaits=false`,
 		Run: func(cmd *cobra.Command, args []string) {
-			mi, err := admin.DetectMySQL(flagM)
+			mi, err := admin.DetectMySQL(ctx, flagM)
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
 			}
-			if err := admin.AddMySQLMetrics(*mi, flagMySQLMetrics); err != nil {
+			if err := admin.AddMySQLMetrics(ctx, *mi, flagMySQLMetrics); err != nil {
 				fmt.Println("Error adding MySQL metrics:", err)
 				os.Exit(1)
 			}
@@ -346,7 +366,7 @@ a new user 'pmm@' automatically using the given (auto-detected) MySQL credential
 				fmt.Println("Flag --query-source can take the following values: auto, slowlog, perfschema.")
 				os.Exit(1)
 			}
-			mi, err := admin.DetectMySQL(flagM)
+			mi, err := admin.DetectMySQL(ctx, flagM)
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
@@ -394,7 +414,7 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 				fmt.Println("[linux:metrics]   OK, now monitoring this system.")
 			}
 
-			buildInfo, err := admin.DetectMongoDB(flagMongoURI)
+			buildInfo, err := admin.DetectMongoDB(ctx, flagMongoURI)
 			if err != nil {
 				fmt.Printf("[mongodb:metrics] %s\n", err)
 				os.Exit(1)
@@ -436,7 +456,7 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
   pmm-admin add mongodb:metrics --cluster bare-metal
   pmm-admin add mongodb:metrics -- --mongodb.tls`,
 		Run: func(cmd *cobra.Command, args []string) {
-			if _, err := admin.DetectMongoDB(flagMongoURI); err != nil {
+			if _, err := admin.DetectMongoDB(ctx, flagMongoURI); err != nil {
 				fmt.Println(err)
 				os.Exit(1)
 			}
@@ -459,7 +479,7 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 		Example: `  pmm-admin add mongodb:queries
   pmm-admin add mongodb:queries`,
 		Run: func(cmd *cobra.Command, args []string) {
-			buildInfo, err := admin.DetectMongoDB(flagMongoURI)
+			buildInfo, err := admin.DetectMongoDB(ctx, flagMongoURI)
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
@@ -483,7 +503,7 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 [exporter_args] are the command line options to be passed directly to Prometheus Exporter.
 		`,
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := admin.DetectProxySQL(flagDSN); err != nil {
+			if err := admin.DetectProxySQL(ctx, flagDSN); err != nil {
 				fmt.Println(err)
 				os.Exit(1)
 			}
@@ -919,14 +939,6 @@ Note, resetting of server address clears up SSL and HTTP auth options if no corr
 		Example: `  pmm-admin config --server 192.168.56.100
   pmm-admin config --server 192.168.56.100:8000
   pmm-admin config --server 192.168.56.100 --server-password abc123`,
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			// Cancel root's PersistentPreRun as we do not require config file to exist here.
-			// If the config does not exist, we will init an empty and write on Run.
-			if err := admin.LoadConfig(); err != nil {
-				fmt.Printf("Cannot read config file %s: %s\n", pmm.ConfigFile, err)
-				os.Exit(1)
-			}
-		},
 		Run: func(cmd *cobra.Command, args []string) {
 			if err := admin.SetConfig(flagC, flagForce); err != nil {
 				fmt.Printf("%s\n", err)
@@ -1200,9 +1212,6 @@ It removes local services disconnected from PMM server and remote services that 
 Usuaully, it runs automatically when pmm-client package is uninstalled to remove all local monitoring services
 despite PMM server is alive or not.
 		`,
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			// Cancel root's PersistentPreRun as we do not require server to be alive.
-		},
 		Run: func(cmd *cobra.Command, args []string) {
 			count := admin.Uninstall()
 			if count == 0 {
@@ -1229,6 +1238,7 @@ despite PMM server is alive or not.
 	flagMySQLMetrics pmm.MySQLMetricsFlags
 	flagMySQLQueries pmm.MySQLQueriesFlags
 	flagC            pmm.Config
+	flagTimeout      time.Duration
 )
 
 func main() {
@@ -1282,6 +1292,7 @@ func main() {
 	rootCmd.PersistentFlags().StringVarP(&pmm.ConfigFile, "config-file", "c", pmm.ConfigFile, "PMM config file")
 	rootCmd.PersistentFlags().BoolVarP(&admin.Verbose, "verbose", "", false, "verbose output")
 	rootCmd.Flags().BoolVarP(&flagVersion, "version", "v", false, "show version")
+	rootCmd.Flags().DurationVar(&flagTimeout, "timeout", 5*time.Second, "timeout")
 
 	cmdConfig.Flags().StringVar(&flagC.ServerAddress, "server", "", "PMM server address, optionally following with the :port (default port 80 or 443 if using SSL)")
 	cmdConfig.Flags().StringVar(&flagC.ClientAddress, "client-address", "", "client address, also remote/public address for this system (if omitted it will be automatically detected by asking server)")

@@ -138,7 +138,7 @@ func testVersion(t *testing.T, data pmmAdminData) {
 	assert.Nil(t, err)
 
 	// sanity check that version number was changed with ldflag for this test build
-	assert.Equal(t, "1.12.0", pmm.Version)
+	assert.Equal(t, "1.13.0", pmm.Version)
 	expected := `gotest`
 
 	assertRegexpLines(t, expected, string(output))
@@ -175,6 +175,7 @@ Available Commands:
 Flags:
   -c, --config-file string   PMM config file \(default ".*"\)
   -h, --help                 help for pmm-admin
+      --timeout duration     timeout \(default 5s\)
       --verbose              verbose output
   -v, --version              show version
 
