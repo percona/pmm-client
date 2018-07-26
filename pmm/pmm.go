@@ -368,27 +368,31 @@ func (a *Admin) RemoveAllMonitoring(ignoreErrors bool) (uint16, error) {
 			a.ServiceName = tag[6:]
 			switch svc.Service {
 			case "linux:metrics":
-				if err := a.RemoveLinuxMetrics(); err != nil && !ignoreErrors {
+				if err := a.RemoveMetrics("linux"); err != nil && !ignoreErrors {
 					return count, err
 				}
 			case "mysql:metrics":
-				if err := a.RemoveMySQLMetrics(); err != nil && !ignoreErrors {
+				if err := a.RemoveMetrics("mysql"); err != nil && !ignoreErrors {
 					return count, err
 				}
 			case "mysql:queries":
-				if err := a.RemoveMySQLQueries(); err != nil && !ignoreErrors {
+				if err := a.RemoveQueries("mysql"); err != nil && !ignoreErrors {
 					return count, err
 				}
 			case "mongodb:metrics":
-				if err := a.RemoveMongoDBMetrics(); err != nil && !ignoreErrors {
+				if err := a.RemoveMetrics("mongodb"); err != nil && !ignoreErrors {
 					return count, err
 				}
 			case "mongodb:queries":
-				if err := a.RemoveMongoDBQueries(); err != nil && !ignoreErrors {
+				if err := a.RemoveQueries("mongodb"); err != nil && !ignoreErrors {
+					return count, err
+				}
+			case "postgresql:metrics":
+				if err := a.RemoveMetrics("postgresql"); err != nil && !ignoreErrors {
 					return count, err
 				}
 			case "proxysql:metrics":
-				if err := a.RemoveProxySQLMetrics(); err != nil && !ignoreErrors {
+				if err := a.RemoveMetrics("proxysql"); err != nil && !ignoreErrors {
 					return count, err
 				}
 			}
@@ -484,9 +488,10 @@ Choose different name for this service.`,
 }
 
 // choosePort automatically choose the port for service.
-func (a *Admin) choosePort(port int, userDefined bool) (int, error) {
-	// Check if user defined port is not used.
-	if userDefined {
+func (a *Admin) choosePort(port int, defaultPort int) (int, error) {
+	// If port is already defined then just verify that port.
+	if port > 0 {
+		// Check if user defined port is not used.
 		ok, err := a.availablePort(port)
 		if err != nil {
 			return port, err
@@ -497,10 +502,10 @@ func (a *Admin) choosePort(port int, userDefined bool) (int, error) {
 		return port, fmt.Errorf("port %d is reserved by other service. Choose the different one.", port)
 	}
 	// Find the first available port starting the default one.
-	for i := port; i < port+1000; i++ {
+	for i := defaultPort; i < defaultPort+1000; i++ {
 		ok, err := a.availablePort(i)
 		if err != nil {
-			return port, err
+			return i, err
 		}
 		if ok {
 			return i, nil
@@ -701,26 +706,6 @@ func FileExists(file string) bool {
 	return true
 }
 
-// SanitizeDSN remove password from DSN
-func SanitizeDSN(dsn string) string {
-	dsn = strings.TrimRight(strings.Split(dsn, "?")[0], "/")
-	if strings.HasPrefix(dsn, "mongodb://") {
-		dsn = dsn[10:]
-	}
-
-	if strings.Index(dsn, "@") > 0 {
-		dsnParts := strings.Split(dsn, "@")
-		userPart := dsnParts[0]
-		hostPart := ""
-		if len(dsnParts) > 1 {
-			hostPart = dsnParts[len(dsnParts)-1]
-		}
-		userPasswordParts := strings.Split(userPart, ":")
-		dsn = fmt.Sprintf("%s:***@%s", userPasswordParts[0], hostPart)
-	}
-	return dsn
-}
-
 // CheckBinaries check if all PMM Client binaries are at their paths
 func CheckBinaries() string {
 	paths := []string{
@@ -728,6 +713,7 @@ func CheckBinaries() string {
 		fmt.Sprintf("%s/mysqld_exporter", PMMBaseDir),
 		fmt.Sprintf("%s/mongodb_exporter", PMMBaseDir),
 		fmt.Sprintf("%s/proxysql_exporter", PMMBaseDir),
+		fmt.Sprintf("%s/postgres_exporter", PMMBaseDir),
 		fmt.Sprintf("%s/bin/percona-qan-agent", AgentBaseDir),
 		fmt.Sprintf("%s/bin/percona-qan-agent-installer", AgentBaseDir),
 	}
@@ -807,6 +793,7 @@ var svcTypes = []string{
 	"mongodb:metrics",
 	"mongodb:queries",
 	"proxysql:metrics",
+	"postgresql:metrics",
 }
 
 // isValidSvcType checks if given service type is allowed

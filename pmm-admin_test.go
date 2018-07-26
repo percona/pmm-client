@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"reflect"
 	"runtime"
 	"strings"
@@ -397,29 +398,7 @@ func testStartStopRestartAllWithNoServices(t *testing.T, data pmmAdminData) {
 		err := os.RemoveAll(data.rootDir)
 		assert.Nil(t, err)
 	}()
-
-	os.MkdirAll(data.rootDir+pmm.PMMBaseDir, 0777)
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/node_exporter")
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/mysqld_exporter")
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/mongodb_exporter")
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/proxysql_exporter")
-
-	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/bin", 0777)
-	os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent")
-	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/config", 0777)
-	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/instance", 0777)
-
-	f, _ := os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent-installer")
-	f.WriteString("#!/bin/sh\n")
-	f.WriteString("echo 'it works'")
-	f.Close()
-	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
-
-	f, _ = os.Create(data.rootDir + pmm.AgentBaseDir + "/config/agent.conf")
-	f.WriteString(`{"UUID":"42","ApiHostname":"somehostname","ApiPath":"/qan-api","ServerUser":"pmm"}`)
-	f.WriteString("\n")
-	f.Close()
-	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
+	createFakeENV(t, data)
 
 	pmmConfig := pmm.Config{
 		ServerAddress: "just",
@@ -460,6 +439,7 @@ func testListEmpty(t *testing.T, data pmmAdminData) {
 		err := os.RemoveAll(data.rootDir)
 		assert.Nil(t, err)
 	}()
+	createFakeENV(t, data)
 
 	// Create fake api server
 	fapi := fakeapi.New()
@@ -475,29 +455,6 @@ func testListEmpty(t *testing.T, data pmmAdminData) {
 	fapi.AppendManaged()
 	_, host, port := fapi.Start()
 	defer fapi.Close()
-
-	os.MkdirAll(data.rootDir+pmm.PMMBaseDir, 0777)
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/node_exporter")
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/mysqld_exporter")
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/mongodb_exporter")
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/proxysql_exporter")
-
-	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/bin", 0777)
-	os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent")
-	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/config", 0777)
-	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/instance", 0777)
-
-	f, _ := os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent-installer")
-	f.WriteString("#!/bin/sh\n")
-	f.WriteString("echo 'it works'")
-	f.Close()
-	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
-
-	f, _ = os.Create(data.rootDir + pmm.AgentBaseDir + "/config/agent.conf")
-	f.WriteString(`{"UUID":"42","ApiHostname":"somehostname","ApiPath":"/qan-api","ServerUser":"pmm"}`)
-	f.WriteString("\n")
-	f.Close()
-	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
 
 	pmmConfig := pmm.Config{
 		ServerAddress: fmt.Sprintf("%s:%s", host, port),
@@ -536,6 +493,7 @@ func testListNonEmpty(t *testing.T, data pmmAdminData) {
 		err := os.RemoveAll(data.rootDir)
 		assert.Nil(t, err)
 	}()
+	createFakeENV(t, data)
 
 	// Create fake api server
 	fapi := fakeapi.New()
@@ -570,29 +528,6 @@ func testListNonEmpty(t *testing.T, data pmmAdminData) {
 	fapi.AppendManaged()
 	_, host, port := fapi.Start()
 	defer fapi.Close()
-
-	os.MkdirAll(data.rootDir+pmm.PMMBaseDir, 0777)
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/node_exporter")
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/mysqld_exporter")
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/mongodb_exporter")
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/proxysql_exporter")
-
-	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/bin", 0777)
-	os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent")
-	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/config", 0777)
-	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/instance", 0777)
-
-	f, _ := os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent-installer")
-	f.WriteString("#!/bin/sh\n")
-	f.WriteString("echo 'it works'")
-	f.Close()
-	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
-
-	f, _ = os.Create(data.rootDir + pmm.AgentBaseDir + "/config/agent.conf")
-	f.WriteString(`{"UUID":"42","ApiHostname":"somehostname","ApiPath":"/qan-api","ServerUser":"pmm"}`)
-	f.WriteString("\n")
-	f.Close()
-	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
 
 	pmmConfig := pmm.Config{
 		ServerAddress: fmt.Sprintf("%s:%s", host, port),
@@ -765,6 +700,7 @@ func testStartStopRestart(t *testing.T, data pmmAdminData) {
 		err := os.RemoveAll(data.rootDir)
 		assert.Nil(t, err)
 	}()
+	createFakeENV(t, data)
 
 	svcName := "mysql:queries"
 
@@ -790,29 +726,6 @@ func testStartStopRestart(t *testing.T, data pmmAdminData) {
 	fapi.AppendConsulV1CatalogNode(clientName, node)
 	_, host, port := fapi.Start()
 	defer fapi.Close()
-
-	os.MkdirAll(data.rootDir+pmm.PMMBaseDir, 0777)
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/node_exporter")
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/mysqld_exporter")
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/mongodb_exporter")
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/proxysql_exporter")
-
-	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/bin", 0777)
-	os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent")
-	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/config", 0777)
-	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/instance", 0777)
-
-	f, _ := os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent-installer")
-	f.WriteString("#!/bin/sh\n")
-	f.WriteString("echo 'it works'")
-	f.Close()
-	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
-
-	f, _ = os.Create(data.rootDir + pmm.AgentBaseDir + "/config/agent.conf")
-	f.WriteString(`{"UUID":"42","ApiHostname":"somehostname","ApiPath":"/qan-api","ServerUser":"pmm"}`)
-	f.WriteString("\n")
-	f.Close()
-	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
 
 	pmmConfig := pmm.Config{
 		ServerAddress: fmt.Sprintf("%s:%s", host, port),
@@ -876,29 +789,7 @@ func testStartStopRestartAllWithServices(t *testing.T, data pmmAdminData) {
 		err := os.RemoveAll(data.rootDir)
 		assert.Nil(t, err)
 	}()
-
-	os.MkdirAll(data.rootDir+pmm.PMMBaseDir, 0777)
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/node_exporter")
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/mysqld_exporter")
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/mongodb_exporter")
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/proxysql_exporter")
-
-	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/bin", 0777)
-	os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent")
-	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/config", 0777)
-	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/instance", 0777)
-
-	f, _ := os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent-installer")
-	f.WriteString("#!/bin/sh\n")
-	f.WriteString("echo 'it works'")
-	f.Close()
-	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
-
-	f, _ = os.Create(data.rootDir + pmm.AgentBaseDir + "/config/agent.conf")
-	f.WriteString(`{"UUID":"42","ApiHostname":"somehostname","ApiPath":"/qan-api","ServerUser":"pmm"}`)
-	f.WriteString("\n")
-	f.Close()
-	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
+	createFakeENV(t, data)
 
 	pmmConfig := pmm.Config{
 		ServerAddress: "just",
@@ -981,6 +872,7 @@ func testStartStopRestartNoServiceFound(t *testing.T, data pmmAdminData) {
 		err := os.RemoveAll(data.rootDir)
 		assert.Nil(t, err)
 	}()
+	createFakeENV(t, data)
 
 	// Create fake api server
 	fapi := fakeapi.New()
@@ -994,30 +886,6 @@ func testStartStopRestartNoServiceFound(t *testing.T, data pmmAdminData) {
 	fapi.AppendConsulV1CatalogNode(clientName, node)
 	_, host, port := fapi.Start()
 	defer fapi.Close()
-
-	// Create fake filesystem
-	os.MkdirAll(data.rootDir+pmm.PMMBaseDir, 0777)
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/node_exporter")
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/mysqld_exporter")
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/mongodb_exporter")
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/proxysql_exporter")
-
-	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/bin", 0777)
-	os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent")
-	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/config", 0777)
-	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/instance", 0777)
-
-	f, _ := os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent-installer")
-	f.WriteString("#!/bin/sh\n")
-	f.WriteString("echo 'it works'")
-	f.Close()
-	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
-
-	f, _ = os.Create(data.rootDir + pmm.AgentBaseDir + "/config/agent.conf")
-	f.WriteString(`{"UUID":"42","ApiHostname":"somehostname","ApiPath":"/qan-api","ServerUser":"pmm"}`)
-	f.WriteString("\n")
-	f.Close()
-	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
 
 	pmmConfig := pmm.Config{
 		ServerAddress: fmt.Sprintf("%s:%s", host, port),
@@ -1074,6 +942,7 @@ func testCheckNetwork(t *testing.T, data pmmAdminData) {
 		err := os.RemoveAll(data.rootDir)
 		assert.Nil(t, err)
 	}()
+	createFakeENV(t, data)
 
 	// Create fake api server
 	fapi := fakeapi.New()
@@ -1088,30 +957,6 @@ func testCheckNetwork(t *testing.T, data pmmAdminData) {
 	fapi.AppendConsulV1CatalogNode(clientName, node)
 	_, host, port := fapi.Start()
 	defer fapi.Close()
-
-	// Create fake filesystem
-	os.MkdirAll(data.rootDir+pmm.PMMBaseDir, 0777)
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/node_exporter")
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/mysqld_exporter")
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/mongodb_exporter")
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/proxysql_exporter")
-
-	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/bin", 0777)
-	os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent")
-	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/config", 0777)
-	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/instance", 0777)
-
-	f, _ := os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent-installer")
-	f.WriteString("#!/bin/sh\n")
-	f.WriteString("echo 'it works'")
-	f.Close()
-	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
-
-	f, _ = os.Create(data.rootDir + pmm.AgentBaseDir + "/config/agent.conf")
-	f.WriteString(`{"UUID":"42","ApiHostname":"somehostname","ApiPath":"/qan-api","ServerUser":"pmm"}`)
-	f.WriteString("\n")
-	f.Close()
-	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
 
 	pmmConfig := pmm.Config{
 		ServerAddress: fmt.Sprintf("%s:%s", host, port),
@@ -1170,28 +1015,8 @@ func testAddLinuxMetricsWithAdditionalArgsOk(t *testing.T, data pmmAdminData) {
 		err := os.RemoveAll(data.rootDir)
 		assert.Nil(t, err)
 	}()
+	createFakeENV(t, data)
 
-	os.MkdirAll(data.rootDir+pmm.PMMBaseDir, 0777)
-	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/bin", 0777)
-	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/config", 0777)
-	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/instance", 0777)
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/node_exporter")
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/mysqld_exporter")
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/mongodb_exporter")
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/proxysql_exporter")
-	os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent")
-
-	f, _ := os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent-installer")
-	f.WriteString("#!/bin/sh\n")
-	f.WriteString("echo 'it works'")
-	f.Close()
-	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
-
-	f, _ = os.Create(data.rootDir + pmm.AgentBaseDir + "/config/agent.conf")
-	f.WriteString(`{"UUID":"42","ApiHostname":"somehostname","ApiPath":"/qan-api","ServerUser":"pmm"}`)
-	f.WriteString("\n")
-	f.Close()
-	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
 	{
 		// Create fake api server
 		fapi := fakeapi.New()
@@ -1240,28 +1065,8 @@ func testAddLinuxMetricsWithAdditionalArgsFail(t *testing.T, data pmmAdminData) 
 		err := os.RemoveAll(data.rootDir)
 		assert.Nil(t, err)
 	}()
+	createFakeENV(t, data)
 
-	os.MkdirAll(data.rootDir+pmm.PMMBaseDir, 0777)
-	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/bin", 0777)
-	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/config", 0777)
-	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/instance", 0777)
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/node_exporter")
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/mysqld_exporter")
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/mongodb_exporter")
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/proxysql_exporter")
-	os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent")
-
-	f, _ := os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent-installer")
-	f.WriteString("#!/bin/sh\n")
-	f.WriteString("echo 'it works'")
-	f.Close()
-	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
-
-	f, _ = os.Create(data.rootDir + pmm.AgentBaseDir + "/config/agent.conf")
-	f.WriteString(`{"UUID":"42","ApiHostname":"somehostname","ApiPath":"/qan-api","ServerUser":"pmm"}`)
-	f.WriteString("\n")
-	f.Close()
-	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
 	{
 		// Create fake api server
 		fapi := fakeapi.New()
@@ -1311,28 +1116,8 @@ func testAddMySQL(t *testing.T, data pmmAdminData) {
 		err := os.RemoveAll(data.rootDir)
 		assert.Nil(t, err)
 	}()
+	createFakeENV(t, data)
 
-	os.MkdirAll(data.rootDir+pmm.PMMBaseDir, 0777)
-	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/bin", 0777)
-	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/config", 0777)
-	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/instance", 0777)
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/node_exporter")
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/mysqld_exporter")
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/mongodb_exporter")
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/proxysql_exporter")
-	os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent")
-
-	f, _ := os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent-installer")
-	f.WriteString("#!/bin/sh\n")
-	f.WriteString("echo 'it works'")
-	f.Close()
-	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
-
-	f, _ = os.Create(data.rootDir + pmm.AgentBaseDir + "/config/agent.conf")
-	f.WriteString(`{"UUID":"42","ApiHostname":"somehostname","ApiPath":"/qan-api","ServerUser":"pmm"}`)
-	f.WriteString("\n")
-	f.Close()
-	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
 	{
 		// Create fake api server
 		fapi := fakeapi.New()
@@ -1403,28 +1188,8 @@ func testAddMySQLWithCreateUser(t *testing.T, data pmmAdminData) {
 		err := os.RemoveAll(data.rootDir)
 		assert.Nil(t, err)
 	}()
+	createFakeENV(t, data)
 
-	os.MkdirAll(data.rootDir+pmm.PMMBaseDir, 0777)
-	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/bin", 0777)
-	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/config", 0777)
-	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/instance", 0777)
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/node_exporter")
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/mysqld_exporter")
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/mongodb_exporter")
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/proxysql_exporter")
-	os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent")
-
-	f, _ := os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent-installer")
-	f.WriteString("#!/bin/sh\n")
-	f.WriteString("echo 'it works'")
-	f.Close()
-	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
-
-	f, _ = os.Create(data.rootDir + pmm.AgentBaseDir + "/config/agent.conf")
-	f.WriteString(`{"UUID":"42","ApiHostname":"somehostname","ApiPath":"/qan-api","ServerUser":"pmm"}`)
-	f.WriteString("\n")
-	f.Close()
-	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
 	{
 		// Create fake api server
 		fapi := fakeapi.New()
@@ -1490,28 +1255,8 @@ func testAddMySQLWithDisableSlowLogsRotation(t *testing.T, data pmmAdminData) {
 		err := os.RemoveAll(data.rootDir)
 		assert.Nil(t, err)
 	}()
+	createFakeENV(t, data)
 
-	os.MkdirAll(data.rootDir+pmm.PMMBaseDir, 0777)
-	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/bin", 0777)
-	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/config", 0777)
-	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/instance", 0777)
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/node_exporter")
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/mysqld_exporter")
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/mongodb_exporter")
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/proxysql_exporter")
-	os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent")
-
-	f, _ := os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent-installer")
-	f.WriteString("#!/bin/sh\n")
-	f.WriteString("echo 'it works'")
-	f.Close()
-	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
-
-	f, _ = os.Create(data.rootDir + pmm.AgentBaseDir + "/config/agent.conf")
-	f.WriteString(`{"UUID":"42","ApiHostname":"somehostname","ApiPath":"/qan-api","ServerUser":"pmm"}`)
-	f.WriteString("\n")
-	f.Close()
-	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
 	config := pc.QAN{}
 	in := &proto.Instance{
 		Subsystem: "mysql",
@@ -1624,28 +1369,8 @@ func testAddMySQLWithRetainSlowLogs(t *testing.T, data pmmAdminData) {
 		err := os.RemoveAll(data.rootDir)
 		assert.Nil(t, err)
 	}()
+	createFakeENV(t, data)
 
-	os.MkdirAll(data.rootDir+pmm.PMMBaseDir, 0777)
-	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/bin", 0777)
-	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/config", 0777)
-	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/instance", 0777)
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/node_exporter")
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/mysqld_exporter")
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/mongodb_exporter")
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/proxysql_exporter")
-	os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent")
-
-	f, _ := os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent-installer")
-	f.WriteString("#!/bin/sh\n")
-	f.WriteString("echo 'it works'")
-	f.Close()
-	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
-
-	f, _ = os.Create(data.rootDir + pmm.AgentBaseDir + "/config/agent.conf")
-	f.WriteString(`{"UUID":"42","ApiHostname":"somehostname","ApiPath":"/qan-api","ServerUser":"pmm"}`)
-	f.WriteString("\n")
-	f.Close()
-	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
 	config := pc.QAN{}
 	in := &proto.Instance{
 		Subsystem: "mysql",
@@ -1754,51 +1479,8 @@ func testAddMongoDB(t *testing.T, data pmmAdminData) {
 		err := os.RemoveAll(data.rootDir)
 		assert.Nil(t, err)
 	}()
+	createFakeENV(t, data)
 
-	os.MkdirAll(data.rootDir+pmm.PMMBaseDir, 0777)
-	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/bin", 0777)
-	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/config", 0777)
-	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/instance", 0777)
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/node_exporter")
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/mysqld_exporter")
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/proxysql_exporter")
-	os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent")
-
-	f, _ := os.Create(data.rootDir + pmm.PMMBaseDir + "/mongodb_exporter")
-	f.WriteString("#!/bin/sh\n")
-	f.WriteString(`cat << 'EOF'
-{
-  "Version": "3.4.12",
-  "VersionArray": [
-    3,
-    4,
-    12,
-    0
-  ],
-  "GitVersion": "bfde702b19c1baad532ed183a871c12630c1bbba",
-  "OpenSSLVersion": "",
-  "SysInfo": "",
-  "Bits": 64,
-  "Debug": false,
-  "MaxObjectSize": 16777216
-}
-
-EOF
-`)
-	f.Close()
-	os.Chmod(data.rootDir+pmm.PMMBaseDir+"/mongodb_exporter", 0777)
-
-	f, _ = os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent-installer")
-	f.WriteString("#!/bin/sh\n")
-	f.WriteString("echo 'it works'")
-	f.Close()
-	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
-
-	f, _ = os.Create(data.rootDir + pmm.AgentBaseDir + "/config/agent.conf")
-	f.WriteString(`{"UUID":"42","ApiHostname":"somehostname","ApiPath":"/qan-api","ServerUser":"pmm"}`)
-	f.WriteString("\n")
-	f.Close()
-	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
 	{
 		// Create fake api server
 		fapi := fakeapi.New()
@@ -1862,51 +1544,8 @@ func testAddMongoDBQueries(t *testing.T, data pmmAdminData) {
 		err := os.RemoveAll(data.rootDir)
 		assert.Nil(t, err)
 	}()
+	createFakeENV(t, data)
 
-	os.MkdirAll(data.rootDir+pmm.PMMBaseDir, 0777)
-	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/bin", 0777)
-	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/config", 0777)
-	os.MkdirAll(data.rootDir+pmm.AgentBaseDir+"/instance", 0777)
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/node_exporter")
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/mysqld_exporter")
-	os.Create(data.rootDir + pmm.PMMBaseDir + "/proxysql_exporter")
-	os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent")
-
-	f, _ := os.Create(data.rootDir + pmm.PMMBaseDir + "/mongodb_exporter")
-	f.WriteString("#!/bin/sh\n")
-	f.WriteString(`cat << 'EOF'
-{
-  "Version": "3.4.12",
-  "VersionArray": [
-    3,
-    4,
-    12,
-    0
-  ],
-  "GitVersion": "bfde702b19c1baad532ed183a871c12630c1bbba",
-  "OpenSSLVersion": "",
-  "SysInfo": "",
-  "Bits": 64,
-  "Debug": false,
-  "MaxObjectSize": 16777216
-}
-
-EOF
-`)
-	f.Close()
-	os.Chmod(data.rootDir+pmm.PMMBaseDir+"/mongodb_exporter", 0777)
-
-	f, _ = os.Create(data.rootDir + pmm.AgentBaseDir + "/bin/percona-qan-agent-installer")
-	f.WriteString("#!/bin/sh\n")
-	f.WriteString("echo 'it works'")
-	f.Close()
-	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
-
-	f, _ = os.Create(data.rootDir + pmm.AgentBaseDir + "/config/agent.conf")
-	f.WriteString(`{"UUID":"42","ApiHostname":"somehostname","ApiPath":"/qan-api","ServerUser":"pmm"}`)
-	f.WriteString("\n")
-	f.Close()
-	os.Chmod(data.rootDir+pmm.AgentBaseDir+"/bin/percona-qan-agent-installer", 0777)
 	{
 		// Create fake api server
 		fapi := fakeapi.New()
@@ -1997,4 +1636,69 @@ func assertRegexpLines(t *testing.T, rx string, str string, msgAndArgs ...interf
 			return ok
 		}
 	}
+}
+
+func createFakeENV(t *testing.T, data pmmAdminData) {
+	dirs := []string{
+		filepath.Join(data.rootDir, pmm.PMMBaseDir),
+		filepath.Join(data.rootDir, pmm.AgentBaseDir, "bin"),
+		filepath.Join(data.rootDir, pmm.AgentBaseDir, "config"),
+		filepath.Join(data.rootDir, pmm.AgentBaseDir, "instance"),
+	}
+
+	for _, dir := range dirs {
+		err := os.MkdirAll(dir, 0777)
+		assert.NoError(t, err)
+	}
+
+	files := []string{
+		filepath.Join(data.rootDir, pmm.PMMBaseDir, "node_exporter"),
+		filepath.Join(data.rootDir, pmm.PMMBaseDir, "mysqld_exporter"),
+		filepath.Join(data.rootDir, pmm.PMMBaseDir, "postgres_exporter"),
+		filepath.Join(data.rootDir, pmm.PMMBaseDir, "proxysql_exporter"),
+		filepath.Join(data.rootDir, pmm.AgentBaseDir, "bin", "percona-qan-agent"),
+	}
+
+	for _, file := range files {
+		_, err := os.Create(file)
+		assert.NoError(t, err)
+	}
+
+	f, err := os.Create(filepath.Join(data.rootDir, pmm.PMMBaseDir, "mongodb_exporter"))
+	assert.NoError(t, err)
+	fmt.Fprintln(f, "#!/bin/sh")
+	fmt.Fprintln(f, `cat << 'EOF'
+{
+  "Version": "3.4.12",
+  "VersionArray": [
+    3,
+    4,
+    12,
+    0
+  ],
+  "GitVersion": "bfde702b19c1baad532ed183a871c12630c1bbba",
+  "OpenSSLVersion": "",
+  "SysInfo": "",
+  "Bits": 64,
+  "Debug": false,
+  "MaxObjectSize": 16777216
+}
+
+EOF`)
+	f.Close()
+	err = os.Chmod(filepath.Join(data.rootDir, pmm.PMMBaseDir, "mongodb_exporter"), 0777)
+	assert.NoError(t, err)
+
+	f, err = os.Create(filepath.Join(data.rootDir, pmm.AgentBaseDir, "bin/percona-qan-agent-installer"))
+	assert.NoError(t, err)
+	fmt.Fprintln(f, "#!/bin/sh")
+	fmt.Fprintln(f, "echo 'it works'")
+	f.Close()
+	err = os.Chmod(filepath.Join(data.rootDir, pmm.AgentBaseDir, "bin/percona-qan-agent-installer"), 0777)
+	assert.NoError(t, err)
+
+	f, err = os.Create(filepath.Join(data.rootDir, pmm.AgentBaseDir, "config/agent.conf"))
+	assert.NoError(t, err)
+	fmt.Fprintln(f, `{"UUID":"42","ApiHostname":"somehostname","ApiPath":"/qan-api","ServerUser":"pmm"}`)
+	f.Close()
 }

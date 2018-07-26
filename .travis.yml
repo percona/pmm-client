@@ -19,6 +19,7 @@ env:
     - MYSQL_IMAGE=mariadb:10.1
     - MYSQL_IMAGE=mariadb:10.2
     - MYSQL_IMAGE=mariadb:10.3
+    - POSTGRESQL_IMAGE=postgres:10
     - MONGODB_IMAGE=mongo:3.2
     - MONGODB_IMAGE=mongo:3.4
     - MONGODB_IMAGE=mongo:3.6

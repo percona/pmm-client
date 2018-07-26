@@ -55,6 +55,16 @@ cd $SOURCE_DIR
 go build -ldflags "-X $importpath/version.Version=$VERSION -X $importpath/version.Branch=$branch -X $importpath/version.Revision=$commit" \
     -o distro/bin/mysqld_exporter github.com/percona/mysqld_exporter
 
+printf "Building postgres_exporter...\t"
+cd $GOPATH/src/github.com/percona/postgres_exporter
+commit=$(git rev-parse HEAD)
+branch=$(git rev-parse --abbrev-ref HEAD)
+echo $(git log -1 --format="%d %cd")
+importpath=github.com/percona/postgres_exporter/vendor/github.com/prometheus/common
+cd $SOURCE_DIR
+go build -ldflags "-X $importpath/version.Version=$VERSION -X $importpath/version.Branch=$branch -X $importpath/version.Revision=$commit" \
+    -o distro/bin/postgres_exporter github.com/percona/postgres_exporter
+
 printf "Building mongodb_exporter...\t"
 cd $GOPATH/src/github.com/percona/mongodb_exporter
 make

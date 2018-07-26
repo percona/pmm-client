@@ -23,6 +23,12 @@ services:
       - --long_query_time=0
     volumes:
       - /tmp/pmm-test:/tmp/pmm-test
+  postgresql:
+    image: ${POSTGRESQL_IMAGE:-postgres}
+    ports:
+      - 127.0.0.1:5432:5432
+    environment:
+      - POSTGRES_USER=root
   mongodb:
     image: ${MONGODB_IMAGE:-percona/percona-server-mongodb}
     ports:

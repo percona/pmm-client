@@ -15,7 +15,7 @@
 	along with this program.  If not, see <http://www.gnu.org/licenses/>
 */
 
-package pmm
+package mongodb
 
 import (
 	"context"
@@ -25,17 +25,15 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/percona/pmm-client/pmm/plugin"
 	"gopkg.in/mgo.v2"
 )
 
-// DetectMongoDB verifies MongoDB connection.
-func (a *Admin) DetectMongoDB(ctx context.Context, uri string) (mgo.BuildInfo, error) {
-	path := fmt.Sprintf("%s/mongodb_exporter", PMMBaseDir)
-	args := []string{
-		"--test",
-	}
+// Init verifies MongoDB connection.
+func Init(ctx context.Context, uri string, args []string, pmmBaseDir string) (*plugin.Info, error) {
+	path := fmt.Sprintf("%s/mongodb_exporter", pmmBaseDir)
 	// Add additional args passed to pmm-admin
-	args = append(args, a.Args...)
+	args = append([]string{"--test"}, args...)
 	cmd := exec.CommandContext(
 		ctx,
 		path,
@@ -46,14 +44,19 @@ func (a *Admin) DetectMongoDB(ctx context.Context, uri string) (mgo.BuildInfo, e
 	b, err := cmd.CombinedOutput()
 	if err != nil {
 		err = fmt.Errorf("cannot verify MongoDB connection with `%s %s`: %s: %s", path, strings.Join(args, " "), err, string(b))
-		return mgo.BuildInfo{}, err
+		return nil, err
 	}
 	buildInfo := mgo.BuildInfo{}
 	err = json.Unmarshal(b, &buildInfo)
 	if err != nil {
 		err = fmt.Errorf("cannot read BuildInfo from output of `%s %s`: %s: %s", path, strings.Join(args, " "), err, string(b))
-		return mgo.BuildInfo{}, err
+		return nil, err
 	}
 
-	return buildInfo, nil
+	info := &plugin.Info{
+		Distro:  "MongoDB",
+		Version: buildInfo.Version,
+		DSN:     uri,
+	}
+	return info, nil
 }

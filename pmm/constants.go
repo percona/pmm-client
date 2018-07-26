@@ -52,49 +52,6 @@ var (
 	errNoInstance = errors.New("no instance found on QAN API.")
 )
 
-const nodeExporterArgs = "-collectors.enabled=diskstats,filefd,filesystem,loadavg,meminfo,netdev,netstat,stat,time,uname,vmstat,meminfo_numa"
-
-var mysqldExporterArgs = []string{
-	"-collect.auto_increment.columns=true",
-	"-collect.binlog_size=true",
-	"-collect.global_status=true",
-	"-collect.global_variables=true",
-	"-collect.info_schema.innodb_metrics=true",
-	"-collect.info_schema.innodb_cmp=true",
-	"-collect.info_schema.innodb_cmpmem=true",
-	"-collect.info_schema.processlist=true",
-	"-collect.info_schema.query_response_time=true",
-	"-collect.info_schema.tables=true",
-	"-collect.info_schema.tablestats=true",
-	"-collect.info_schema.userstats=true",
-	"-collect.perf_schema.eventswaits=true",
-	"-collect.perf_schema.file_events=true",
-	"-collect.perf_schema.indexiowaits=true",
-	"-collect.perf_schema.tableiowaits=true",
-	"-collect.perf_schema.tablelocks=true",
-	"-collect.slave_status=true",
-	//"-collect.engine_innodb_status=true",
-	//"-collect.engine_tokudb_status=true",
-	//"-collect.info_schema.clientstats=true",
-	//"-collect.info_schema.innodb_tablespaces=true",
-	//"-collect.perf_schema.eventsstatements=true",
-}
-
-// mysqld_exporter args to disable optionally.
-var mysqldExporterDisableArgs = map[string][]string{
-	"tablestats": {
-		"-collect.auto_increment.columns=",
-		"-collect.info_schema.tables=",
-		"-collect.info_schema.tablestats=",
-		"-collect.perf_schema.indexiowaits=",
-		"-collect.perf_schema.tableiowaits=",
-		"-collect.perf_schema.tablelocks=",
-	},
-	"userstats":   {"-collect.info_schema.userstats="},
-	"binlogstats": {"-collect.binlog_size="},
-	"processlist": {"-collect.info_schema.processlist="},
-}
-
 type Errors []error
 
 func (e Errors) Error() string {

@@ -18,45 +18,63 @@
 package pmm
 
 import (
+	"context"
 	"fmt"
+	"path/filepath"
 
 	consul "github.com/hashicorp/consul/api"
 	"github.com/percona/kardianos-service"
+	"github.com/percona/pmm-client/pmm/plugin"
 )
 
-// AddMongoDBMetrics add mongodb metrics service to monitoring.
-func (a *Admin) AddMongoDBMetrics(uri, cluster string) error {
-	serviceType := "mongodb:metrics"
+// AddMetrics add metrics service to monitoring.
+func (a *Admin) AddMetrics(ctx context.Context, m plugin.Metrics, force bool) (*plugin.Info, error) {
+	info, err := m.Init(ctx, a.Config.MySQLPassword)
+	if err != nil {
+		return nil, err
+	}
+
+	if info.PMMUserPassword != "" {
+		a.Config.MySQLPassword = info.PMMUserPassword
+		err := a.writeConfig()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	serviceType := fmt.Sprintf("%s:metrics", m.Name())
 
 	// Check if we have already this service on Consul.
-	consulSvc, err := a.getConsulService(serviceType, a.ServiceName)
+	// When using force, we allow adding another service with different name.
+	name := ""
+	if m.Multiple() || force {
+		name = a.ServiceName
+	}
+	consulSvc, err := a.getConsulService(serviceType, name)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if consulSvc != nil {
-		return ErrDuplicate
+		return nil, ErrDuplicate
 	}
 
 	if err := a.checkGlobalDuplicateService(serviceType, a.ServiceName); err != nil {
-		return err
+		return nil, err
 	}
 
 	// Choose port.
-	port := 0
-	if a.ServicePort > 0 {
-		// The port is user defined.
-		port, err = a.choosePort(a.ServicePort, true)
-	} else {
-		// Choose first port available starting the given default one.
-		port, err = a.choosePort(42003, false)
-	}
+	defaultPort := 42003
+	port, err := a.choosePort(a.ServicePort, defaultPort)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	tags := []string{fmt.Sprintf("alias_%s", a.ServiceName), "scheme_https"}
-	if cluster != "" {
-		tags = append(tags, fmt.Sprintf("cluster_%s", cluster))
+	tags := []string{
+		fmt.Sprintf("alias_%s", a.ServiceName),
+		"scheme_https",
+	}
+	if m.Cluster() != "" {
+		tags = append(tags, fmt.Sprintf("cluster_%s", m.Cluster()))
 	}
 
 	// Add service to Consul.
@@ -73,47 +91,64 @@ func (a *Admin) AddMongoDBMetrics(uri, cluster string) error {
 		Service: &srv,
 	}
 	if _, err := a.consulAPI.Catalog().Register(&reg, nil); err != nil {
-		return err
+		return nil, err
 	}
 
 	// Add info to Consul KV.
-	d := &consul.KVPair{Key: fmt.Sprintf("%s/%s/dsn", a.Config.ClientName, serviceID),
-		Value: []byte(SanitizeDSN(uri))}
-	a.consulAPI.KV().Put(d, nil)
+	if len(m.KV()) > 0 {
+		for i, v := range m.KV() {
+			d := &consul.KVPair{
+				Key:   fmt.Sprintf("%s/%s/%s", a.Config.ClientName, serviceID, i),
+				Value: v,
+			}
+			_, err = a.consulAPI.KV().Put(d, nil)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
 
 	// Check and generate certificate if needed.
 	if err := a.checkSSLCertificate(); err != nil {
-		return err
+		return nil, err
 	}
 
-	args := []string{
+	var args []string
+	args = append(args,
 		fmt.Sprintf("-web.listen-address=%s:%d", a.Config.BindAddress, port),
 		fmt.Sprintf("-web.auth-file=%s", ConfigFile),
 		fmt.Sprintf("-web.ssl-cert-file=%s", SSLCertFile),
 		fmt.Sprintf("-web.ssl-key-file=%s", SSLKeyFile),
-	}
-	// Add additional args passed to pmm-admin
+	)
+	// Add additional args passed to pmm-admin.
 	args = append(args, a.Args...)
+	// Add additional args passed by plugin.
+	args = append(args, m.Args()...)
+
+	_, executable := filepath.Split(m.Executable())
+	if executable == "" {
+		return nil, fmt.Errorf("%s: invalid executable name: %s", m.Name(), m.Executable())
+	}
 
 	// Install and start service via platform service manager.
 	svcConfig := &service.Config{
-		Name:        fmt.Sprintf("pmm-mongodb-metrics-%d", port),
-		DisplayName: fmt.Sprintf("PMM Prometheus mongodb_exporter %d", port),
-		Description: fmt.Sprintf("PMM Prometheus mongodb_exporter %d", port),
-		Executable:  fmt.Sprintf("%s/mongodb_exporter", PMMBaseDir),
+		Name:        fmt.Sprintf("pmm-%s-metrics-%d", m.Name(), port),
+		DisplayName: fmt.Sprintf("PMM Prometheus %s on port %d", m.Executable(), port),
+		Description: fmt.Sprintf("PMM Prometheus %s on port %d", m.Executable(), port),
+		Executable:  filepath.Join(PMMBaseDir, executable),
 		Arguments:   args,
-		Environment: []string{fmt.Sprintf("MONGODB_URI=%s", uri)},
 	}
+	svcConfig.Environment = append(svcConfig.Environment, m.Environment()...)
 	if err := installService(svcConfig); err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return info, nil
 }
 
-// RemoveMongoDBMetrics remove mongodb metrics service from monitoring.
-func (a *Admin) RemoveMongoDBMetrics() error {
-	serviceType := "mongodb:metrics"
+// RemoveMetrics remove metrics service from monitoring.
+func (a *Admin) RemoveMetrics(name string) error {
+	serviceType := fmt.Sprintf("%s:metrics", name)
 
 	// Check if we have this service on Consul.
 	consulSvc, err := a.getConsulService(serviceType, a.ServiceName)
@@ -134,10 +169,14 @@ func (a *Admin) RemoveMongoDBMetrics() error {
 	}
 
 	prefix := fmt.Sprintf("%s/%s/", a.Config.ClientName, consulSvc.ID)
-	a.consulAPI.KV().DeleteTree(prefix, nil)
+	_, err = a.consulAPI.KV().DeleteTree(prefix, nil)
+	if err != nil {
+		return err
+	}
 
 	// Stop and uninstall service.
-	if err := uninstallService(fmt.Sprintf("pmm-mongodb-metrics-%d", consulSvc.Port)); err != nil {
+	serviceName := fmt.Sprintf("pmm-%s-metrics-%d", name, consulSvc.Port)
+	if err := uninstallService(serviceName); err != nil {
 		return err
 	}
 

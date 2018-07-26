@@ -28,6 +28,7 @@ import (
 	"github.com/docker/cli/templates"
 	consul "github.com/hashicorp/consul/api"
 	"github.com/percona/kardianos-service"
+	pc "github.com/percona/pmm/proto/config"
 )
 
 // Service status description.
@@ -327,4 +328,22 @@ func (a *Admin) getSVCTable(node *consul.CatalogNode) []ServiceStatus {
 	}
 
 	return svcTable
+}
+
+// getQueriesOptions reads Queries options from QAN config file.
+func getQueriesOptions(config *pc.QAN) (opts []string) {
+	if config.CollectFrom != "" {
+		opts = append(opts, fmt.Sprintf("query_source=%s", config.CollectFrom))
+	}
+	opts = append(opts, fmt.Sprintf("query_examples=%t", boolValue(config.ExampleQueries)))
+	return opts
+}
+
+// getMySQLQueriesOptions reads Queries options from QAN config file.
+func getMySQLQueriesOptions(config *pc.QAN) (opts []string) {
+	if config.CollectFrom == "slowlog" {
+		opts = append(opts, fmt.Sprintf("slow_log_rotation=%t", boolValue(config.SlowLogRotation)))
+		opts = append(opts, fmt.Sprintf("retain_slow_logs=%d", intValue(config.RetainSlowLogs)))
+	}
+	return opts
 }

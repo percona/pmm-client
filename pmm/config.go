@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"regexp"
 	"strings"
@@ -460,5 +461,19 @@ func (a *Admin) renameInstance(instanceUUID, oldName, newName string) error {
 		return err
 	}
 
+	return nil
+}
+
+// updateInstance updates instance on QAN API.
+func (a *Admin) updateInstance(inUUID string, bytes []byte) error {
+	url := a.qanAPI.URL(a.serverURL, qanAPIBasePath, "instances", inUUID)
+	resp, content, err := a.qanAPI.Put(url, bytes)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != http.StatusNoContent {
+		return a.qanAPI.Error("PUT", url, resp.StatusCode, http.StatusNoContent, content)
+
+	}
 	return nil
 }

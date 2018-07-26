@@ -79,7 +79,7 @@ func NewClient(host string, scheme string, user *url.Userinfo, insecureSSL bool,
 		Transport: transport,
 	}
 	if verbose {
-		client.Transport = utils.NewDebugRoundTripper(client.Transport)
+		client.Transport = utils.NewVerboseRoundTripper(client.Transport)
 	}
 
 	return &Client{

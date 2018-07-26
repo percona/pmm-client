@@ -15,15 +15,15 @@
 	along with this program.  If not, see <http://www.gnu.org/licenses/>
 */
 
-package pmm
+package mysql
 
 import (
 	"context"
-	"regexp"
 	"testing"
 	"time"
 
 	"github.com/percona/go-mysql/dsn"
+	"github.com/percona/pmm-client/pmm/plugin"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/DATA-DOG/go-sqlmock.v1"
 )
@@ -223,34 +223,17 @@ func TestGetMysqlInfo(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	res := *getMysqlInfo(ctx, db)
-	expected := MySQLInfo{
+	info := *getInfo(ctx, db)
+	expected := plugin.Info{
 		Hostname: "db01",
 		Port:     "3306",
 		Distro:   "MySQL",
 		Version:  "1.2.3",
 	}
-	assert.Equal(t, expected, res)
+	assert.Equal(t, expected, info)
 
 	// Ensure all SQL queries were executed
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Errorf("there were unfulfilled expectations: %s", err)
-	}
-}
-
-func TestGeneratePassword(t *testing.T) {
-	r, _ := regexp.Compile("^([[:alnum:]]|[_,;-]){20}$")
-	r1, _ := regexp.Compile("[[:lower:]]")
-	r2, _ := regexp.Compile("[[:upper:]]")
-	r3, _ := regexp.Compile("[[:digit:]]")
-	r4, _ := regexp.Compile("[_,;-]")
-
-	assert.Len(t, generatePassword(5), 5)
-	assert.Len(t, generatePassword(20), 20)
-	assert.NotEqual(t, generatePassword(20), generatePassword(20))
-	for i := 0; i < 10; i++ {
-		p := generatePassword(20)
-		c := r.Match([]byte(p)) && r1.Match([]byte(p)) && r2.Match([]byte(p)) && r3.Match([]byte(p)) && r4.Match([]byte(p))
-		assert.True(t, c)
 	}
 }
