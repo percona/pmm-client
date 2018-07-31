@@ -34,7 +34,7 @@ type DSN struct {
 
 // String converts DSN struct to DSN string.
 func (d DSN) String() string {
-	return fmt.Sprintf("postgresql://%s:%s@%s:%s/", d.User, d.Password, d.Host, d.Port)
+	return fmt.Sprintf("postgresql://%s:%s@%s:%s/?sslmode=disable", d.User, d.Password, d.Host, d.Port)
 }
 
 // Init verifies PostgreSQL connection and creates PMM user if requested.
