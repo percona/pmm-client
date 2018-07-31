@@ -223,14 +223,15 @@ func TestGetMysqlInfo(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	info := *getInfo(ctx, db)
+	info, err := getInfo(ctx, db)
+	assert.NoError(t, err)
 	expected := plugin.Info{
 		Hostname: "db01",
 		Port:     "3306",
 		Distro:   "MySQL",
 		Version:  "1.2.3",
 	}
-	assert.Equal(t, expected, info)
+	assert.Equal(t, expected, *info)
 
 	// Ensure all SQL queries were executed
 	if err := mock.ExpectationsWereMet(); err != nil {
