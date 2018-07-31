@@ -47,6 +47,7 @@ func (f *FakeApi) AppendRoot() {
 			}
 		default:
 			w.WriteHeader(600)
+			panic(fmt.Sprintf("fakeapi: unknown method %s for path %s", r.Method, r.URL.Path))
 		}
 	})
 }
@@ -59,6 +60,7 @@ func (f *FakeApi) AppendPrometheusAPIV1Query() {
 			w.Write([]byte(`{"status":"success","data":{"resultType":"vector","result":[]},"error":"","errorType":""}`))
 		default:
 			w.WriteHeader(600)
+			panic(fmt.Sprintf("fakeapi: unknown method %s for path %s", r.Method, r.URL.Path))
 		}
 	})
 }
@@ -73,6 +75,7 @@ func (f *FakeApi) AppendQanAPIPing() {
 			w.WriteHeader(http.StatusOK)
 		default:
 			w.WriteHeader(600)
+			panic(fmt.Sprintf("fakeapi: unknown method %s for path %s", r.Method, r.URL.Path))
 		}
 	})
 }
@@ -138,6 +141,7 @@ func (f *FakeApi) AppendConsulV1CatalogService() {
 			w.Write(data)
 		default:
 			w.WriteHeader(600)
+			panic(fmt.Sprintf("fakeapi: unknown method %s for path %s", r.Method, r.URL.Path))
 		}
 	})
 }
@@ -164,6 +168,7 @@ func (f *FakeApi) AppendConsulV1CatalogRegister() {
 			w.WriteHeader(http.StatusOK)
 		default:
 			w.WriteHeader(600)
+			panic(fmt.Sprintf("fakeapi: unknown method %s for path %s", r.Method, r.URL.Path))
 		}
 	})
 }
@@ -176,6 +181,8 @@ func (f *FakeApi) AppendConsulV1KV() {
 			data, _ := json.Marshal(out)
 			w.WriteHeader(http.StatusOK)
 			w.Write(data)
+		case "PUT":
+			w.WriteHeader(http.StatusOK)
 		default:
 			w.WriteHeader(600)
 		}
@@ -198,6 +205,7 @@ func (f *FakeApi) AppendQanAPIInstances(protoInstances []*proto.Instance) {
 			w.Write(data)
 		default:
 			w.WriteHeader(600)
+			panic(fmt.Sprintf("fakeapi: unknown method %s for path %s", r.Method, r.URL.Path))
 		}
 
 	})
@@ -210,8 +218,8 @@ func (f *FakeApi) AppendQanAPIAgents(id string) {
 			w.WriteHeader(http.StatusOK)
 		default:
 			w.WriteHeader(600)
+			panic(fmt.Sprintf("fakeapi: unknown method %s for path %s", r.Method, r.URL.Path))
 		}
-
 	})
 }
 

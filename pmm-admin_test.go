@@ -1131,6 +1131,7 @@ func testAddMySQL(t *testing.T, data pmmAdminData) {
 		fapi.AppendConsulV1CatalogNode(clientName, node)
 		fapi.AppendConsulV1CatalogService()
 		fapi.AppendConsulV1CatalogRegister()
+		fapi.AppendConsulV1KV()
 		in := &proto.Instance{
 			Subsystem: "mysql",
 			UUID:      "13",
@@ -1275,6 +1276,7 @@ func testAddMySQLWithDisableSlowLogsRotation(t *testing.T, data pmmAdminData) {
 		fapi.AppendConsulV1CatalogNode(clientName, node)
 		fapi.AppendConsulV1CatalogService()
 		fapi.AppendConsulV1CatalogRegister()
+		fapi.AppendConsulV1KV()
 		in := &proto.Instance{
 			Subsystem: "mysql",
 			UUID:      "13",
@@ -1389,6 +1391,7 @@ func testAddMySQLWithRetainSlowLogs(t *testing.T, data pmmAdminData) {
 		fapi.AppendConsulV1CatalogNode(clientName, node)
 		fapi.AppendConsulV1CatalogService()
 		fapi.AppendConsulV1CatalogRegister()
+		fapi.AppendConsulV1KV()
 		agentInstance := &proto.Instance{
 			Subsystem: "agent",
 			UUID:      "42",
@@ -1494,6 +1497,7 @@ func testAddMongoDB(t *testing.T, data pmmAdminData) {
 		fapi.AppendConsulV1CatalogNode(clientName, node)
 		fapi.AppendConsulV1CatalogService()
 		fapi.AppendConsulV1CatalogRegister()
+		fapi.AppendConsulV1KV()
 		mongodbInstance := &proto.Instance{
 			Subsystem: "mongodb",
 			UUID:      "13",
@@ -1559,6 +1563,7 @@ func testAddMongoDBQueries(t *testing.T, data pmmAdminData) {
 		fapi.AppendConsulV1CatalogNode(clientName, node)
 		fapi.AppendConsulV1CatalogService()
 		fapi.AppendConsulV1CatalogRegister()
+		fapi.AppendConsulV1KV()
 		mongodbInstance := &proto.Instance{
 			Subsystem: "mongodb",
 			UUID:      "13",

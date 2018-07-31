@@ -48,7 +48,6 @@ var (
 
 	ErrDuplicate  = errors.New("there is already one instance with this name under monitoring.")
 	ErrNoService  = errors.New("no service found.")
-	ErrOneLinux   = errors.New("there could be only one instance of linux metrics being monitored for this system.")
 	errNoInstance = errors.New("no instance found on QAN API.")
 )
 
