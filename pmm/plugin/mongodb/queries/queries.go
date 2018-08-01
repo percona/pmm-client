@@ -29,8 +29,13 @@ type Queries struct {
 }
 
 // Init initializes plugin.
-func (m Queries) Init(ctx context.Context, pmmUserPassword string) (*plugin.Info, error) {
-	return mongodb.Init(ctx, m.dsn, m.args, m.pmmBaseDir)
+func (m *Queries) Init(ctx context.Context, pmmUserPassword string) (*plugin.Info, error) {
+	info, err := mongodb.Init(ctx, m.dsn, m.args, m.pmmBaseDir)
+	if err != nil {
+		return nil, err
+	}
+	m.dsn = info.DSN
+	return info, nil
 }
 
 // Name of the service.

@@ -26,7 +26,7 @@ type Metrics struct {
 }
 
 // Init initializes plugin.
-func (m Metrics) Init(ctx context.Context, pmmUserPassword string) (*plugin.Info, error) {
+func (m *Metrics) Init(ctx context.Context, pmmUserPassword string) (*plugin.Info, error) {
 	dsn, err := mysql.ParseDSN(m.dsn)
 	if err != nil {
 		return nil, fmt.Errorf("Bad dsn %s: %s", m.dsn, err)

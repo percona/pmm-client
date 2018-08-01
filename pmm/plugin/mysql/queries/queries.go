@@ -36,7 +36,7 @@ type Queries struct {
 }
 
 // Init initializes plugin.
-func (m Queries) Init(ctx context.Context, pmmUserPassword string) (*plugin.Info, error) {
+func (m *Queries) Init(ctx context.Context, pmmUserPassword string) (*plugin.Info, error) {
 	info, err := mysql.Init(ctx, m.mysqlFlags, pmmUserPassword)
 	if err != nil {
 		return nil, err

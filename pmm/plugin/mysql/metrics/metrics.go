@@ -41,8 +41,7 @@ type Metrics struct {
 }
 
 // Init initializes plugin.
-func (m Metrics) Init(ctx context.Context, pmmUserPassword string) (*plugin.Info, error) {
-	var err error
+func (m *Metrics) Init(ctx context.Context, pmmUserPassword string) (*plugin.Info, error) {
 	info, err := mysql.Init(ctx, m.mysqlFlags, pmmUserPassword)
 	if err != nil {
 		return nil, err
