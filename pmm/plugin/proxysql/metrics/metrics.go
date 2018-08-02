@@ -1,10 +1,9 @@
 package metrics
 
 import (
-	"fmt"
-
 	"context"
 	"database/sql"
+	"fmt"
 
 	"github.com/go-sql-driver/mysql"
 	"github.com/percona/pmm-client/pmm/plugin"

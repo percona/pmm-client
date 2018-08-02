@@ -2,10 +2,9 @@ package metrics
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
-
-	"database/sql"
 
 	"github.com/percona/pmm-client/pmm/plugin"
 	"github.com/percona/pmm-client/pmm/plugin/mysql"
