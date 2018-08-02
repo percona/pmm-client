@@ -1426,15 +1426,13 @@ func main() {
 
 	// Common PostgreSQL flags.
 	addCommonPostgreSQLFlags := func(cmd *cobra.Command) {
-		cmd.Flags().StringVar(&flagMySQL.Host, "host", "", "PostgreSQL host")
-		cmd.Flags().StringVar(&flagMySQL.Port, "port", "", "PostgreSQL port")
-		cmd.Flags().StringVar(&flagMySQL.User, "user", "", "PostgreSQL username")
-		cmd.Flags().StringVar(&flagMySQL.Password, "password", "", "PostgreSQL password")
-		cmd.Flags().StringVar(&flagMySQL.Socket, "socket", "", "PostgreSQL socket")
-		cmd.Flags().BoolVar(&flagMySQL.CreateUser, "create-user", false, "create a new PostgreSQL user")
-		cmd.Flags().StringVar(&flagMySQL.CreateUserPassword, "create-user-password", "", "optional password for a new PostgreSQL user")
-		cmd.Flags().Uint16Var(&flagMySQL.MaxUserConn, "create-user-maxconn", 10, "max user connections for a new user")
-		cmd.Flags().BoolVar(&flagMySQL.Force, "force", false, "force to create/update PostgreSQL user")
+		cmd.Flags().StringVar(&flagPostgreSQL.Host, "host", "", "PostgreSQL host")
+		cmd.Flags().StringVar(&flagPostgreSQL.Port, "port", "", "PostgreSQL port")
+		cmd.Flags().StringVar(&flagPostgreSQL.User, "user", "", "PostgreSQL username")
+		cmd.Flags().StringVar(&flagPostgreSQL.Password, "password", "", "PostgreSQL password")
+		cmd.Flags().BoolVar(&flagPostgreSQL.CreateUser, "create-user", false, "create a new PostgreSQL user")
+		cmd.Flags().StringVar(&flagPostgreSQL.CreateUserPassword, "create-user-password", "", "optional password for a new PostgreSQL user")
+		cmd.Flags().BoolVar(&flagPostgreSQL.Force, "force", false, "force to create/update PostgreSQL user")
 	}
 
 	// pmm-admin add postgresql

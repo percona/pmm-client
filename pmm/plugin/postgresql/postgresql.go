@@ -20,7 +20,6 @@ type Flags struct {
 
 	CreateUser         bool
 	CreateUserPassword string
-	MaxUserConn        uint16
 	Force              bool
 }
 
