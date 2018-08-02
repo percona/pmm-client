@@ -1432,15 +1432,15 @@ func main() {
 	// Common Metrics flags.
 	addCommonMySQLFlags := func(cmd *cobra.Command) {
 		cmd.Flags().StringVar(&flagMySQL.DefaultsFile, "defaults-file", "", "path to my.cnf")
-		cmd.Flags().StringVar(&flagMySQL.Host, "host", "", "Metrics host")
-		cmd.Flags().StringVar(&flagMySQL.Port, "port", "", "Metrics port")
-		cmd.Flags().StringVar(&flagMySQL.User, "user", "", "Metrics username")
-		cmd.Flags().StringVar(&flagMySQL.Password, "password", "", "Metrics password")
-		cmd.Flags().StringVar(&flagMySQL.Socket, "socket", "", "Metrics socket")
-		cmd.Flags().BoolVar(&flagMySQL.CreateUser, "create-user", false, "create a new Metrics user")
-		cmd.Flags().StringVar(&flagMySQL.CreateUserPassword, "create-user-password", "", "optional password for a new Metrics user")
+		cmd.Flags().StringVar(&flagMySQL.Host, "host", "", "MySQL host")
+		cmd.Flags().StringVar(&flagMySQL.Port, "port", "", "MySQL port")
+		cmd.Flags().StringVar(&flagMySQL.User, "user", "", "MySQL username")
+		cmd.Flags().StringVar(&flagMySQL.Password, "password", "", "MySQL password")
+		cmd.Flags().StringVar(&flagMySQL.Socket, "socket", "", "MySQL socket")
+		cmd.Flags().BoolVar(&flagMySQL.CreateUser, "create-user", false, "create a new MySQL user")
+		cmd.Flags().StringVar(&flagMySQL.CreateUserPassword, "create-user-password", "", "optional password for a new MySQL user")
 		cmd.Flags().Uint16Var(&flagMySQL.MaxUserConn, "create-user-maxconn", 10, "max user connections for a new user")
-		cmd.Flags().BoolVar(&flagMySQL.Force, "force", false, "force to create/update Metrics user")
+		cmd.Flags().BoolVar(&flagMySQL.Force, "force", false, "force to create/update MySQL user")
 	}
 
 	// pmm-admin add mysql
