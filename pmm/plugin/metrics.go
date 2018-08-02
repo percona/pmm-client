@@ -23,4 +23,6 @@ type Metrics interface {
 	Cluster() string
 	// Multiple returns true if exporter can be added multiple times.
 	Multiple() bool
+	// DefaultPort returns default port.
+	DefaultPort() int
 }

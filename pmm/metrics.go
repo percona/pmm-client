@@ -63,7 +63,7 @@ func (a *Admin) AddMetrics(ctx context.Context, m plugin.Metrics, force bool) (*
 	}
 
 	// Choose port.
-	defaultPort := 42003
+	defaultPort := m.DefaultPort()
 	port, err := a.choosePort(a.ServicePort, defaultPort)
 	if err != nil {
 		return nil, err
