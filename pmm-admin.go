@@ -760,8 +760,8 @@ An optional list of instances (scrape targets) can be provided.
 	}
 	cmdRemoveMySQL = &cobra.Command{
 		Use:   "mysql [flags] [name]",
-		Short: "Remove all monitoring for Metrics instance (linux and mysql metrics, queries).",
-		Long: `This command removes all monitoring for Metrics instance (linux and mysql metrics, queries).
+		Short: "Remove all monitoring for MySQL instance (linux and mysql metrics, queries).",
+		Long: `This command removes all monitoring for MySQL instance (linux and mysql metrics, queries).
 
 [name] is an optional argument, by default it is set to the client name of this PMM client.
 		`,
@@ -811,8 +811,8 @@ An optional list of instances (scrape targets) can be provided.
 	}
 	cmdRemoveMySQLMetrics = &cobra.Command{
 		Use:   "mysql:metrics [flags] [name]",
-		Short: "Remove Metrics instance from metrics monitoring.",
-		Long: `This command removes Metrics instance from metrics monitoring.
+		Short: "Remove MySQL instance from metrics monitoring.",
+		Long: `This command removes MySQL instance from metrics monitoring.
 
 [name] is an optional argument, by default it is set to the client name of this PMM client.
 		`,
@@ -826,8 +826,8 @@ An optional list of instances (scrape targets) can be provided.
 	}
 	cmdRemoveMySQLQueries = &cobra.Command{
 		Use:   "mysql:queries [flags] [name]",
-		Short: "Remove Metrics instance from Query Analytics.",
-		Long: `This command removes Metrics instance from Query Analytics.
+		Short: "Remove MySQL instance from Query Analytics.",
+		Long: `This command removes MySQL instance from Query Analytics.
 
 [name] is an optional argument, by default it is set to the client name of this PMM client.
 		`,
@@ -905,6 +905,48 @@ An optional list of instances (scrape targets) can be provided.
 			fmt.Printf("OK, removed MongoDB queries %s from monitoring.\n", admin.ServiceName)
 		},
 	}
+	cmdRemovePostgreSQL = &cobra.Command{
+		Use:   "postgresql [flags] [name]",
+		Short: "Remove all monitoring for PostgreSQL instance (linux and postgresql metrics).",
+		Long: `This command removes all monitoring for PostgreSQL instance (linux and mysql metrics).
+
+[name] is an optional argument, by default it is set to the client name of this PMM client.
+		`,
+		Run: func(cmd *cobra.Command, args []string) {
+			err := admin.RemoveMetrics("linux")
+			if err == pmm.ErrNoService {
+				fmt.Printf("[linux:metrics] OK, no system %s under monitoring.\n", admin.ServiceName)
+			} else if err != nil {
+				fmt.Printf("[linux:metrics] Error removing linux metrics %s: %s\n", admin.ServiceName, err)
+			} else {
+				fmt.Printf("[linux:metrics] OK, removed system %s from monitoring.\n", admin.ServiceName)
+			}
+
+			err = admin.RemoveMetrics("postgresql")
+			if err == pmm.ErrNoService {
+				fmt.Printf("[postgresql:metrics] OK, no PostgreSQL metrics %s under monitoring.\n", admin.ServiceName)
+			} else if err != nil {
+				fmt.Printf("[postgresql:metrics] Error removing PostgreSQL metrics %s: %s\n", admin.ServiceName, err)
+			} else {
+				fmt.Printf("[postgresql:metrics] OK, removed MySQL PostgreSQL %s from monitoring.\n", admin.ServiceName)
+			}
+		},
+	}
+	cmdRemovePostgreSQLMetrics = &cobra.Command{
+		Use:   "postgresql:metrics [flags] [name]",
+		Short: "Remove PostgreSQL instance from metrics monitoring.",
+		Long: `This command removes PostgreSQL instance from metrics monitoring.
+
+[name] is an optional argument, by default it is set to the client name of this PMM client.
+		`,
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := admin.RemoveMetrics("postgresql"); err != nil {
+				fmt.Printf("Error removing PostgreSQL metrics %s: %s\n", admin.ServiceName, err)
+				os.Exit(1)
+			}
+			fmt.Printf("OK, removed PostgreSQL metrics %s from monitoring.\n", admin.ServiceName)
+		},
+	}
 	cmdRemoveProxySQLMetrics = &cobra.Command{
 		Use:   "proxysql:metrics [flags] [name]",
 		Short: "Remove ProxySQL instance from metrics monitoring.",
@@ -914,7 +956,7 @@ An optional list of instances (scrape targets) can be provided.
 		`,
 		Run: func(cmd *cobra.Command, args []string) {
 			if err := admin.RemoveMetrics("proxysql"); err != nil {
-				fmt.Printf("Error removing proxysql metrics %s: %s\n", admin.ServiceName, err)
+				fmt.Printf("Error removing ProxySQL metrics %s: %s\n", admin.ServiceName, err)
 				os.Exit(1)
 			}
 			fmt.Printf("OK, removed ProxySQL metrics %s from monitoring.\n", admin.ServiceName)
@@ -1342,6 +1384,8 @@ func main() {
 		cmdAddMongoDB,
 		cmdAddMongoDBMetrics,
 		cmdAddMongoDBQueries,
+		cmdAddPostgreSQL,
+		cmdAddPostgreSQLMetrics,
 		cmdAddProxySQLMetrics,
 		cmdAddExternalService,
 		cmdAddExternalMetrics,
@@ -1355,6 +1399,8 @@ func main() {
 		cmdRemoveMongoDB,
 		cmdRemoveMongoDBMetrics,
 		cmdRemoveMongoDBQueries,
+		cmdRemovePostgreSQL,
+		cmdRemovePostgreSQLMetrics,
 		cmdRemoveProxySQLMetrics,
 		cmdRemoveExternalService,
 		cmdRemoveExternalMetrics,
