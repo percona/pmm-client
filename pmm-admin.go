@@ -865,7 +865,7 @@ An optional list of instances (scrape targets) can be provided.
 				fmt.Printf("[mongodb:metrics] OK, removed MongoDB metrics %s from monitoring.\n", admin.ServiceName)
 			}
 
-			err = admin.RemoveQueries("mysql")
+			err = admin.RemoveQueries("mongodb")
 			if err == pmm.ErrNoService {
 				fmt.Printf("[mongodb:queries] OK, no MongoDB queries %s under monitoring.\n", admin.ServiceName)
 			} else if err != nil {
@@ -898,7 +898,7 @@ An optional list of instances (scrape targets) can be provided.
 [name] is an optional argument, by default it is set to the client name of this PMM client.
 		`,
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := admin.RemoveQueries("mysql"); err != nil {
+			if err := admin.RemoveQueries("mongodb"); err != nil {
 				fmt.Printf("Error removing MongoDB queries %s: %s\n", admin.ServiceName, err)
 				os.Exit(1)
 			}
