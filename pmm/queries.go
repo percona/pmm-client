@@ -107,10 +107,10 @@ func (a *Admin) AddQueries(ctx context.Context, q plugin.Queries) (*plugin.Info,
 	}
 
 	// Check if related instance exists or try to re-use the existing one.
-	instance, err := a.getInstance(q.Name(), a.ServiceName, parentUUID)
+	instance, err := a.getInstance(q.InstanceTypeName(), a.ServiceName, parentUUID)
 	if err == errNoInstance {
 		// Create new instance on QAN.
-		instance, err = a.createInstance(q.Name(), *info, parentUUID)
+		instance, err = a.createInstance(q.InstanceTypeName(), *info, parentUUID)
 		if err != nil {
 			return nil, err
 		}

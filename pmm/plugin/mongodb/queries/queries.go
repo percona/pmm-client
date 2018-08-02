@@ -43,6 +43,12 @@ func (m Queries) Name() string {
 	return "mongodb"
 }
 
+// InstanceTypeName of the service.
+// Deprecated: QAN API should use `mongodb` not `mongo`.
+func (m Queries) InstanceTypeName() string {
+	return "mongo"
+}
+
 // Config returns pc.QAN.
 func (m Queries) Config() pc.QAN {
 	exampleQueries := !m.queriesFlags.DisableQueryExamples

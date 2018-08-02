@@ -18,6 +18,9 @@ type Queries interface {
 	// Name of the queries.
 	// As the time of writing this is limited to mysql and mongodb.
 	Name() string
+	// InstanceTypeName returns name of instance type used by QAN API.
+	// Deprecated: QAN API should be modified and use same value as Name().
+	InstanceTypeName() string
 	// Config returns pc.QAN, this allows for additional configuration of QAN.
 	Config() pc.QAN
 }

@@ -61,6 +61,12 @@ func (m Queries) Name() string {
 	return "mysql"
 }
 
+// InstanceTypeName of the service.
+// Deprecated: QAN API should use the same value as Name().
+func (m Queries) InstanceTypeName() string {
+	return m.Name()
+}
+
 // Config returns pc.QAN.
 func (m Queries) Config() pc.QAN {
 	exampleQueries := !m.queriesFlags.DisableQueryExamples
