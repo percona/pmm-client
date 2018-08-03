@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	// Register PostgreSQL driver.
 	_ "github.com/lib/pq"
 
 	"github.com/percona/pmm-client/pmm/plugin"
