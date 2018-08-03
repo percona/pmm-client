@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strings"
 
+	_ "github.com/lib/pq"
+
 	"github.com/percona/pmm-client/pmm/plugin"
 	"github.com/percona/pmm-client/pmm/utils"
 )

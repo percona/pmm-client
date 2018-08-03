@@ -165,6 +165,15 @@
   revision = "ae77be60afb1dcacde03767a8c37337fad28ac14"
 
 [[projects]]
+  branch = "master"
+  name = "github.com/lib/pq"
+  packages = [
+    ".",
+    "oid"
+  ]
+  revision = "90697d60dd844d5ef6ff15135d0203f65d2f53b8"
+
+[[projects]]
   name = "github.com/mattn/go-colorable"
   packages = ["."]
   revision = "5411d3eea5978e6cdc258b30de592b60df6aba96"
@@ -326,6 +335,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "3c10f25d5d7961b4966ae506418d9477f80194f37cfbc376d5a7ddf7e638d5ca"
+  inputs-digest = "12eb522e0ecef9d4e822bd96e333aead6195be57c6bf2042de4a55f965234e1a"
   solver-name = "gps-cdcl"
   solver-version = 1
