@@ -37,7 +37,7 @@ func (m *Metrics) Init(ctx context.Context, pmmUserPassword string) (*plugin.Inf
 
 // Name of the exporter.
 func (m Metrics) Name() string {
-	return "mysql"
+	return "postgresql"
 }
 
 // DefaultPort returns default port.

@@ -1,6 +1,7 @@
 package postgresql
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
@@ -36,7 +37,40 @@ type DSN struct {
 
 // String converts DSN struct to DSN string.
 func (d DSN) String() string {
-	return fmt.Sprintf("postgresql://%s:%s@%s:%s/?sslmode=disable", d.User, d.Password, d.Host, d.Port)
+	var buf bytes.Buffer
+
+	buf.WriteString("postgresql://")
+
+	// [username]
+	if len(d.User) > 0 {
+		buf.WriteString(d.User)
+	}
+
+	// [:password]
+	if len(d.Password) > 0 {
+		buf.WriteByte(':')
+		buf.WriteString(d.Password)
+	}
+
+	// @ is required if User or Password is set.
+	if len(d.User) > 0 || len(d.Password) > 0 {
+		buf.WriteByte('@')
+	}
+
+	// [host]
+	if len(d.Host) > 0 {
+		buf.WriteString(d.Host)
+	}
+
+	// [:port]
+	if len(d.Port) > 0 {
+		buf.WriteByte(':')
+		buf.WriteString(d.Port)
+	}
+
+	buf.WriteString("/")
+	buf.WriteString("?sslmode=disable")
+	return buf.String()
 }
 
 // Init verifies PostgreSQL connection and creates PMM user if requested.
