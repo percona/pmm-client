@@ -521,7 +521,8 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 
 [instance] is an optional argument, by default it is set to the client name of this PMM client.
 		`,
-		Args: cobra.RangeArgs(1, 2),
+		Example: "pmm-admin add external:service postgresql --service-port=9187 --timeout=10s",
+		Args:    cobra.RangeArgs(1, 2),
 		Run: func(cmd *cobra.Command, args []string) {
 			if flagServicePort == 0 {
 				fmt.Println("--service-port flag is required.")
@@ -560,7 +561,8 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 
 An optional list of instances (scrape targets) can be provided.
 		`,
-		Args: cobra.MinimumNArgs(2),
+		Example: "pmm-admin add external:service postgresql --service-port=9187 --timeout=10s",
+		Args:    cobra.MinimumNArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
 			if flagServicePort != 0 {
 				fmt.Println("--service-port should not be used with this command.")
@@ -1362,17 +1364,28 @@ func main() {
 
 	cmdAddProxySQLMetrics.Flags().StringVar(&flagDSN, "dsn", "stats:stats@tcp(localhost:6032)/", "ProxySQL connection DSN")
 
-	cmdAddExternalService.Flags().DurationVar(&flagExtInterval, "interval", 0, "scrape interval")
-	cmdAddExternalService.Flags().DurationVar(&flagExtTimeout, "timeout", 0, "scrape timeout")
+	cmdAddExternalService.Flags().DurationVar(&flagExtInterval, "interval", 0, "scrape interval. A positive number with the unit symbol - 's', 'm', 'h', etc. Ex.: 5s, 1m.")
+	cmdAddExternalService.Flags().DurationVar(&flagExtTimeout, "timeout", 0, "scrape timeout. A positive number with the unit symbol - 's', 'm', 'h', etc. Ex.: 5s, 1m.")
 	cmdAddExternalService.Flags().StringVar(&flagExtPath, "path", "", "metrics path")
 	cmdAddExternalService.Flags().StringVar(&flagExtScheme, "scheme", "", "protocol scheme for scrapes")
 	cmdAddExternalService.Flags().BoolVar(&flagForce, "force", false, "skip reachability check, overwrite scrape job parameters")
+	fixDurationError := func(cmd *cobra.Command, err error) error {
+		if strings.Contains(err.Error(), "--timeout") {
+			return fmt.Errorf("Invalid duration scrape timeout, missing unit in duration, for example 10s")
+		}
+		if strings.Contains(err.Error(), "--interval") {
+			return fmt.Errorf("Invalid duration scrape interval, missing unit in duration, for example 10s")
+		}
+		return err
+	}
+	cmdAddExternalService.SetFlagErrorFunc(fixDurationError)
 
-	cmdAddExternalMetrics.Flags().DurationVar(&flagExtInterval, "interval", 0, "scrape interval")
-	cmdAddExternalMetrics.Flags().DurationVar(&flagExtTimeout, "timeout", 0, "scrape timeout")
+	cmdAddExternalMetrics.Flags().DurationVar(&flagExtInterval, "interval", 0, "scrape interval. A positive number with the unit symbol - 's', 'm', 'h', etc. Ex.: 5s, 1m.")
+	cmdAddExternalMetrics.Flags().DurationVar(&flagExtTimeout, "timeout", 0, "scrape timeout. A positive number with the unit symbol - 's', 'm', 'h', etc. Ex.: 5s, 1m.")
 	cmdAddExternalMetrics.Flags().StringVar(&flagExtPath, "path", "", "metrics path")
 	cmdAddExternalMetrics.Flags().StringVar(&flagExtScheme, "scheme", "", "protocol scheme for scrapes")
 	cmdAddExternalMetrics.Flags().BoolVar(&flagForce, "force", false, "skip reachability check")
+	cmdAddExternalMetrics.SetFlagErrorFunc(fixDurationError)
 
 	cmdAddExternalInstances.Flags().BoolVar(&flagForce, "force", false, "skip reachability check")
 
