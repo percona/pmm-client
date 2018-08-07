@@ -1157,7 +1157,7 @@ func testAddPostgreSQL(t *testing.T, data pmmAdminData) {
 	output, err := cmd.CombinedOutput()
 	assert.Nil(t, err)
 	expected := `\[linux:metrics\] OK, now monitoring this system.
-\[postgresql:metrics\] OK, now monitoring PostgreSQL metrics using DSN postgresql:\*\*\*@:
+\[postgresql:metrics\] OK, now monitoring PostgreSQL metrics using DSN postgresql:\*\*\*@
 `
 	assertRegexpLines(t, expected, string(output))
 }

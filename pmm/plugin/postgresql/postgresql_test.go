@@ -127,7 +127,7 @@ func TestMakeGrants(t *testing.T) {
 	}
 }
 
-func TestGetMysqlInfo(t *testing.T) {
+func TestGetInfo(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
 		t.Fatalf("error opening a stub database connection: %s", err)
