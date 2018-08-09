@@ -93,6 +93,7 @@ func TestPmmAdmin(t *testing.T) {
 	tests := []func(*testing.T, pmmAdminData){
 		testAddMongoDB,
 		testAddPostgreSQL,
+		testAddPostgreSQLWithCreateUser,
 		testAddMySQL,
 		testAddMySQLWithCreateUser,
 		testAddMySQLWithDisableSlowLogsRotation,
@@ -1157,7 +1158,59 @@ func testAddPostgreSQL(t *testing.T, data pmmAdminData) {
 	output, err := cmd.CombinedOutput()
 	assert.Nil(t, err)
 	expected := `\[linux:metrics\] OK, now monitoring this system.
-\[postgresql:metrics\] OK, now monitoring PostgreSQL metrics using DSN postgresql:\*\*\*@
+\[postgresql:metrics\] OK, now monitoring PostgreSQL metrics using DSN postgresql:\*\*\*@/postgres
+`
+	assertRegexpLines(t, expected, string(output))
+}
+
+func testAddPostgreSQLWithCreateUser(t *testing.T, data pmmAdminData) {
+	defer func() {
+		err := os.RemoveAll(data.rootDir)
+		assert.Nil(t, err)
+	}()
+	createFakeENV(t, data)
+
+	{
+		// Create fake api server
+		fapi := fakeapi.New()
+		fapi.AppendRoot()
+		fapi.AppendQanAPIPing()
+		fapi.AppendConsulV1StatusLeader()
+		node := api.CatalogNode{
+			Node: &api.Node{},
+		}
+		clientName, _ := os.Hostname()
+		fapi.AppendConsulV1CatalogNode(clientName, node)
+		fapi.AppendConsulV1CatalogService()
+		fapi.AppendConsulV1CatalogRegister()
+		fapi.AppendConsulV1KV()
+		_, host, port := fapi.Start()
+		defer fapi.Close()
+
+		// Configure pmm
+		cmd := exec.Command(
+			data.bin,
+			"config",
+			"--server",
+			fmt.Sprintf("%s:%s", host, port),
+		)
+		output, err := cmd.CombinedOutput()
+		assert.Nil(t, err, string(output))
+	}
+
+	cmd := exec.Command(
+		data.bin,
+		"add",
+		"postgresql",
+		"--user", "root",
+		"--create-user",
+		"--force",
+	)
+
+	output, err := cmd.CombinedOutput()
+	assert.Nil(t, err)
+	expected := `\[linux:metrics\] OK, now monitoring this system.
+\[postgresql:metrics\] OK, now monitoring PostgreSQL metrics using DSN postgresql:\*\*\*@/postgres
 `
 	assertRegexpLines(t, expected, string(output))
 }

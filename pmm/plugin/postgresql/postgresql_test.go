@@ -37,7 +37,7 @@ func TestMakeGrants(t *testing.T) {
 	{
 		columns := []string{"exists"}
 		rows := sqlmock.NewRows(columns)
-		mock.ExpectQuery("SELECT 1 FROM pg_roles WHERE rolname = \\$1").WithArgs("root").WillReturnRows(rows)
+		mock.ExpectQuery("SELECT 1 FROM pg_roles WHERE rolname = \\$1").WithArgs("pmm").WillReturnRows(rows)
 	}
 
 	{
@@ -48,73 +48,31 @@ func TestMakeGrants(t *testing.T) {
 
 	type sample struct {
 		dsn    DSN
-		grants []Exec
+		grants []string
 	}
 	samples := []sample{
 		{
-			dsn: DSN{User: "root", Password: "abc123"},
-			grants: []Exec{
-				{
-					Query: "CREATE USER $1 PASSWORD $2",
-					Args:  []interface{}{"root", "abc123"},
-				},
-				{
-					Query: "ALTER USER $1 SET SEARCH_PATH TO $1,pg_catalog",
-					Args:  []interface{}{"root"},
-				},
-				{
-					Query: "CREATE SCHEMA $1 AUTHORIZATION $1",
-					Args:  []interface{}{"root"},
-				},
-				{
-					Query: "CREATE VIEW $1.pg_stat_activity AS SELECT * from pg_catalog.pg_stat_activity",
-					Args:  []interface{}{"root"},
-				},
-				{
-					Query: "GRANT SELECT $1.pg_stat_activity TO $1",
-					Args:  []interface{}{"root"},
-				},
-				{
-					Query: "CREATE VIEW $1.pg_stat_replication AS SELECT * from pg_catalog.pg_stat_replication",
-					Args:  []interface{}{"root"},
-				},
-				{
-					Query: "GRANT SELECT ON $1.pg_stat_replication TO $1",
-					Args:  []interface{}{"root"},
-				},
+			dsn: DSN{User: "pmm", Password: "abc123"},
+			grants: []string{
+				"CREATE USER \"pmm\" WITH PASSWORD 'abc123'",
+				"ALTER USER \"pmm\" SET SEARCH_PATH TO \"pmm\",pg_catalog",
+				"CREATE SCHEMA IF NOT EXISTS \"pmm\" AUTHORIZATION \"pmm\"",
+				"CREATE OR REPLACE VIEW \"pmm\".pg_stat_activity AS SELECT * from pg_catalog.pg_stat_activity",
+				"GRANT SELECT ON \"pmm\".pg_stat_activity TO \"pmm\"",
+				"CREATE OR REPLACE VIEW \"pmm\".pg_stat_replication AS SELECT * from pg_catalog.pg_stat_replication",
+				"GRANT SELECT ON \"pmm\".pg_stat_replication TO \"pmm\"",
 			},
 		},
 		{
 			dsn: DSN{User: "admin", Password: "23;,_-asd"},
-			grants: []Exec{
-				{
-					Query: "CREATE USER $1 PASSWORD $2",
-					Args:  []interface{}{"admin", "23;,_-asd"},
-				},
-				{
-					Query: "ALTER USER $1 SET SEARCH_PATH TO $1,pg_catalog",
-					Args:  []interface{}{"admin"},
-				},
-				{
-					Query: "CREATE SCHEMA $1 AUTHORIZATION $1",
-					Args:  []interface{}{"admin"},
-				},
-				{
-					Query: "CREATE VIEW $1.pg_stat_activity AS SELECT * from pg_catalog.pg_stat_activity",
-					Args:  []interface{}{"admin"},
-				},
-				{
-					Query: "GRANT SELECT $1.pg_stat_activity TO $1",
-					Args:  []interface{}{"admin"},
-				},
-				{
-					Query: "CREATE VIEW $1.pg_stat_replication AS SELECT * from pg_catalog.pg_stat_replication",
-					Args:  []interface{}{"admin"},
-				},
-				{
-					Query: "GRANT SELECT ON $1.pg_stat_replication TO $1",
-					Args:  []interface{}{"admin"},
-				},
+			grants: []string{
+				"CREATE USER \"admin\" WITH PASSWORD '23;,_-asd'",
+				"ALTER USER \"admin\" SET SEARCH_PATH TO \"admin\",pg_catalog",
+				"CREATE SCHEMA IF NOT EXISTS \"admin\" AUTHORIZATION \"admin\"",
+				"CREATE OR REPLACE VIEW \"admin\".pg_stat_activity AS SELECT * from pg_catalog.pg_stat_activity",
+				"GRANT SELECT ON \"admin\".pg_stat_activity TO \"admin\"",
+				"CREATE OR REPLACE VIEW \"admin\".pg_stat_replication AS SELECT * from pg_catalog.pg_stat_replication",
+				"GRANT SELECT ON \"admin\".pg_stat_replication TO \"admin\"",
 			},
 		},
 	}

@@ -8,8 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	// Register PostgreSQL driver.
-	_ "github.com/lib/pq"
+	"github.com/lib/pq"
 
 	"github.com/percona/pmm-client/pmm/plugin"
 	"github.com/percona/pmm-client/pmm/utils"
@@ -17,11 +16,7 @@ import (
 
 // Flags are PostgreSQL specific flags.
 type Flags struct {
-	User     string
-	Password string
-	Host     string
-	Port     string
-
+	DSN
 	CreateUser         bool
 	CreateUserPassword string
 	Force              bool
@@ -33,6 +28,7 @@ type DSN struct {
 	Password string
 	Host     string
 	Port     string
+	SSLMode  string
 }
 
 // String converts DSN struct to DSN string.
@@ -68,8 +64,13 @@ func (d DSN) String() string {
 		buf.WriteString(d.Port)
 	}
 
-	buf.WriteString("/")
-	buf.WriteString("?sslmode=disable")
+	buf.WriteString("/postgres")
+	buf.WriteString("?sslmode=")
+	if d.SSLMode == "" {
+		d.SSLMode = "disable"
+	}
+	buf.WriteString(d.SSLMode)
+
 	return buf.String()
 }
 
@@ -80,12 +81,7 @@ func Init(ctx context.Context, flags Flags, pmmUserPassword string) (*plugin.Inf
 		return nil, errors.New("flag --create-user-password should be used along with --create-user")
 	}
 
-	userDSN := DSN{
-		User:     flags.User,
-		Password: flags.Password,
-		Host:     flags.Host,
-		Port:     flags.Port,
-	}
+	userDSN := flags.DSN
 	db, err := sql.Open("postgres", userDSN.String())
 	if err != nil {
 		return nil, err
@@ -160,17 +156,14 @@ func createUser(ctx context.Context, db *sql.DB, userDSN DSN, flags Flags) (DSN,
 		return DSN{}, err
 	}
 	for _, grant := range grants {
-		if _, err := db.Exec(grant.Query, grant.Args...); err != nil {
-			err = fmt.Errorf("Problem creating a new PostgreSQL user. Failed to execute %s: %s\n\n%s",
-				grant.Query, err, "Verify that connecting PostgreSQL user has GRANT privilege.")
-			return DSN{}, err
+		if _, err := db.Exec(grant); err != nil {
+			return DSN{}, fmt.Errorf("Problem creating a new PostgreSQL user. Failed to execute %s: %s", grant, err)
 		}
 	}
 
 	// Verify new PostgreSQL user works. If this fails, the new DSN or grant statements are wrong.
 	if err := testConnection(ctx, userDSN.String()); err != nil {
-		err = fmt.Errorf("Problem creating a new PostgreSQL user. Insufficient privileges: %s", err)
-		return DSN{}, err
+		return DSN{}, fmt.Errorf("Problem creating a new PostgreSQL user. Insufficient privileges: %s", err)
 	}
 
 	return userDSN, nil
@@ -200,14 +193,9 @@ func check(ctx context.Context, db *sql.DB, username string) error {
 	return nil
 }
 
-// Exec represents query to be executed with db.Exec(Query, Args...).
-type Exec struct {
-	Query string
-	Args  []interface{}
-}
-
-func makeGrants(ctx context.Context, db *sql.DB, dsn DSN) ([]Exec, error) {
-	var grants []Exec
+func makeGrants(ctx context.Context, db *sql.DB, dsn DSN) ([]string, error) {
+	var grants []string
+	quotedUser := pq.QuoteIdentifier(dsn.User)
 
 	// Verify if user exists, if so then just update password.
 	exists, err := userExists(ctx, db, dsn.User)
@@ -216,62 +204,20 @@ func makeGrants(ctx context.Context, db *sql.DB, dsn DSN) ([]Exec, error) {
 	}
 	query := ""
 	if exists {
-		query = "ALTER USER $1 WITH PASSWORD $2"
+		query = fmt.Sprintf("ALTER USER %s WITH PASSWORD '%s'", quotedUser, dsn.Password)
 	} else {
-		query = "CREATE USER $1 PASSWORD $2"
+		query = fmt.Sprintf("CREATE USER %s WITH PASSWORD '%s'", quotedUser, dsn.Password)
 	}
-	grants = append(grants,
-		Exec{
-			Query: query,
-			Args: []interface{}{
-				dsn.User,
-				dsn.Password,
-			},
-		},
-	)
+	grants = append(grants, query)
 
 	// Allow to scrape metrics as non-root user.
 	grants = append(grants,
-		Exec{
-			Query: "ALTER USER $1 SET SEARCH_PATH TO $1,pg_catalog",
-			Args: []interface{}{
-				dsn.User,
-			},
-		},
-		Exec{
-			Query: "CREATE SCHEMA $1 AUTHORIZATION $1",
-			Args: []interface{}{
-				dsn.User,
-			},
-		},
-
-		Exec{
-			Query: "CREATE VIEW $1.pg_stat_activity AS SELECT * from pg_catalog.pg_stat_activity",
-			Args: []interface{}{
-				dsn.User,
-			},
-		},
-
-		Exec{
-			Query: "GRANT SELECT $1.pg_stat_activity TO $1",
-			Args: []interface{}{
-				dsn.User,
-			},
-		},
-
-		Exec{
-			Query: "CREATE VIEW $1.pg_stat_replication AS SELECT * from pg_catalog.pg_stat_replication",
-			Args: []interface{}{
-				dsn.User,
-			},
-		},
-
-		Exec{
-			Query: "GRANT SELECT ON $1.pg_stat_replication TO $1",
-			Args: []interface{}{
-				dsn.User,
-			},
-		},
+		fmt.Sprintf("ALTER USER %s SET SEARCH_PATH TO %s,pg_catalog", quotedUser, quotedUser),
+		fmt.Sprintf("CREATE SCHEMA IF NOT EXISTS %s AUTHORIZATION %s", quotedUser, quotedUser),
+		fmt.Sprintf("CREATE OR REPLACE VIEW %s.pg_stat_activity AS SELECT * from pg_catalog.pg_stat_activity", quotedUser),
+		fmt.Sprintf("GRANT SELECT ON %s.pg_stat_activity TO %s", quotedUser, quotedUser),
+		fmt.Sprintf("CREATE OR REPLACE VIEW %s.pg_stat_replication AS SELECT * from pg_catalog.pg_stat_replication", quotedUser),
+		fmt.Sprintf("GRANT SELECT ON %s.pg_stat_replication TO %s", quotedUser, quotedUser),
 	)
 	return grants, nil
 }

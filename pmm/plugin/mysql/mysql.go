@@ -97,7 +97,7 @@ func Init(ctx context.Context, flags Flags, pmmUserPassword string) (*plugin.Inf
 
 	// Create a new MySQL user.
 	if flags.CreateUser {
-		userDSN, err = createMySQLUser(ctx, db, userDSN, flags)
+		userDSN, err = createUser(ctx, db, userDSN, flags)
 		if err != nil {
 			return nil, err
 		}
@@ -111,7 +111,7 @@ func Init(ctx context.Context, flags Flags, pmmUserPassword string) (*plugin.Inf
 	return info, nil
 }
 
-func createMySQLUser(ctx context.Context, db *sql.DB, userDSN dsn.DSN, flags Flags) (dsn.DSN, error) {
+func createUser(ctx context.Context, db *sql.DB, userDSN dsn.DSN, flags Flags) (dsn.DSN, error) {
 	// New DSN has same host:port or socket, but different user and pass.
 	userDSN.Username = "pmm"
 	if flags.CreateUserPassword != "" {
@@ -128,7 +128,7 @@ func createMySQLUser(ctx context.Context, db *sql.DB, userDSN dsn.DSN, flags Fla
 	}
 
 	if !flags.Force {
-		if err := mysqlCheck(ctx, db, hosts); err != nil {
+		if err := check(ctx, db, hosts); err != nil {
 			return dsn.DSN{}, err
 		}
 	}
@@ -155,7 +155,7 @@ func createMySQLUser(ctx context.Context, db *sql.DB, userDSN dsn.DSN, flags Fla
 	return userDSN, nil
 }
 
-func mysqlCheck(ctx context.Context, db *sql.DB, hosts []string) error {
+func check(ctx context.Context, db *sql.DB, hosts []string) error {
 	var (
 		errMsg []string
 		varVal string

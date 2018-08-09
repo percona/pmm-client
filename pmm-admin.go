@@ -1379,8 +1379,8 @@ func main() {
 		cmdUninstall,
 	)
 	cmdAdd.AddCommand(
-		cmdAddMySQL,
 		cmdAddLinuxMetrics,
+		cmdAddMySQL,
 		cmdAddMySQLMetrics,
 		cmdAddMySQLQueries,
 		cmdAddMongoDB,
@@ -1394,8 +1394,8 @@ func main() {
 		cmdAddExternalInstances,
 	)
 	cmdRemove.AddCommand(
-		cmdRemoveMySQL,
 		cmdRemoveLinuxMetrics,
+		cmdRemoveMySQL,
 		cmdRemoveMySQLMetrics,
 		cmdRemoveMySQLQueries,
 		cmdRemoveMongoDB,
@@ -1431,7 +1431,7 @@ func main() {
 
 	cmdAddLinuxMetrics.Flags().BoolVar(&flagForce, "force", false, "force to add another linux:metrics instance with different name for testing purposes")
 
-	// Common Metrics flags.
+	// Common MySQL flags.
 	addCommonMySQLFlags := func(cmd *cobra.Command) {
 		cmd.Flags().StringVar(&flagMySQL.DefaultsFile, "defaults-file", "", "path to my.cnf")
 		cmd.Flags().StringVar(&flagMySQL.Host, "host", "", "MySQL host")
@@ -1444,33 +1444,31 @@ func main() {
 		cmd.Flags().Uint16Var(&flagMySQL.MaxUserConn, "create-user-maxconn", 10, "max user connections for a new user")
 		cmd.Flags().BoolVar(&flagMySQL.Force, "force", false, "force to create/update MySQL user")
 	}
-
+	// Common MySQL Metrics flags.
+	addCommonMySQLMetricsFlags := func(cmd *cobra.Command) {
+		cmd.Flags().BoolVar(&flagMySQLMetrics.DisableTableStats, "disable-tablestats", false, "disable table statistics")
+		cmd.Flags().Uint16Var(&flagMySQLMetrics.DisableTableStatsLimit, "disable-tablestats-limit", 1000, "number of tables after which table stats are disabled automatically")
+		cmd.Flags().BoolVar(&flagMySQLMetrics.DisableUserStats, "disable-userstats", false, "disable user statistics")
+		cmd.Flags().BoolVar(&flagMySQLMetrics.DisableBinlogStats, "disable-binlogstats", false, "disable binlog statistics")
+		cmd.Flags().BoolVar(&flagMySQLMetrics.DisableProcesslist, "disable-processlist", false, "disable process state metrics")
+	}
+	// Common MySQL Queries flags.
+	addCommonMySQLQueriesFlags := func(cmd *cobra.Command) {
+		cmd.Flags().BoolVar(&flagQueries.DisableQueryExamples, "disable-queryexamples", false, "disable collection of query examples")
+		cmd.Flags().BoolVar(&flagMySQLQueries.SlowLogRotation, "slow-log-rotation", true, "enable slow log rotation")
+		cmd.Flags().IntVar(&flagMySQLQueries.RetainSlowLogs, "retain-slow-logs", 1, "number of slow logs to retain after rotation")
+		cmd.Flags().StringVar(&flagMySQLQueries.QuerySource, "query-source", "auto", "source of SQL queries: auto, slowlog, perfschema")
+	}
 	// pmm-admin add mysql
 	addCommonMySQLFlags(cmdAddMySQL)
-	cmdAddMySQL.Flags().BoolVar(&flagMySQLMetrics.DisableTableStats, "disable-tablestats", false, "disable table statistics")
-	cmdAddMySQL.Flags().Uint16Var(&flagMySQLMetrics.DisableTableStatsLimit, "disable-tablestats-limit", 1000, "number of tables after which table stats are disabled automatically")
-	cmdAddMySQL.Flags().BoolVar(&flagMySQLMetrics.DisableUserStats, "disable-userstats", false, "disable user statistics")
-	cmdAddMySQL.Flags().BoolVar(&flagMySQLMetrics.DisableBinlogStats, "disable-binlogstats", false, "disable binlog statistics")
-	cmdAddMySQL.Flags().BoolVar(&flagMySQLMetrics.DisableProcesslist, "disable-processlist", false, "disable process state metrics")
-	cmdAddMySQL.Flags().BoolVar(&flagQueries.DisableQueryExamples, "disable-queryexamples", false, "disable collection of query examples")
-	cmdAddMySQL.Flags().BoolVar(&flagMySQLQueries.SlowLogRotation, "slow-log-rotation", true, "enable slow log rotation")
-	cmdAddMySQL.Flags().IntVar(&flagMySQLQueries.RetainSlowLogs, "retain-slow-logs", 1, "number of slow logs to retain after rotation")
-	cmdAddMySQL.Flags().StringVar(&flagMySQLQueries.QuerySource, "query-source", "auto", "source of SQL queries: auto, slowlog, perfschema")
-
+	addCommonMySQLMetricsFlags(cmdAddMySQL)
+	addCommonMySQLQueriesFlags(cmdAddMySQL)
 	// pmm-admin add mysql:metrics
 	addCommonMySQLFlags(cmdAddMySQLMetrics)
-	cmdAddMySQLMetrics.Flags().BoolVar(&flagMySQLMetrics.DisableTableStats, "disable-tablestats", false, "disable table statistics")
-	cmdAddMySQLMetrics.Flags().Uint16Var(&flagMySQLMetrics.DisableTableStatsLimit, "disable-tablestats-limit", 1000, "number of tables after which table stats are disabled automatically")
-	cmdAddMySQLMetrics.Flags().BoolVar(&flagMySQLMetrics.DisableUserStats, "disable-userstats", false, "disable user statistics")
-	cmdAddMySQLMetrics.Flags().BoolVar(&flagMySQLMetrics.DisableBinlogStats, "disable-binlogstats", false, "disable binlog statistics")
-	cmdAddMySQLMetrics.Flags().BoolVar(&flagMySQLMetrics.DisableProcesslist, "disable-processlist", false, "disable process state metrics")
-
+	addCommonMySQLMetricsFlags(cmdAddMySQLMetrics)
 	// pmm-admin add mysql:queries
 	addCommonMySQLFlags(cmdAddMySQLQueries)
-	cmdAddMySQLQueries.Flags().BoolVar(&flagQueries.DisableQueryExamples, "disable-queryexamples", false, "disable collection of query examples")
-	cmdAddMySQLQueries.Flags().BoolVar(&flagMySQLQueries.SlowLogRotation, "slow-log-rotation", true, "enable slow log rotation")
-	cmdAddMySQLQueries.Flags().IntVar(&flagMySQLQueries.RetainSlowLogs, "retain-slow-logs", 1, "number of slow logs to retain after rotation")
-	cmdAddMySQLQueries.Flags().StringVar(&flagMySQLQueries.QuerySource, "query-source", "auto", "source of SQL queries: auto, slowlog, perfschema")
+	addCommonMySQLQueriesFlags(cmdAddMySQLQueries)
 
 	// Common PostgreSQL flags.
 	addCommonPostgreSQLFlags := func(cmd *cobra.Command) {
@@ -1478,27 +1476,38 @@ func main() {
 		cmd.Flags().StringVar(&flagPostgreSQL.Port, "port", "", "PostgreSQL port")
 		cmd.Flags().StringVar(&flagPostgreSQL.User, "user", "", "PostgreSQL username")
 		cmd.Flags().StringVar(&flagPostgreSQL.Password, "password", "", "PostgreSQL password")
+		cmd.Flags().StringVar(&flagPostgreSQL.SSLMode, "sslmode", "disable", "PostgreSQL SSL Mode: disable, require, verify-full or verify-ca")
 		cmd.Flags().BoolVar(&flagPostgreSQL.CreateUser, "create-user", false, "create a new PostgreSQL user")
 		cmd.Flags().StringVar(&flagPostgreSQL.CreateUserPassword, "create-user-password", "", "optional password for a new PostgreSQL user")
 		cmd.Flags().BoolVar(&flagPostgreSQL.Force, "force", false, "force to create/update PostgreSQL user")
 	}
-
 	// pmm-admin add postgresql
 	addCommonPostgreSQLFlags(cmdAddPostgreSQL)
-
 	// pmm-admin add postgresql:metrics
 	addCommonPostgreSQLFlags(cmdAddPostgreSQLMetrics)
 
-	// Common MongoDB
+	// Common MongoDB flags.
 	addCommonMongoDBFlags := func(cmd *cobra.Command) {
 		cmd.Flags().StringVar(&flagMongoURI, "uri", "localhost:27017", "MongoDB URI, format: [mongodb://][user:pass@]host[:port][/database][?options]")
 	}
+	// Common MongoDB Metrics flags.
+	addCommonMongoDBMetricsFlags := func(cmd *cobra.Command) {
+		cmd.Flags().StringVar(&flagCluster, "cluster", "", "cluster name")
+	}
+	// Common MongoDB Queries flags.
+	addCommonMongoDBQueriesFlags := func(cmd *cobra.Command) {
+		cmd.Flags().BoolVar(&flagQueries.DisableQueryExamples, "disable-queryexamples", false, "disable collection of query examples")
+	}
+	// pmm-admin add mongodb
 	addCommonMongoDBFlags(cmdAddMongoDB)
-	cmdAddMongoDB.Flags().StringVar(&flagCluster, "cluster", "", "cluster name")
+	addCommonMongoDBMetricsFlags(cmdAddMongoDB)
+	addCommonMongoDBQueriesFlags(cmdAddMongoDB)
+	// pmm-admin add mongodb:metrics
 	addCommonMongoDBFlags(cmdAddMongoDBMetrics)
-	cmdAddMongoDBMetrics.Flags().StringVar(&flagCluster, "cluster", "", "cluster name")
+	addCommonMongoDBMetricsFlags(cmdAddMongoDBMetrics)
+	// pmm-admin add mongodb:queries
 	addCommonMongoDBFlags(cmdAddMongoDBQueries)
-	cmdAddMongoDBQueries.Flags().BoolVar(&flagQueries.DisableQueryExamples, "disable-queryexamples", false, "disable collection of query examples")
+	addCommonMongoDBQueriesFlags(cmdAddMongoDBQueries)
 
 	cmdAddProxySQLMetrics.Flags().StringVar(&flagDSN, "dsn", "stats:stats@tcp(localhost:6032)/", "ProxySQL connection DSN")
 

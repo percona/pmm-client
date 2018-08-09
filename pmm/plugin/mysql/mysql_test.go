@@ -45,7 +45,7 @@ func TestMySQLCheck1(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	assert.Nil(t, mysqlCheck(ctx, db, []string{"localhost"}))
+	assert.Nil(t, check(ctx, db, []string{"localhost"}))
 
 	// Ensure all SQL queries were executed
 	if err := mock.ExpectationsWereMet(); err != nil {
@@ -70,7 +70,7 @@ func TestMySQLCheck2(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	assert.NotNil(t, mysqlCheck(ctx, db, []string{"localhost"}))
+	assert.NotNil(t, check(ctx, db, []string{"localhost"}))
 
 	// Ensure all SQL queries were executed
 	if err := mock.ExpectationsWereMet(); err != nil {
@@ -95,7 +95,7 @@ func TestMySQLCheck3(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	assert.NotNil(t, mysqlCheck(ctx, db, []string{"localhost"}))
+	assert.NotNil(t, check(ctx, db, []string{"localhost"}))
 
 	// Ensure all SQL queries were executed
 	if err := mock.ExpectationsWereMet(); err != nil {
@@ -121,7 +121,7 @@ func TestMySQLCheck4(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	assert.NotNil(t, mysqlCheck(ctx, db, []string{"localhost"}))
+	assert.NotNil(t, check(ctx, db, []string{"localhost"}))
 
 	// Ensure all SQL queries were executed
 	if err := mock.ExpectationsWereMet(); err != nil {
