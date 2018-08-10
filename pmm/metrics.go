@@ -28,7 +28,7 @@ import (
 )
 
 // AddMetrics add metrics service to monitoring.
-func (a *Admin) AddMetrics(ctx context.Context, m plugin.Metrics, force bool) (*plugin.Info, error) {
+func (a *Admin) AddMetrics(ctx context.Context, m plugin.Metrics, force bool, disableSSL bool) (*plugin.Info, error) {
 	info, err := m.Init(ctx, a.Config.MySQLPassword)
 	if err != nil {
 		return nil, err
@@ -69,9 +69,13 @@ func (a *Admin) AddMetrics(ctx context.Context, m plugin.Metrics, force bool) (*
 		return nil, err
 	}
 
+	scheme := "scheme_https"
+	if disableSSL {
+		scheme = "scheme_http"
+	}
 	tags := []string{
 		fmt.Sprintf("alias_%s", a.ServiceName),
-		"scheme_https",
+		scheme,
 	}
 	if m.Cluster() != "" {
 		tags = append(tags, fmt.Sprintf("cluster_%s", m.Cluster()))
@@ -108,18 +112,22 @@ func (a *Admin) AddMetrics(ctx context.Context, m plugin.Metrics, force bool) (*
 		}
 	}
 
-	// Check and generate certificate if needed.
-	if err := a.checkSSLCertificate(); err != nil {
-		return nil, err
-	}
-
-	var args []string
-	args = append(args,
+	args := []string{
 		fmt.Sprintf("-web.listen-address=%s:%d", a.Config.BindAddress, port),
 		fmt.Sprintf("-web.auth-file=%s", ConfigFile),
-		fmt.Sprintf("-web.ssl-cert-file=%s", SSLCertFile),
-		fmt.Sprintf("-web.ssl-key-file=%s", SSLKeyFile),
-	)
+	}
+
+	if !disableSSL {
+		// Check and generate certificate if needed.
+		if err := a.checkSSLCertificate(); err != nil {
+			return nil, err
+		}
+		args = append(args,
+			fmt.Sprintf("-web.ssl-key-file=%s", SSLKeyFile),
+			fmt.Sprintf("-web.ssl-cert-file=%s", SSLCertFile),
+		)
+	}
+
 	// Add additional args passed to pmm-admin.
 	args = append(args, a.Args...)
 	// Add additional args passed by plugin.
