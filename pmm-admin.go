@@ -495,7 +495,7 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 				fmt.Println("[linux:metrics]   OK, now monitoring this system.")
 			}
 
-			mongodbMetrics := mongodbMetrics.New(flagMongoURI, admin.Args, pmm.PMMBaseDir)
+			mongodbMetrics := mongodbMetrics.New(flagMongoURI, admin.Args, flagCluster, pmm.PMMBaseDir)
 			info, err := admin.AddMetrics(ctx, mongodbMetrics, false)
 			if err == pmm.ErrDuplicate {
 				fmt.Println("[mongodb:metrics] OK, already monitoring MongoDB metrics.")
@@ -535,7 +535,7 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
   pmm-admin add mongodb:metrics --cluster bare-metal
   pmm-admin add mongodb:metrics -- --mongodb.tls`,
 		Run: func(cmd *cobra.Command, args []string) {
-			mongodbMetrics := mongodbMetrics.New(flagMongoURI, admin.Args, pmm.PMMBaseDir)
+			mongodbMetrics := mongodbMetrics.New(flagMongoURI, admin.Args, flagCluster, pmm.PMMBaseDir)
 			info, err := admin.AddMetrics(ctx, mongodbMetrics, false)
 			if err == pmm.ErrDuplicate {
 				fmt.Println("Error adding MongoDB metrics:", err)

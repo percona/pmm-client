@@ -12,10 +12,11 @@ import (
 var _ plugin.Metrics = (*Metrics)(nil)
 
 // New returns *Metrics.
-func New(dsn string, args []string, pmmBaseDir string) *Metrics {
+func New(dsn string, args []string, cluster string, pmmBaseDir string) *Metrics {
 	return &Metrics{
 		dsn:        dsn,
 		args:       args,
+		cluster:    cluster,
 		pmmBaseDir: pmmBaseDir,
 	}
 }
@@ -24,6 +25,7 @@ func New(dsn string, args []string, pmmBaseDir string) *Metrics {
 type Metrics struct {
 	dsn        string
 	args       []string
+	cluster    string
 	pmmBaseDir string
 }
 
@@ -70,8 +72,8 @@ func (m Metrics) KV() map[string][]byte {
 }
 
 // Cluster defines cluster name for the target.
-func (Metrics) Cluster() string {
-	return ""
+func (m Metrics) Cluster() string {
+	return m.cluster
 }
 
 // Multiple returns true if exporter can be added multiple times.
