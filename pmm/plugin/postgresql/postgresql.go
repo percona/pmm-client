@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"os/exec"
 	"strings"
 
 	"github.com/lib/pq"
@@ -82,11 +83,8 @@ func Init(ctx context.Context, flags Flags, pmmUserPassword string) (*plugin.Inf
 	}
 
 	userDSN := flags.DSN
-	db, err := sql.Open("postgres", userDSN.String())
-	if err != nil {
-		return nil, err
-	}
-	defer db.Close()
+
+	var errs errs
 
 	// Test access using detected credentials and stored password.
 	accessOK := false
@@ -94,24 +92,57 @@ func Init(ctx context.Context, flags Flags, pmmUserPassword string) (*plugin.Inf
 		pmmDSN := userDSN
 		pmmDSN.User = "pmm"
 		pmmDSN.Password = pmmUserPassword
-		if err := testConnection(ctx, pmmDSN.String()); err == nil {
-			//fmt.Println("Using stored credentials, DSN is", pmmDSN.String())
-			accessOK = true
+		if err := testConnection(ctx, pmmDSN.String()); err != nil {
+			errs = append(errs, err)
+		} else {
 			userDSN = pmmDSN
-			// Not setting this into db connection as it will never have GRANT
-			// in case we want to create a new user below.
+			accessOK = true
 		}
 	}
 
 	// If the above fails, test PostgreSQL access simply using detected credentials.
 	if !accessOK {
 		if err := testConnection(ctx, userDSN.String()); err != nil {
-			err = fmt.Errorf("Cannot connect to PostgreSQL: %s\n\n%s\n%s", err,
-				"Verify that PostgreSQL user exists and has the correct privileges.",
-				"Use additional flags --user, --password, --host, --port if needed.")
-			return nil, err
+			errs = append(errs, err)
+		} else {
+			accessOK = true
 		}
 	}
+
+	// If the above fails, try to create `pmm` user with `sudo -u postgres psql`.
+	if !accessOK {
+		// If PostgreSQL server is local and --create-user flag is specified
+		// then try to create user using `sudo -u postgres psql` and use that connection.
+		if userDSN.Host == "" && flags.CreateUser {
+			pmmDSN, err := createUserUsingSudoPSQL(ctx, userDSN, flags)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("Cannot create user: %s", err))
+			} else {
+				errs = nil
+				if err := testConnection(ctx, userDSN.String()); err != nil {
+					errs = append(errs, err)
+				} else {
+					userDSN = pmmDSN
+					accessOK = true
+				}
+			}
+		}
+	}
+
+	// At this point access is required.
+	if !accessOK {
+		err := fmt.Errorf("Cannot connect to PostgreSQL: %s\n\n%s\n%s", errs,
+			"Verify that PostgreSQL user exists and has the correct privileges.",
+			"Use additional flags --user, --password, --host, --port if needed.")
+		return nil, err
+	}
+
+	// Get PostgreSQL connection.
+	db, err := sql.Open("postgres", userDSN.String())
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
 
 	// Get PostgreSQL variables.
 	info, err := getInfo(ctx, db)
@@ -120,7 +151,7 @@ func Init(ctx context.Context, flags Flags, pmmUserPassword string) (*plugin.Inf
 	}
 
 	// Create a new PostgreSQL user.
-	if flags.CreateUser {
+	if userDSN.User != "pmm" && flags.CreateUser {
 		userDSN, err = createUser(ctx, db, userDSN, flags)
 		if err != nil {
 			return nil, err
@@ -135,6 +166,53 @@ func Init(ctx context.Context, flags Flags, pmmUserPassword string) (*plugin.Inf
 	return info, nil
 }
 
+func createUserUsingSudoPSQL(ctx context.Context, userDSN DSN, flags Flags) (DSN, error) {
+	// New DSN has same host:port or socket, but different user and pass.
+	userDSN.User = "pmm"
+
+	// Check if user exists.
+	exists, err := userExistsCheckUsingSudoPSQL(ctx, userDSN.User)
+	if err != nil {
+		return DSN{}, err
+	}
+	if exists && !flags.Force {
+		var errMsg []string
+		errMsg = append(errMsg, fmt.Sprintf("* PostgreSQL user %s already exists. %s", userDSN.User,
+			"Try without --create-user flag using the default credentials or specify the existing `pmm` user ones."))
+		errMsg = append([]string{"Problem creating a new PostgreSQL user:", ""}, errMsg...)
+		errMsg = append(errMsg, "", "If you think the above is okay to proceed, you can use --force flag.")
+		return DSN{}, errors.New(strings.Join(errMsg, "\n"))
+	}
+
+	// Check for existing password or generate new one.
+	if flags.CreateUserPassword != "" {
+		userDSN.Password = flags.CreateUserPassword
+	} else {
+		userDSN.Password = utils.GeneratePassword(20)
+	}
+
+	grants, err := makeGrants(userDSN, exists)
+	for _, grant := range grants {
+		cmd := exec.CommandContext(
+			ctx,
+			"sudo",
+			"-u", "postgres", "psql", "postgres", "-tAc", grant,
+		)
+
+		b, err := cmd.CombinedOutput()
+		if err != nil {
+			return DSN{}, fmt.Errorf("cannot create user: %s: %s", err, string(b))
+		}
+	}
+
+	// Verify new PostgreSQL user works. If this fails, the new DSN or grant statements are wrong.
+	if err := testConnection(ctx, userDSN.String()); err != nil {
+		return DSN{}, fmt.Errorf("Problem creating a new PostgreSQL user. Insufficient privileges: %s", err)
+	}
+
+	return userDSN, nil
+}
+
 func createUser(ctx context.Context, db *sql.DB, userDSN DSN, flags Flags) (DSN, error) {
 	// New DSN has same host:port or socket, but different user and pass.
 	userDSN.User = "pmm"
@@ -144,14 +222,22 @@ func createUser(ctx context.Context, db *sql.DB, userDSN DSN, flags Flags) (DSN,
 		userDSN.Password = utils.GeneratePassword(20)
 	}
 
-	if !flags.Force {
-		if err := check(ctx, db, userDSN.User); err != nil {
-			return DSN{}, err
-		}
+	// Check if user exists.
+	exists, err := userExists(ctx, db, userDSN.User)
+	if err != nil {
+		return DSN{}, err
+	}
+	if exists && !flags.Force {
+		var errMsg []string
+		errMsg = append(errMsg, fmt.Sprintf("* PostgreSQL user %s already exists. %s", userDSN.User,
+			"Try without --create-user flag using the default credentials or specify the existing `pmm` user ones."))
+		errMsg = append([]string{"Problem creating a new PostgreSQL user:", ""}, errMsg...)
+		errMsg = append(errMsg, "", "If you think the above is okay to proceed, you can use --force flag.")
+		return DSN{}, errors.New(strings.Join(errMsg, "\n"))
 	}
 
-	// Create a new PostgreSQL user with the necessary privs.
-	grants, err := makeGrants(ctx, db, userDSN)
+	// Create a new PostgreSQL user with the necessary privileges.
+	grants, err := makeGrants(userDSN, exists)
 	if err != nil {
 		return DSN{}, err
 	}
@@ -169,39 +255,10 @@ func createUser(ctx context.Context, db *sql.DB, userDSN DSN, flags Flags) (DSN,
 	return userDSN, nil
 }
 
-func check(ctx context.Context, db *sql.DB, username string) error {
-	var (
-		errMsg []string
-	)
-
-	// Check if user exists.
-	exists, err := userExists(ctx, db, username)
-	if err != nil {
-		return err
-	}
-	if exists {
-		errMsg = append(errMsg, fmt.Sprintf("* PostgreSQL user %s already exists. %s", username,
-			"Try without --create-user flag using the default credentials or specify the existing `pmm` user ones."))
-	}
-
-	if len(errMsg) > 0 {
-		errMsg = append([]string{"Problem creating a new PostgreSQL user:", ""}, errMsg...)
-		errMsg = append(errMsg, "", "If you think the above is okay to proceed, you can use --force flag.")
-		return errors.New(strings.Join(errMsg, "\n"))
-	}
-
-	return nil
-}
-
-func makeGrants(ctx context.Context, db *sql.DB, dsn DSN) ([]string, error) {
+func makeGrants(dsn DSN, exists bool) ([]string, error) {
 	var grants []string
 	quotedUser := pq.QuoteIdentifier(dsn.User)
 
-	// Verify if user exists, if so then just update password.
-	exists, err := userExists(ctx, db, dsn.User)
-	if err != nil {
-		return nil, err
-	}
 	query := ""
 	if exists {
 		query = fmt.Sprintf("ALTER USER %s WITH PASSWORD '%s'", quotedUser, dsn.Password)
@@ -237,6 +294,23 @@ func userExists(ctx context.Context, db *sql.DB, user string) (bool, error) {
 	return true, nil
 }
 
+func userExistsCheckUsingSudoPSQL(ctx context.Context, user string) (bool, error) {
+	cmd := exec.CommandContext(
+		ctx,
+		"sudo",
+		"-u", "postgres",
+		"psql", "postgres", "-tAc", fmt.Sprintf("SELECT 1 FROM pg_roles WHERE rolname = %s", pq.QuoteIdentifier(user)),
+	)
+	b, err := cmd.CombinedOutput()
+	if err != nil {
+		return false, fmt.Errorf("cannot check if user exists: %s: %s", err, string(b))
+	}
+	if bytes.HasPrefix(b, []byte("1")) {
+		return true, nil
+	}
+	return false, nil
+}
+
 func testConnection(ctx context.Context, dsn string) error {
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
@@ -259,4 +333,17 @@ func getInfo(ctx context.Context, db *sql.DB) (*plugin.Info, error) {
 	}
 	info.Distro = "PostgreSQL"
 	return info, nil
+}
+
+type errs []error
+
+func (errs errs) Error() string {
+	if len(errs) == 0 {
+		return ""
+	}
+	buf := &bytes.Buffer{}
+	for _, err := range errs {
+		fmt.Fprintf(buf, "\n* %s", err)
+	}
+	return buf.String()
 }

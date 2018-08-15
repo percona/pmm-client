@@ -28,24 +28,6 @@ import (
 )
 
 func TestMakeGrants(t *testing.T) {
-	db, mock, err := sqlmock.New()
-	if err != nil {
-		t.Fatalf("error opening a stub database connection: %s", err)
-	}
-	defer db.Close()
-
-	{
-		columns := []string{"exists"}
-		rows := sqlmock.NewRows(columns)
-		mock.ExpectQuery("SELECT 1 FROM pg_roles WHERE rolname = \\$1").WithArgs("pmm").WillReturnRows(rows)
-	}
-
-	{
-		columns := []string{"exists"}
-		rows := sqlmock.NewRows(columns)
-		mock.ExpectQuery("SELECT 1 FROM pg_roles WHERE rolname = \\$1").WithArgs("admin").WillReturnRows(rows)
-	}
-
 	type sample struct {
 		dsn    DSN
 		grants []string
@@ -76,10 +58,8 @@ func TestMakeGrants(t *testing.T) {
 			},
 		},
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
 	for _, s := range samples {
-		grants, err := makeGrants(ctx, db, s.dsn)
+		grants, err := makeGrants(s.dsn, false)
 		assert.NoError(t, err)
 		assert.Equal(t, s.grants, grants)
 	}
