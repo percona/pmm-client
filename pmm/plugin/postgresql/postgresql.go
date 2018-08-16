@@ -191,7 +191,7 @@ func createUserUsingSudoPSQL(ctx context.Context, userDSN DSN, flags Flags) (DSN
 		userDSN.Password = utils.GeneratePassword(20)
 	}
 
-	grants, err := makeGrants(userDSN, exists)
+	grants := makeGrants(userDSN, exists)
 	for _, grant := range grants {
 		cmd := exec.CommandContext(
 			ctx,
@@ -237,10 +237,7 @@ func createUser(ctx context.Context, db *sql.DB, userDSN DSN, flags Flags) (DSN,
 	}
 
 	// Create a new PostgreSQL user with the necessary privileges.
-	grants, err := makeGrants(userDSN, exists)
-	if err != nil {
-		return DSN{}, err
-	}
+	grants := makeGrants(userDSN, exists)
 	for _, grant := range grants {
 		if _, err := db.Exec(grant); err != nil {
 			return DSN{}, fmt.Errorf("Problem creating a new PostgreSQL user. Failed to execute %s: %s", grant, err)
@@ -255,7 +252,7 @@ func createUser(ctx context.Context, db *sql.DB, userDSN DSN, flags Flags) (DSN,
 	return userDSN, nil
 }
 
-func makeGrants(dsn DSN, exists bool) ([]string, error) {
+func makeGrants(dsn DSN, exists bool) []string {
 	var grants []string
 	quotedUser := pq.QuoteIdentifier(dsn.User)
 
@@ -276,7 +273,7 @@ func makeGrants(dsn DSN, exists bool) ([]string, error) {
 		fmt.Sprintf("CREATE OR REPLACE VIEW %s.pg_stat_replication AS SELECT * from pg_catalog.pg_stat_replication", quotedUser),
 		fmt.Sprintf("GRANT SELECT ON %s.pg_stat_replication TO %s", quotedUser, quotedUser),
 	)
-	return grants, nil
+	return grants
 }
 
 func userExists(ctx context.Context, db *sql.DB, user string) (bool, error) {
