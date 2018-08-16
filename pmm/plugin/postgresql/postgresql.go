@@ -299,10 +299,13 @@ func userExistsCheckUsingSudoPSQL(ctx context.Context, user string) (bool, error
 		ctx,
 		"sudo",
 		"-u", "postgres",
-		"psql", "postgres", "-tAc", fmt.Sprintf("SELECT 1 FROM pg_roles WHERE rolname = %s", pq.QuoteIdentifier(user)),
+		"psql", "postgres", "-tAc", fmt.Sprintf("SELECT 1 FROM pg_roles WHERE rolname = '%s'", user),
 	)
-	b, err := cmd.CombinedOutput()
+	b, err := cmd.Output()
 	if err != nil {
+		if exitError, ok := err.(*exec.ExitError); ok {
+			b = append(b, exitError.Stderr...)
+		}
 		return false, fmt.Errorf("cannot check if user exists: %s: %s", err, string(b))
 	}
 	if bytes.HasPrefix(b, []byte("1")) {
