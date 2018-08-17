@@ -171,17 +171,23 @@ func createUserUsingSudoPSQL(ctx context.Context, userDSN DSN, flags Flags) (DSN
 	userDSN.User = "pmm"
 
 	// Check if user exists.
-	exists, err := userExistsCheckUsingSudoPSQL(ctx, userDSN.User)
+	userExists, err := userExistsCheckUsingSudoPSQL(ctx, userDSN.User)
 	if err != nil {
 		return DSN{}, err
 	}
-	if exists && !flags.Force {
+	if userExists && !flags.Force {
 		var errMsg []string
 		errMsg = append(errMsg, fmt.Sprintf("* PostgreSQL user %s already exists. %s", userDSN.User,
 			"Try without --create-user flag using the default credentials or specify the existing `pmm` user ones."))
 		errMsg = append([]string{"Problem creating a new PostgreSQL user:", ""}, errMsg...)
 		errMsg = append(errMsg, "", "If you think the above is okay to proceed, you can use --force flag.")
 		return DSN{}, errors.New(strings.Join(errMsg, "\n"))
+	}
+
+	// Check if schema exists.
+	schemaExists, err := schemaExistsCheckUsingSudoPSQL(ctx, userDSN.User)
+	if err != nil {
+		return DSN{}, err
 	}
 
 	// Check for existing password or generate new one.
@@ -191,7 +197,7 @@ func createUserUsingSudoPSQL(ctx context.Context, userDSN DSN, flags Flags) (DSN
 		userDSN.Password = utils.GeneratePassword(20)
 	}
 
-	grants := makeGrants(userDSN, exists)
+	grants := makeGrants(userDSN, userExists, schemaExists)
 	for _, grant := range grants {
 		cmd := exec.CommandContext(
 			ctx,
@@ -223,11 +229,11 @@ func createUser(ctx context.Context, db *sql.DB, userDSN DSN, flags Flags) (DSN,
 	}
 
 	// Check if user exists.
-	exists, err := userExists(ctx, db, userDSN.User)
+	userExists, err := userExists(ctx, db, userDSN.User)
 	if err != nil {
 		return DSN{}, err
 	}
-	if exists && !flags.Force {
+	if userExists && !flags.Force {
 		var errMsg []string
 		errMsg = append(errMsg, fmt.Sprintf("* PostgreSQL user %s already exists. %s", userDSN.User,
 			"Try without --create-user flag using the default credentials or specify the existing `pmm` user ones."))
@@ -236,8 +242,14 @@ func createUser(ctx context.Context, db *sql.DB, userDSN DSN, flags Flags) (DSN,
 		return DSN{}, errors.New(strings.Join(errMsg, "\n"))
 	}
 
+	// Check if schema exists.
+	schemaExists, err := schemaExists(ctx, db, userDSN.User)
+	if err != nil {
+		return DSN{}, err
+	}
+
 	// Create a new PostgreSQL user with the necessary privileges.
-	grants := makeGrants(userDSN, exists)
+	grants := makeGrants(userDSN, userExists, schemaExists)
 	for _, grant := range grants {
 		if _, err := db.Exec(grant); err != nil {
 			return DSN{}, fmt.Errorf("Problem creating a new PostgreSQL user. Failed to execute %s: %s", grant, err)
@@ -252,22 +264,26 @@ func createUser(ctx context.Context, db *sql.DB, userDSN DSN, flags Flags) (DSN,
 	return userDSN, nil
 }
 
-func makeGrants(dsn DSN, exists bool) []string {
+// makeGrants generates queries that will allow to scrape metrics as non-root user.
+func makeGrants(dsn DSN, userExists bool, schemaExists bool) []string {
 	var grants []string
 	quotedUser := pq.QuoteIdentifier(dsn.User)
 
 	query := ""
-	if exists {
+	if userExists {
 		query = fmt.Sprintf("ALTER USER %s WITH PASSWORD '%s'", quotedUser, dsn.Password)
 	} else {
 		query = fmt.Sprintf("CREATE USER %s WITH PASSWORD '%s'", quotedUser, dsn.Password)
 	}
 	grants = append(grants, query)
 
-	// Allow to scrape metrics as non-root user.
+	if !schemaExists {
+		query := fmt.Sprintf("CREATE SCHEMA %s AUTHORIZATION %s", quotedUser, quotedUser)
+		grants = append(grants, query)
+	}
+
 	grants = append(grants,
 		fmt.Sprintf("ALTER USER %s SET SEARCH_PATH TO %s,pg_catalog", quotedUser, quotedUser),
-		fmt.Sprintf("CREATE SCHEMA IF NOT EXISTS %s AUTHORIZATION %s", quotedUser, quotedUser),
 		fmt.Sprintf("CREATE OR REPLACE VIEW %s.pg_stat_activity AS SELECT * from pg_catalog.pg_stat_activity", quotedUser),
 		fmt.Sprintf("GRANT SELECT ON %s.pg_stat_activity TO %s", quotedUser, quotedUser),
 		fmt.Sprintf("CREATE OR REPLACE VIEW %s.pg_stat_replication AS SELECT * from pg_catalog.pg_stat_replication", quotedUser),
@@ -279,6 +295,21 @@ func makeGrants(dsn DSN, exists bool) []string {
 func userExists(ctx context.Context, db *sql.DB, user string) (bool, error) {
 	count := 0
 	err := db.QueryRowContext(ctx, "SELECT 1 FROM pg_roles WHERE rolname = $1", user).Scan(&count)
+	switch {
+	case err == sql.ErrNoRows:
+		return false, nil
+	case err != nil:
+		return false, err
+	case count == 0:
+		// Shouldn't happen but just in case, if we get row and 0 value then user doesn't exists.
+		return false, nil
+	}
+	return true, nil
+}
+
+func schemaExists(ctx context.Context, db *sql.DB, user string) (bool, error) {
+	count := 0
+	err := db.QueryRowContext(ctx, "SELECT 1 FROM pg_namespace WHERE nspname = $1", user).Scan(&count)
 	switch {
 	case err == sql.ErrNoRows:
 		return false, nil
@@ -304,6 +335,26 @@ func userExistsCheckUsingSudoPSQL(ctx context.Context, user string) (bool, error
 			b = append(b, exitError.Stderr...)
 		}
 		return false, fmt.Errorf("cannot check if user exists: %s: %s", err, string(b))
+	}
+	if bytes.HasPrefix(b, []byte("1")) {
+		return true, nil
+	}
+	return false, nil
+}
+
+func schemaExistsCheckUsingSudoPSQL(ctx context.Context, schema string) (bool, error) {
+	cmd := exec.CommandContext(
+		ctx,
+		"sudo",
+		"-u", "postgres",
+		"psql", "postgres", "-tAc", fmt.Sprintf("SELECT 1 FROM pg_namespace WHERE nspname = '%s'", schema),
+	)
+	b, err := cmd.Output()
+	if err != nil {
+		if exitError, ok := err.(*exec.ExitError); ok {
+			b = append(b, exitError.Stderr...)
+		}
+		return false, fmt.Errorf("cannot check if schema exists: %s: %s", err, string(b))
 	}
 	if bytes.HasPrefix(b, []byte("1")) {
 		return true, nil
