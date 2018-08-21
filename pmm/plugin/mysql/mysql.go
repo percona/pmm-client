@@ -1,38 +1,21 @@
-/*
-	Copyright (c) 2016, Percona LLC and/or its affiliates. All rights reserved.
-
-	This program is free software: you can redistribute it and/or modify
-	it under the terms of the GNU Affero General Public License as published by
-	the Free Software Foundation, either version 3 of the License, or
-	(at your option) any later version.
-
-	This program is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY; without even the implied warranty of
-	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-	GNU Affero General Public License for more details.
-
-	You should have received a copy of the GNU Affero General Public License
-	along with this program.  If not, see <http://www.gnu.org/licenses/>
-*/
-
-package pmm
+package mysql
 
 import (
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
-	"math/rand"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/Masterminds/semver"
 	"github.com/percona/go-mysql/dsn"
+	"github.com/percona/pmm-client/pmm/plugin"
+	"github.com/percona/pmm-client/pmm/utils"
 )
 
-// MySQLFlags are MySQL specific flags.
-type MySQLFlags struct {
+// Flags are MySQL specific flags.
+type Flags struct {
 	DefaultsFile string
 	User         string
 	Password     string
@@ -46,36 +29,26 @@ type MySQLFlags struct {
 	Force              bool
 }
 
-// MySQLInfo describes running MySQL instance.
-type MySQLInfo struct {
-	Hostname string
-	Port     string
-	Distro   string
-	Version  string
-	DSN      string
-	SafeDSN  string
-}
-
-// DetectMySQL detect MySQL, create user if needed, return DSN and MySQL info strings.
-func (a *Admin) DetectMySQL(ctx context.Context, mf MySQLFlags) (*MySQLInfo, error) {
+// Init verifies MySQL connection and creates PMM user if requested.
+func Init(ctx context.Context, flags Flags, pmmUserPassword string) (*plugin.Info, error) {
 	// Check for invalid mix of flags.
-	if mf.Socket != "" && mf.Host != "" {
+	if flags.Socket != "" && flags.Host != "" {
 		return nil, errors.New("flags --socket and --host are mutually exclusive")
 	}
-	if mf.Socket != "" && mf.Port != "" {
+	if flags.Socket != "" && flags.Port != "" {
 		return nil, errors.New("flags --socket and --port are mutually exclusive")
 	}
-	if !mf.CreateUser && mf.CreateUserPassword != "" {
+	if flags.CreateUser && flags.CreateUserPassword != "" {
 		return nil, errors.New("flag --create-user-password should be used along with --create-user")
 	}
 
 	userDSN := dsn.DSN{
-		DefaultsFile: mf.DefaultsFile,
-		Username:     mf.User,
-		Password:     mf.Password,
-		Hostname:     mf.Host,
-		Port:         mf.Port,
-		Socket:       mf.Socket,
+		DefaultsFile: flags.DefaultsFile,
+		Username:     flags.User,
+		Password:     flags.Password,
+		Hostname:     flags.Host,
+		Port:         flags.Port,
+		Socket:       flags.Socket,
 		Params:       []string{dsn.ParseTimeParam, dsn.TimezoneParam, dsn.LocationParam},
 	}
 	// Populate defaults to DSN for missing options.
@@ -93,10 +66,10 @@ func (a *Admin) DetectMySQL(ctx context.Context, mf MySQLFlags) (*MySQLInfo, err
 
 	// Test access using detected credentials and stored password.
 	accessOK := false
-	if a.Config.MySQLPassword != "" {
+	if pmmUserPassword != "" {
 		pmmDSN := userDSN
 		pmmDSN.Username = "pmm"
-		pmmDSN.Password = a.Config.MySQLPassword
+		pmmDSN.Password = pmmUserPassword
 		if err := testConnection(ctx, pmmDSN.String()); err == nil {
 			//fmt.Println("Using stored credentials, DSN is", pmmDSN.String())
 			accessOK = true
@@ -116,36 +89,35 @@ func (a *Admin) DetectMySQL(ctx context.Context, mf MySQLFlags) (*MySQLInfo, err
 		}
 	}
 
-	// At this point, we verified the MySQL access, so no need to handle SQL errors below
-	// if our queries are predictably good.
+	// Get MySQL variables.
+	info, err := getInfo(ctx, db)
+	if err != nil {
+		return nil, err
+	}
 
 	// Create a new MySQL user.
-	if mf.CreateUser {
-		userDSN, err = createMySQLUser(ctx, db, userDSN, mf)
+	if flags.CreateUser {
+		userDSN, err = createUser(ctx, db, userDSN, flags)
 		if err != nil {
 			return nil, err
 		}
 
 		// Store generated password.
-		a.Config.MySQLPassword = userDSN.Password
-		a.writeConfig()
+		info.PMMUserPassword = userDSN.Password
 	}
 
-	// Get MySQL variables.
-	mi := getMysqlInfo(ctx, db)
-	mi.DSN = userDSN.String()
-	mi.SafeDSN = SanitizeDSN(userDSN.String())
+	info.DSN = userDSN.String()
 
-	return mi, nil
+	return info, nil
 }
 
-func createMySQLUser(ctx context.Context, db *sql.DB, userDSN dsn.DSN, mf MySQLFlags) (dsn.DSN, error) {
+func createUser(ctx context.Context, db *sql.DB, userDSN dsn.DSN, flags Flags) (dsn.DSN, error) {
 	// New DSN has same host:port or socket, but different user and pass.
 	userDSN.Username = "pmm"
-	if mf.CreateUserPassword != "" {
-		userDSN.Password = mf.CreateUserPassword
+	if flags.CreateUserPassword != "" {
+		userDSN.Password = flags.CreateUserPassword
 	} else {
-		userDSN.Password = generatePassword(20)
+		userDSN.Password = utils.GeneratePassword(20)
 	}
 
 	hosts := []string{"%"}
@@ -155,14 +127,14 @@ func createMySQLUser(ctx context.Context, db *sql.DB, userDSN dsn.DSN, mf MySQLF
 		hosts = []string{"127.0.0.1"}
 	}
 
-	if !mf.Force {
-		if err := mysqlCheck(ctx, db, hosts); err != nil {
+	if !flags.Force {
+		if err := check(ctx, db, hosts); err != nil {
 			return dsn.DSN{}, err
 		}
 	}
 
 	// Create a new MySQL user with the necessary privs.
-	grants, err := makeGrants(ctx, db, userDSN, hosts, mf.MaxUserConn)
+	grants, err := makeGrants(ctx, db, userDSN, hosts, flags.MaxUserConn)
 	if err != nil {
 		return dsn.DSN{}, err
 	}
@@ -183,7 +155,7 @@ func createMySQLUser(ctx context.Context, db *sql.DB, userDSN dsn.DSN, mf MySQLF
 	return userDSN, nil
 }
 
-func mysqlCheck(ctx context.Context, db *sql.DB, hosts []string) error {
+func check(ctx context.Context, db *sql.DB, hosts []string) error {
 	var (
 		errMsg []string
 		varVal string
@@ -302,35 +274,13 @@ func testConnection(ctx context.Context, dsn string) error {
 	return nil
 }
 
-func getMysqlInfo(ctx context.Context, db *sql.DB) *MySQLInfo {
-	mi := &MySQLInfo{}
-	db.QueryRowContext(ctx, "SELECT @@hostname, @@port, @@version_comment, @@version").Scan(&mi.Hostname, &mi.Port, &mi.Distro, &mi.Version)
-	return mi
-}
-
-// generatePassword generate password to satisfy MySQL 5.7 default password policy.
-func generatePassword(size int) string {
-	rand.Seed(time.Now().UnixNano())
-	required := []string{
-		"abcdefghijklmnopqrstuvwxyz", "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "0123456789", "_,;-",
+func getInfo(ctx context.Context, db *sql.DB) (*plugin.Info, error) {
+	info := &plugin.Info{}
+	err := db.QueryRowContext(ctx, "SELECT @@hostname, @@port, @@version_comment, @@version").Scan(&info.Hostname, &info.Port, &info.Distro, &info.Version)
+	if err != nil {
+		return nil, err
 	}
-	var b []rune
-
-	for _, source := range required {
-		rsource := []rune(source)
-		for i := 0; i < int(size/len(required))+1; i++ {
-			b = append(b, rsource[rand.Intn(len(rsource))])
-		}
-	}
-	// Scramble.
-	for range b {
-		pos1 := rand.Intn(len(b))
-		pos2 := rand.Intn(len(b))
-		a := b[pos1]
-		b[pos1] = b[pos2]
-		b[pos2] = a
-	}
-	return string(b)[:size]
+	return info, nil
 }
 
 // versionConstraint checks if version fits given constraint.

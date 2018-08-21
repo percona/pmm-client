@@ -55,6 +55,11 @@ cd $SOURCE_DIR
 go build -ldflags "-X $importpath/version.Version=$VERSION -X $importpath/version.Branch=$branch -X $importpath/version.Revision=$commit" \
     -o distro/bin/mysqld_exporter github.com/percona/mysqld_exporter
 
+printf "Building postgres_exporter...\t"
+cd $GOPATH/src/github.com/percona/postgres_exporter
+make
+mv ./postgres_exporter $SOURCE_DIR/distro/bin/postgres_exporter
+
 printf "Building mongodb_exporter...\t"
 cd $GOPATH/src/github.com/percona/mongodb_exporter
 make

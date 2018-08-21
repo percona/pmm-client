@@ -28,6 +28,17 @@ import (
 	"time"
 
 	"github.com/percona/pmm-client/pmm"
+	"github.com/percona/pmm-client/pmm/plugin"
+	linuxMetrics "github.com/percona/pmm-client/pmm/plugin/linux/metrics"
+	mongodbMetrics "github.com/percona/pmm-client/pmm/plugin/mongodb/metrics"
+	mongodbQueries "github.com/percona/pmm-client/pmm/plugin/mongodb/queries"
+	"github.com/percona/pmm-client/pmm/plugin/mysql"
+	mysqlMetrics "github.com/percona/pmm-client/pmm/plugin/mysql/metrics"
+	mysqlQueries "github.com/percona/pmm-client/pmm/plugin/mysql/queries"
+	"github.com/percona/pmm-client/pmm/plugin/postgresql"
+	postgresqlMetrics "github.com/percona/pmm-client/pmm/plugin/postgresql/metrics"
+	proxysqlMetrics "github.com/percona/pmm-client/pmm/plugin/proxysql/metrics"
+	"github.com/percona/pmm-client/pmm/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -219,6 +230,28 @@ run 'pmm-admin repair' to remove orphaned services. Otherwise, please reinstall 
 		},
 	}
 
+	cmdAddLinuxMetrics = &cobra.Command{
+		Use:   "linux:metrics [flags] [name] [-- [exporter_args]]",
+		Short: "Add this system to metrics monitoring.",
+		Long: `This command adds this system to linux metrics monitoring.
+
+You cannot monitor linux metrics from remote machines because the metric exporter requires an access to the local filesystem.
+It is supposed there could be only one instance of linux metrics being monitored for this system.
+However, you can add another one with the different name just for testing purposes using --force flag.
+
+[name] is an optional argument, by default it is set to the client name of this PMM client.
+[exporter_args] are the command line options to be passed directly to Prometheus Exporter.
+		`,
+		Run: func(cmd *cobra.Command, args []string) {
+			linuxMetrics := linuxMetrics.New()
+			if _, err := admin.AddMetrics(ctx, linuxMetrics, flagForce, flagDisableSSL); err != nil {
+				fmt.Println("Error adding linux metrics:", err)
+				os.Exit(1)
+			}
+			fmt.Println("OK, now monitoring this system.")
+		},
+	}
+
 	cmdAddMySQL = &cobra.Command{
 		Use:   "mysql [flags] [name]",
 		Short: "Add complete monitoring for MySQL instance (linux and mysql metrics, queries).",
@@ -236,9 +269,9 @@ Table statistics is automatically disabled when there are more than 10000 tables
   pmm-admin add mysql --password abc123 --create-user
   pmm-admin add mysql --password abc123 --port 3307 instance3307`,
 		Run: func(cmd *cobra.Command, args []string) {
-			// Passing additional arguments doesn't make sense because this command enables multiple monitors.
+			// Passing additional arguments doesn't make sense because this command enables multiple exporters.
 			if len(admin.Args) > 0 {
-				fmt.Printf("We can't determine which monitor should receive additional flags: %s.\n", strings.Join(admin.Args, ", "))
+				fmt.Printf("We can't determine which exporter should receive additional flags: %s.\n", strings.Join(admin.Args, ", "))
 				fmt.Println("To pass additional arguments to specific exporter you need to add it separately e.g.:")
 				fmt.Println("pmm-admin add linux:metrics -- ", strings.Join(admin.Args, " "))
 				fmt.Println("or")
@@ -254,8 +287,9 @@ Table statistics is automatically disabled when there are more than 10000 tables
 				os.Exit(1)
 			}
 
-			err := admin.AddLinuxMetrics(flagForce)
-			if err == pmm.ErrOneLinux {
+			linuxMetrics := linuxMetrics.New()
+			_, err := admin.AddMetrics(ctx, linuxMetrics, flagForce, flagDisableSSL)
+			if err == pmm.ErrDuplicate {
 				fmt.Println("[linux:metrics] OK, already monitoring this system.")
 			} else if err != nil {
 				fmt.Println("[linux:metrics] Error adding linux metrics:", err)
@@ -264,52 +298,28 @@ Table statistics is automatically disabled when there are more than 10000 tables
 				fmt.Println("[linux:metrics] OK, now monitoring this system.")
 			}
 
-			mi, err := admin.DetectMySQL(ctx, flagM)
-			if err != nil {
-				fmt.Printf("[mysql:metrics] %s\n", err)
-				os.Exit(1)
-			}
-
-			err = admin.AddMySQLMetrics(ctx, *mi, flagMySQLMetrics)
+			mysqlMetrics := mysqlMetrics.New(flagMySQLMetrics, flagMySQL)
+			info, err := admin.AddMetrics(ctx, mysqlMetrics, false, flagDisableSSL)
 			if err == pmm.ErrDuplicate {
 				fmt.Println("[mysql:metrics] OK, already monitoring MySQL metrics.")
 			} else if err != nil {
 				fmt.Println("[mysql:metrics] Error adding MySQL metrics:", err)
 				os.Exit(1)
 			} else {
-				fmt.Println("[mysql:metrics] OK, now monitoring MySQL metrics using DSN", mi.SafeDSN)
+				fmt.Println("[mysql:metrics] OK, now monitoring MySQL metrics using DSN", utils.SanitizeDSN(info.DSN))
 			}
 
-			mr, err := admin.AddMySQLQueries(*mi, flagMySQLQueries, flagQueries)
+			mysqlQueries := mysqlQueries.New(flagQueries, flagMySQLQueries, flagMySQL)
+			info, err = admin.AddQueries(ctx, mysqlQueries)
 			if err == pmm.ErrDuplicate {
 				fmt.Println("[mysql:queries] OK, already monitoring MySQL queries.")
 			} else if err != nil {
 				fmt.Println("[mysql:queries] Error adding MySQL queries:", err)
 				os.Exit(1)
 			} else {
-				fmt.Println("[mysql:queries] OK, now monitoring MySQL queries from", mr.QuerySource,
-					"using DSN", mi.SafeDSN)
+				fmt.Println("[mysql:queries] OK, now monitoring MySQL queries from", info.QuerySource,
+					"using DSN", utils.SanitizeDSN(info.DSN))
 			}
-		},
-	}
-	cmdAddLinuxMetrics = &cobra.Command{
-		Use:   "linux:metrics [flags] [name] [-- [exporter_args]]",
-		Short: "Add this system to metrics monitoring.",
-		Long: `This command adds this system to linux metrics monitoring.
-
-You cannot monitor linux metrics from remote machines because the metric exporter requires an access to the local filesystem.
-It is supposed there could be only one instance of linux metrics being monitored for this system.
-However, you can add another one with the different name just for testing purposes using --force flag.
-
-[name] is an optional argument, by default it is set to the client name of this PMM client.
-[exporter_args] are the command line options to be passed directly to Prometheus Exporter.
-		`,
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := admin.AddLinuxMetrics(flagForce); err != nil {
-				fmt.Println("Error adding linux metrics:", err)
-				os.Exit(1)
-			}
-			fmt.Println("OK, now monitoring this system.")
 		},
 	}
 	cmdAddMySQLMetrics = &cobra.Command{
@@ -333,16 +343,13 @@ Table statistics is automatically disabled when there are more than 10000 tables
   pmm-admin add mysql:metrics -- --collect.perf_schema.eventsstatements
   pmm-admin add mysql:metrics -- --collect.perf_schema.eventswaits=false`,
 		Run: func(cmd *cobra.Command, args []string) {
-			mi, err := admin.DetectMySQL(ctx, flagM)
+			mysqlMetrics := mysqlMetrics.New(flagMySQLMetrics, flagMySQL)
+			info, err := admin.AddMetrics(ctx, mysqlMetrics, false, flagDisableSSL)
 			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
-			}
-			if err := admin.AddMySQLMetrics(ctx, *mi, flagMySQLMetrics); err != nil {
 				fmt.Println("Error adding MySQL metrics:", err)
 				os.Exit(1)
 			}
-			fmt.Println("OK, now monitoring MySQL metrics using DSN", mi.SafeDSN)
+			fmt.Println("OK, now monitoring MySQL metrics using DSN", utils.SanitizeDSN(info.DSN))
 		},
 	}
 	cmdAddMySQLQueries = &cobra.Command{
@@ -366,20 +373,93 @@ a new user 'pmm@' automatically using the given (auto-detected) MySQL credential
 				fmt.Println("Flag --query-source can take the following values: auto, slowlog, perfschema.")
 				os.Exit(1)
 			}
-			mi, err := admin.DetectMySQL(ctx, flagM)
-			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
-			}
-			mr, err := admin.AddMySQLQueries(*mi, flagMySQLQueries, flagQueries)
+			mysqlQueries := mysqlQueries.New(flagQueries, flagMySQLQueries, flagMySQL)
+			info, err := admin.AddQueries(ctx, mysqlQueries)
 			if err != nil {
 				fmt.Println("Error adding MySQL queries:", err)
 				os.Exit(1)
 			}
-			fmt.Println("OK, now monitoring MySQL queries from", mr.QuerySource,
-				"using DSN", mi.SafeDSN)
+			fmt.Println("OK, now monitoring MySQL queries from", info.QuerySource,
+				"using DSN", utils.SanitizeDSN(info.DSN))
 		},
 	}
+
+	cmdAddPostgreSQL = &cobra.Command{
+		Use:   "postgresql [flags] [name]",
+		Short: "Add complete monitoring for PostgreSQL instance (linux and postgresql metrics).",
+		Long: `This command adds the given PostgreSQL instance to system and metrics monitoring.
+
+When adding a PostgreSQL instance, this tool tries to auto-detect the DSN and credentials.
+If you want to create a new user to be used for metrics collecting, provide --create-user option. pmm-admin will create
+a new user 'pmm' automatically using the given (auto-detected) PostgreSQL credentials for granting purpose.
+
+[name] is an optional argument, by default it is set to the client name of this PMM client.
+		`,
+		Example: `  pmm-admin add postgresql --password abc123
+  pmm-admin add postgresql --password abc123 --create-user
+  pmm-admin add postgresql --password abc123 --port 3307 instance3307`,
+		Run: func(cmd *cobra.Command, args []string) {
+			// Passing additional arguments doesn't make sense because this command enables multiple exporters.
+			if len(admin.Args) > 0 {
+				fmt.Printf("We can't determine which exporter should receive additional flags: %s.\n", strings.Join(admin.Args, ", "))
+				fmt.Println("To pass additional arguments to specific exporter you need to add it separately e.g.:")
+				fmt.Println("pmm-admin add linux:metrics -- ", strings.Join(admin.Args, " "))
+				fmt.Println("or")
+				fmt.Println("pmm-admin add postgresql:metrics -- ", strings.Join(admin.Args, " "))
+				os.Exit(1)
+			}
+
+			linuxMetrics := linuxMetrics.New()
+			_, err := admin.AddMetrics(ctx, linuxMetrics, flagForce, flagDisableSSL)
+			if err == pmm.ErrDuplicate {
+				fmt.Println("[linux:metrics] OK, already monitoring this system.")
+			} else if err != nil {
+				fmt.Println("[linux:metrics] Error adding linux metrics:", err)
+				os.Exit(1)
+			} else {
+				fmt.Println("[linux:metrics] OK, now monitoring this system.")
+			}
+
+			postgresqlMetrics := postgresqlMetrics.New(flagPostgreSQL)
+			info, err := admin.AddMetrics(ctx, postgresqlMetrics, false, flagDisableSSL)
+			if err == pmm.ErrDuplicate {
+				fmt.Println("[postgresql:metrics] OK, already monitoring PostgreSQL metrics.")
+			} else if err != nil {
+				fmt.Println("[postgresql:metrics] Error adding PostgreSQL metrics:", err)
+				os.Exit(1)
+			} else {
+				fmt.Println("[postgresql:metrics] OK, now monitoring PostgreSQL metrics using DSN", utils.SanitizeDSN(info.DSN))
+			}
+		},
+	}
+	cmdAddPostgreSQLMetrics = &cobra.Command{
+		Use:   "postgresql:metrics [flags] [name] [-- [exporter_args]]",
+		Short: "Add PostgreSQL instance to metrics monitoring.",
+		Long: `This command adds the given PostgreSQL instance to metrics monitoring.
+
+When adding a PostgreSQL instance, this tool tries to auto-detect the DSN and credentials.
+If you want to create a new user to be used for metrics collecting, provide --create-user option. pmm-admin will create
+a new user 'pmm' automatically using the given (auto-detected) PostgreSQL credentials for granting purpose.
+
+[name] is an optional argument, by default it is set to the client name of this PMM client.
+[exporter_args] are the command line options to be passed directly to Prometheus Exporter.
+		`,
+		Example: `  pmm-admin add postgresql:metrics --password abc123
+  pmm-admin add postgresql:metrics --password abc123 --create-user
+  pmm-admin add postgresql:metrics --password abc123 --port 3307 instance3307
+  pmm-admin add postgresql:metrics --user rdsuser --password abc123 --host my-rds.1234567890.us-east-1.rds.amazonaws.com my-rds
+  pmm-admin add postgresql:metrics -- --extend.query-path /path/to/queries.yaml`,
+		Run: func(cmd *cobra.Command, args []string) {
+			postgresqlMetrics := postgresqlMetrics.New(flagPostgreSQL)
+			info, err := admin.AddMetrics(ctx, postgresqlMetrics, false, flagDisableSSL)
+			if err == pmm.ErrDuplicate {
+				fmt.Println("Error adding PostgreSQL metrics:", err)
+				os.Exit(1)
+			}
+			fmt.Println("OK, now monitoring PostgreSQL metrics using DSN", utils.SanitizeDSN(info.DSN))
+		},
+	}
+
 	cmdAddMongoDB = &cobra.Command{
 		Use:   "mongodb [flags] [name]",
 		Short: "Add complete monitoring for MongoDB instance (linux and mongodb metrics, queries).",
@@ -392,9 +472,9 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 		Example: `  pmm-admin add mongodb
   pmm-admin add mongodb --cluster bare-metal`,
 		Run: func(cmd *cobra.Command, args []string) {
-			// Passing additional arguments doesn't make sense because this command enables multiple monitors.
+			// Passing additional arguments doesn't make sense because this command enables multiple exporters.
 			if len(admin.Args) > 0 {
-				fmt.Printf("We can't determine which monitor should receive additional flags: %s.\n", strings.Join(admin.Args, ", "))
+				fmt.Printf("We can't determine which exporter should receive additional flags: %s.\n", strings.Join(admin.Args, ", "))
 				fmt.Println("To pass additional arguments to specific exporter you need to add it separately e.g.:")
 				fmt.Println("pmm-admin add linux:metrics -- ", strings.Join(admin.Args, " "))
 				fmt.Println("or")
@@ -404,8 +484,9 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 				os.Exit(1)
 			}
 
-			err := admin.AddLinuxMetrics(flagForce)
-			if err == pmm.ErrOneLinux {
+			linuxMetrics := linuxMetrics.New()
+			_, err := admin.AddMetrics(ctx, linuxMetrics, flagForce, flagDisableSSL)
+			if err == pmm.ErrDuplicate {
 				fmt.Println("[linux:metrics]   OK, already monitoring this system.")
 			} else if err != nil {
 				fmt.Println("[linux:metrics]   Error adding linux metrics:", err)
@@ -414,28 +495,26 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 				fmt.Println("[linux:metrics]   OK, now monitoring this system.")
 			}
 
-			buildInfo, err := admin.DetectMongoDB(ctx, flagMongoURI)
-			if err != nil {
-				fmt.Printf("[mongodb:metrics] %s\n", err)
-				os.Exit(1)
-			}
-			err = admin.AddMongoDBMetrics(flagMongoURI, flagCluster)
+			mongodbMetrics := mongodbMetrics.New(flagMongoURI, admin.Args, flagCluster, pmm.PMMBaseDir)
+			info, err := admin.AddMetrics(ctx, mongodbMetrics, false, flagDisableSSL)
 			if err == pmm.ErrDuplicate {
 				fmt.Println("[mongodb:metrics] OK, already monitoring MongoDB metrics.")
 			} else if err != nil {
 				fmt.Println("[mongodb:metrics] Error adding MongoDB metrics:", err)
 				os.Exit(1)
 			} else {
-				fmt.Println("[mongodb:metrics] OK, now monitoring MongoDB metrics using URI", pmm.SanitizeDSN(flagMongoURI))
+				fmt.Println("[mongodb:metrics] OK, now monitoring MongoDB metrics using URI", utils.SanitizeDSN(info.DSN))
 			}
-			err = admin.AddMongoDBQueries(buildInfo, flagMongoURI, flagQueries)
+
+			mongodbQueries := mongodbQueries.New(flagQueries, flagMongoURI, admin.Args, pmm.PMMBaseDir)
+			info, err = admin.AddQueries(ctx, mongodbQueries)
 			if err == pmm.ErrDuplicate {
 				fmt.Println("[mongodb:queries] OK, already monitoring MongoDB queries.")
 			} else if err != nil {
 				fmt.Println("[mongodb:queries] Error adding MongoDB queries:", err)
 				os.Exit(1)
 			} else {
-				fmt.Println("[mongodb:queries] OK, now monitoring MongoDB queries using URI", pmm.SanitizeDSN(flagMongoURI))
+				fmt.Println("[mongodb:queries] OK, now monitoring MongoDB queries using URI", utils.SanitizeDSN(info.DSN))
 				fmt.Println("[mongodb:queries] It is required for correct operation that profiling of monitored MongoDB databases be enabled.")
 				fmt.Println("[mongodb:queries] Note that profiling is not enabled by default because it may reduce the performance of your MongoDB server.")
 				fmt.Println("[mongodb:queries] For more information read PMM documentation (https://www.percona.com/doc/percona-monitoring-and-management/conf-mongodb.html).")
@@ -456,15 +535,13 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
   pmm-admin add mongodb:metrics --cluster bare-metal
   pmm-admin add mongodb:metrics -- --mongodb.tls`,
 		Run: func(cmd *cobra.Command, args []string) {
-			if _, err := admin.DetectMongoDB(ctx, flagMongoURI); err != nil {
-				fmt.Println(err)
-				os.Exit(1)
-			}
-			if err := admin.AddMongoDBMetrics(flagMongoURI, flagCluster); err != nil {
+			mongodbMetrics := mongodbMetrics.New(flagMongoURI, admin.Args, flagCluster, pmm.PMMBaseDir)
+			info, err := admin.AddMetrics(ctx, mongodbMetrics, false, flagDisableSSL)
+			if err == pmm.ErrDuplicate {
 				fmt.Println("Error adding MongoDB metrics:", err)
 				os.Exit(1)
 			}
-			fmt.Println("OK, now monitoring MongoDB metrics using URI", pmm.SanitizeDSN(flagMongoURI))
+			fmt.Println("OK, now monitoring MongoDB metrics using URI", utils.SanitizeDSN(info.DSN))
 		},
 	}
 	cmdAddMongoDBQueries = &cobra.Command{
@@ -479,16 +556,13 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 		Example: `  pmm-admin add mongodb:queries
   pmm-admin add mongodb:queries`,
 		Run: func(cmd *cobra.Command, args []string) {
-			buildInfo, err := admin.DetectMongoDB(ctx, flagMongoURI)
-			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
-			}
-			if err := admin.AddMongoDBQueries(buildInfo, flagMongoURI, flagQueries); err != nil {
+			mongodbQueries := mongodbQueries.New(flagQueries, flagMongoURI, admin.Args, pmm.PMMBaseDir)
+			info, err := admin.AddQueries(ctx, mongodbQueries)
+			if err == pmm.ErrDuplicate {
 				fmt.Println("Error adding MongoDB queries:", err)
 				os.Exit(1)
 			}
-			fmt.Println("OK, now monitoring MongoDB queries using URI", pmm.SanitizeDSN(flagMongoURI))
+			fmt.Println("OK, now monitoring MongoDB queries using URI", utils.SanitizeDSN(info.DSN))
 			fmt.Println("It is required for correct operation that profiling of monitored MongoDB databases be enabled.")
 			fmt.Println("Note that profiling is not enabled by default because it may reduce the performance of your MongoDB server.")
 			fmt.Println("For more information read PMM documentation (https://www.percona.com/doc/percona-monitoring-and-management/conf-mongodb.html).")
@@ -503,15 +577,13 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 [exporter_args] are the command line options to be passed directly to Prometheus Exporter.
 		`,
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := admin.DetectProxySQL(ctx, flagDSN); err != nil {
-				fmt.Println(err)
-				os.Exit(1)
-			}
-			if err := admin.AddProxySQLMetrics(flagDSN); err != nil {
+			proxysqlMetrics := proxysqlMetrics.New(flagDSN)
+			info, err := admin.AddMetrics(ctx, proxysqlMetrics, false, flagDisableSSL)
+			if err != nil {
 				fmt.Println("Error adding proxysql metrics:", err)
 				os.Exit(1)
 			}
-			fmt.Println("OK, now monitoring ProxySQL metrics using DSN", pmm.SanitizeDSN(flagDSN))
+			fmt.Println("OK, now monitoring ProxySQL metrics using DSN", utils.SanitizeDSN(info.DSN))
 		},
 	}
 	cmdAddExternalService = &cobra.Command{
@@ -696,7 +768,7 @@ An optional list of instances (scrape targets) can be provided.
 [name] is an optional argument, by default it is set to the client name of this PMM client.
 		`,
 		Run: func(cmd *cobra.Command, args []string) {
-			err := admin.RemoveLinuxMetrics()
+			err := admin.RemoveMetrics("linux")
 			if err == pmm.ErrNoService {
 				fmt.Printf("[linux:metrics] OK, no system %s under monitoring.\n", admin.ServiceName)
 			} else if err != nil {
@@ -705,7 +777,7 @@ An optional list of instances (scrape targets) can be provided.
 				fmt.Printf("[linux:metrics] OK, removed system %s from monitoring.\n", admin.ServiceName)
 			}
 
-			err = admin.RemoveMySQLMetrics()
+			err = admin.RemoveMetrics("mysql")
 			if err == pmm.ErrNoService {
 				fmt.Printf("[mysql:metrics] OK, no MySQL metrics %s under monitoring.\n", admin.ServiceName)
 			} else if err != nil {
@@ -714,7 +786,7 @@ An optional list of instances (scrape targets) can be provided.
 				fmt.Printf("[mysql:metrics] OK, removed MySQL metrics %s from monitoring.\n", admin.ServiceName)
 			}
 
-			err = admin.RemoveMySQLQueries()
+			err = admin.RemoveQueries("mysql")
 			if err == pmm.ErrNoService {
 				fmt.Printf("[mysql:queries] OK, no MySQL queries %s under monitoring.\n", admin.ServiceName)
 			} else if err != nil {
@@ -732,7 +804,7 @@ An optional list of instances (scrape targets) can be provided.
 [name] is an optional argument, by default it is set to the client name of this PMM client.
 		`,
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := admin.RemoveLinuxMetrics(); err != nil {
+			if err := admin.RemoveMetrics("linux"); err != nil {
 				fmt.Printf("Error removing linux metrics %s: %s\n", admin.ServiceName, err)
 				os.Exit(1)
 			}
@@ -747,7 +819,7 @@ An optional list of instances (scrape targets) can be provided.
 [name] is an optional argument, by default it is set to the client name of this PMM client.
 		`,
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := admin.RemoveMySQLMetrics(); err != nil {
+			if err := admin.RemoveMetrics("mysql"); err != nil {
 				fmt.Printf("Error removing MySQL metrics %s: %s\n", admin.ServiceName, err)
 				os.Exit(1)
 			}
@@ -762,7 +834,7 @@ An optional list of instances (scrape targets) can be provided.
 [name] is an optional argument, by default it is set to the client name of this PMM client.
 		`,
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := admin.RemoveMySQLQueries(); err != nil {
+			if err := admin.RemoveQueries("mysql"); err != nil {
 				fmt.Printf("Error removing MySQL queries %s: %s\n", admin.ServiceName, err)
 				os.Exit(1)
 			}
@@ -777,7 +849,7 @@ An optional list of instances (scrape targets) can be provided.
 [name] is an optional argument, by default it is set to the client name of this PMM client.
 		`,
 		Run: func(cmd *cobra.Command, args []string) {
-			err := admin.RemoveLinuxMetrics()
+			err := admin.RemoveMetrics("linux")
 			if err == pmm.ErrNoService {
 				fmt.Printf("[linux:metrics]   OK, no system %s under monitoring.\n", admin.ServiceName)
 			} else if err != nil {
@@ -786,7 +858,7 @@ An optional list of instances (scrape targets) can be provided.
 				fmt.Printf("[linux:metrics]   OK, removed system %s from monitoring.\n", admin.ServiceName)
 			}
 
-			err = admin.RemoveMongoDBMetrics()
+			err = admin.RemoveMetrics("mongodb")
 			if err == pmm.ErrNoService {
 				fmt.Printf("[mongodb:metrics] OK, no MongoDB metrics %s under monitoring.\n", admin.ServiceName)
 			} else if err != nil {
@@ -795,7 +867,7 @@ An optional list of instances (scrape targets) can be provided.
 				fmt.Printf("[mongodb:metrics] OK, removed MongoDB metrics %s from monitoring.\n", admin.ServiceName)
 			}
 
-			err = admin.RemoveMongoDBQueries()
+			err = admin.RemoveQueries("mongodb")
 			if err == pmm.ErrNoService {
 				fmt.Printf("[mongodb:queries] OK, no MongoDB queries %s under monitoring.\n", admin.ServiceName)
 			} else if err != nil {
@@ -813,7 +885,7 @@ An optional list of instances (scrape targets) can be provided.
 [name] is an optional argument, by default it is set to the client name of this PMM client.
 		`,
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := admin.RemoveMongoDBMetrics(); err != nil {
+			if err := admin.RemoveMetrics("mongodb"); err != nil {
 				fmt.Printf("Error removing MongoDB metrics %s: %s\n", admin.ServiceName, err)
 				os.Exit(1)
 			}
@@ -828,11 +900,53 @@ An optional list of instances (scrape targets) can be provided.
 [name] is an optional argument, by default it is set to the client name of this PMM client.
 		`,
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := admin.RemoveMongoDBQueries(); err != nil {
+			if err := admin.RemoveQueries("mongodb"); err != nil {
 				fmt.Printf("Error removing MongoDB queries %s: %s\n", admin.ServiceName, err)
 				os.Exit(1)
 			}
 			fmt.Printf("OK, removed MongoDB queries %s from monitoring.\n", admin.ServiceName)
+		},
+	}
+	cmdRemovePostgreSQL = &cobra.Command{
+		Use:   "postgresql [flags] [name]",
+		Short: "Remove all monitoring for PostgreSQL instance (linux and postgresql metrics).",
+		Long: `This command removes all monitoring for PostgreSQL instance (linux and mysql metrics).
+
+[name] is an optional argument, by default it is set to the client name of this PMM client.
+		`,
+		Run: func(cmd *cobra.Command, args []string) {
+			err := admin.RemoveMetrics("linux")
+			if err == pmm.ErrNoService {
+				fmt.Printf("[linux:metrics] OK, no system %s under monitoring.\n", admin.ServiceName)
+			} else if err != nil {
+				fmt.Printf("[linux:metrics] Error removing linux metrics %s: %s\n", admin.ServiceName, err)
+			} else {
+				fmt.Printf("[linux:metrics] OK, removed system %s from monitoring.\n", admin.ServiceName)
+			}
+
+			err = admin.RemoveMetrics("postgresql")
+			if err == pmm.ErrNoService {
+				fmt.Printf("[postgresql:metrics] OK, no PostgreSQL metrics %s under monitoring.\n", admin.ServiceName)
+			} else if err != nil {
+				fmt.Printf("[postgresql:metrics] Error removing PostgreSQL metrics %s: %s\n", admin.ServiceName, err)
+			} else {
+				fmt.Printf("[postgresql:metrics] OK, removed MySQL PostgreSQL %s from monitoring.\n", admin.ServiceName)
+			}
+		},
+	}
+	cmdRemovePostgreSQLMetrics = &cobra.Command{
+		Use:   "postgresql:metrics [flags] [name]",
+		Short: "Remove PostgreSQL instance from metrics monitoring.",
+		Long: `This command removes PostgreSQL instance from metrics monitoring.
+
+[name] is an optional argument, by default it is set to the client name of this PMM client.
+		`,
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := admin.RemoveMetrics("postgresql"); err != nil {
+				fmt.Printf("Error removing PostgreSQL metrics %s: %s\n", admin.ServiceName, err)
+				os.Exit(1)
+			}
+			fmt.Printf("OK, removed PostgreSQL metrics %s from monitoring.\n", admin.ServiceName)
 		},
 	}
 	cmdRemoveProxySQLMetrics = &cobra.Command{
@@ -843,8 +957,8 @@ An optional list of instances (scrape targets) can be provided.
 [name] is an optional argument, by default it is set to the client name of this PMM client.
 		`,
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := admin.RemoveProxySQLMetrics(); err != nil {
-				fmt.Printf("Error removing proxysql metrics %s: %s\n", admin.ServiceName, err)
+			if err := admin.RemoveMetrics("proxysql"); err != nil {
+				fmt.Printf("Error removing ProxySQL metrics %s: %s\n", admin.ServiceName, err)
 				os.Exit(1)
 			}
 			fmt.Printf("OK, removed ProxySQL metrics %s from monitoring.\n", admin.ServiceName)
@@ -1228,17 +1342,18 @@ despite PMM server is alive or not.
 	flagMongoURI, flagCluster, flagDSN, flagFormat string
 	flagATags                                      string
 
-	flagVersion, flagJSON, flagAll, flagForce bool
+	flagVersion, flagJSON, flagAll, flagForce, flagDisableSSL bool
 
 	flagServicePort int
 
 	flagExtInterval, flagExtTimeout time.Duration
 	flagExtPath, flagExtScheme      string
 
-	flagM            pmm.MySQLFlags
-	flagQueries      pmm.QueriesFlags
-	flagMySQLMetrics pmm.MySQLMetricsFlags
-	flagMySQLQueries pmm.MySQLQueriesFlags
+	flagMySQL        mysql.Flags
+	flagPostgreSQL   postgresql.Flags
+	flagQueries      plugin.QueriesFlags
+	flagMySQLMetrics mysqlMetrics.Flags
+	flagMySQLQueries mysqlQueries.Flags
 	flagC            pmm.Config
 	flagTimeout      time.Duration
 )
@@ -1264,26 +1379,30 @@ func main() {
 		cmdUninstall,
 	)
 	cmdAdd.AddCommand(
-		cmdAddMySQL,
 		cmdAddLinuxMetrics,
+		cmdAddMySQL,
 		cmdAddMySQLMetrics,
 		cmdAddMySQLQueries,
 		cmdAddMongoDB,
 		cmdAddMongoDBMetrics,
 		cmdAddMongoDBQueries,
+		cmdAddPostgreSQL,
+		cmdAddPostgreSQLMetrics,
 		cmdAddProxySQLMetrics,
 		cmdAddExternalService,
 		cmdAddExternalMetrics,
 		cmdAddExternalInstances,
 	)
 	cmdRemove.AddCommand(
-		cmdRemoveMySQL,
 		cmdRemoveLinuxMetrics,
+		cmdRemoveMySQL,
 		cmdRemoveMySQLMetrics,
 		cmdRemoveMySQLQueries,
 		cmdRemoveMongoDB,
 		cmdRemoveMongoDBMetrics,
 		cmdRemoveMongoDBQueries,
+		cmdRemovePostgreSQL,
+		cmdRemovePostgreSQLMetrics,
 		cmdRemoveProxySQLMetrics,
 		cmdRemoveExternalService,
 		cmdRemoveExternalMetrics,
@@ -1311,58 +1430,91 @@ func main() {
 	cmdAnnotate.Flags().StringVar(&flagATags, "tags", "", "List of tags (separated by comma)")
 
 	cmdAddLinuxMetrics.Flags().BoolVar(&flagForce, "force", false, "force to add another linux:metrics instance with different name for testing purposes")
+	cmdAddLinuxMetrics.Flags().BoolVar(&flagDisableSSL, "disable-ssl", true, "disable ssl mode on exporter")
 
+	// Common MySQL flags.
 	addCommonMySQLFlags := func(cmd *cobra.Command) {
-		cmd.Flags().StringVar(&flagM.DefaultsFile, "defaults-file", "", "path to my.cnf")
-		cmd.Flags().StringVar(&flagM.Host, "host", "", "MySQL host")
-		cmd.Flags().StringVar(&flagM.Port, "port", "", "MySQL port")
-		cmd.Flags().StringVar(&flagM.User, "user", "", "MySQL username")
-		cmd.Flags().StringVar(&flagM.Password, "password", "", "MySQL password")
-		cmd.Flags().StringVar(&flagM.Socket, "socket", "", "MySQL socket")
-		cmd.Flags().BoolVar(&flagM.CreateUser, "create-user", false, "create a new MySQL user")
-		cmd.Flags().StringVar(&flagM.CreateUserPassword, "create-user-password", "", "optional password for a new MySQL user")
-		cmd.Flags().Uint16Var(&flagM.MaxUserConn, "create-user-maxconn", 10, "max user connections for a new user")
-		cmd.Flags().BoolVar(&flagM.Force, "force", false, "force to create/update MySQL user")
+		cmd.Flags().StringVar(&flagMySQL.DefaultsFile, "defaults-file", "", "path to my.cnf")
+		cmd.Flags().StringVar(&flagMySQL.Host, "host", "", "MySQL host")
+		cmd.Flags().StringVar(&flagMySQL.Port, "port", "", "MySQL port")
+		cmd.Flags().StringVar(&flagMySQL.User, "user", "", "MySQL username")
+		cmd.Flags().StringVar(&flagMySQL.Password, "password", "", "MySQL password")
+		cmd.Flags().StringVar(&flagMySQL.Socket, "socket", "", "MySQL socket")
+		cmd.Flags().BoolVar(&flagMySQL.CreateUser, "create-user", false, "create a new MySQL user")
+		cmd.Flags().StringVar(&flagMySQL.CreateUserPassword, "create-user-password", "", "optional password for a new MySQL user")
+		cmd.Flags().Uint16Var(&flagMySQL.MaxUserConn, "create-user-maxconn", 10, "max user connections for a new user")
+		cmd.Flags().BoolVar(&flagMySQL.Force, "force", false, "force to create/update MySQL user")
+		cmd.Flags().BoolVar(&flagDisableSSL, "disable-ssl", false, "disable ssl mode on exporter")
 	}
-
-	// mysql
+	// Common MySQL Metrics flags.
+	addCommonMySQLMetricsFlags := func(cmd *cobra.Command) {
+		cmd.Flags().BoolVar(&flagMySQLMetrics.DisableTableStats, "disable-tablestats", false, "disable table statistics")
+		cmd.Flags().Uint16Var(&flagMySQLMetrics.DisableTableStatsLimit, "disable-tablestats-limit", 1000, "number of tables after which table stats are disabled automatically")
+		cmd.Flags().BoolVar(&flagMySQLMetrics.DisableUserStats, "disable-userstats", false, "disable user statistics")
+		cmd.Flags().BoolVar(&flagMySQLMetrics.DisableBinlogStats, "disable-binlogstats", false, "disable binlog statistics")
+		cmd.Flags().BoolVar(&flagMySQLMetrics.DisableProcesslist, "disable-processlist", false, "disable process state metrics")
+	}
+	// Common MySQL Queries flags.
+	addCommonMySQLQueriesFlags := func(cmd *cobra.Command) {
+		cmd.Flags().BoolVar(&flagQueries.DisableQueryExamples, "disable-queryexamples", false, "disable collection of query examples")
+		cmd.Flags().BoolVar(&flagMySQLQueries.SlowLogRotation, "slow-log-rotation", true, "enable slow log rotation")
+		cmd.Flags().IntVar(&flagMySQLQueries.RetainSlowLogs, "retain-slow-logs", 1, "number of slow logs to retain after rotation")
+		cmd.Flags().StringVar(&flagMySQLQueries.QuerySource, "query-source", "auto", "source of SQL queries: auto, slowlog, perfschema")
+	}
+	// pmm-admin add mysql
 	addCommonMySQLFlags(cmdAddMySQL)
-	cmdAddMySQL.Flags().BoolVar(&flagMySQLMetrics.DisableTableStats, "disable-tablestats", false, "disable table statistics")
-	cmdAddMySQL.Flags().Uint16Var(&flagMySQLMetrics.DisableTableStatsLimit, "disable-tablestats-limit", 1000, "number of tables after which table stats are disabled automatically")
-	cmdAddMySQL.Flags().BoolVar(&flagMySQLMetrics.DisableUserStats, "disable-userstats", false, "disable user statistics")
-	cmdAddMySQL.Flags().BoolVar(&flagMySQLMetrics.DisableBinlogStats, "disable-binlogstats", false, "disable binlog statistics")
-	cmdAddMySQL.Flags().BoolVar(&flagMySQLMetrics.DisableProcesslist, "disable-processlist", false, "disable process state metrics")
-	cmdAddMySQL.Flags().BoolVar(&flagQueries.DisableQueryExamples, "disable-queryexamples", false, "disable collection of query examples")
-	cmdAddMySQL.Flags().BoolVar(&flagMySQLQueries.SlowLogRotation, "slow-log-rotation", true, "enable slow log rotation")
-	cmdAddMySQL.Flags().IntVar(&flagMySQLQueries.RetainSlowLogs, "retain-slow-logs", 1, "number of slow logs to retain after rotation")
-	cmdAddMySQL.Flags().StringVar(&flagMySQLQueries.QuerySource, "query-source", "auto", "source of SQL queries: auto, slowlog, perfschema")
-
-	// mysql:metrics
+	addCommonMySQLMetricsFlags(cmdAddMySQL)
+	addCommonMySQLQueriesFlags(cmdAddMySQL)
+	// pmm-admin add mysql:metrics
 	addCommonMySQLFlags(cmdAddMySQLMetrics)
-	cmdAddMySQLMetrics.Flags().BoolVar(&flagMySQLMetrics.DisableTableStats, "disable-tablestats", false, "disable table statistics")
-	cmdAddMySQLMetrics.Flags().Uint16Var(&flagMySQLMetrics.DisableTableStatsLimit, "disable-tablestats-limit", 1000, "number of tables after which table stats are disabled automatically")
-	cmdAddMySQLMetrics.Flags().BoolVar(&flagMySQLMetrics.DisableUserStats, "disable-userstats", false, "disable user statistics")
-	cmdAddMySQLMetrics.Flags().BoolVar(&flagMySQLMetrics.DisableBinlogStats, "disable-binlogstats", false, "disable binlog statistics")
-	cmdAddMySQLMetrics.Flags().BoolVar(&flagMySQLMetrics.DisableProcesslist, "disable-processlist", false, "disable process state metrics")
-
-	// mysql:queries
+	addCommonMySQLMetricsFlags(cmdAddMySQLMetrics)
+	// pmm-admin add mysql:queries
 	addCommonMySQLFlags(cmdAddMySQLQueries)
-	cmdAddMySQLQueries.Flags().BoolVar(&flagQueries.DisableQueryExamples, "disable-queryexamples", false, "disable collection of query examples")
-	cmdAddMySQLQueries.Flags().BoolVar(&flagMySQLQueries.SlowLogRotation, "slow-log-rotation", true, "enable slow log rotation")
-	cmdAddMySQLQueries.Flags().IntVar(&flagMySQLQueries.RetainSlowLogs, "retain-slow-logs", 1, "number of slow logs to retain after rotation")
-	cmdAddMySQLQueries.Flags().StringVar(&flagMySQLQueries.QuerySource, "query-source", "auto", "source of SQL queries: auto, slowlog, perfschema")
+	addCommonMySQLQueriesFlags(cmdAddMySQLQueries)
 
+	// Common PostgreSQL flags.
+	addCommonPostgreSQLFlags := func(cmd *cobra.Command) {
+		cmd.Flags().StringVar(&flagPostgreSQL.Host, "host", "", "PostgreSQL host")
+		cmd.Flags().StringVar(&flagPostgreSQL.Port, "port", "", "PostgreSQL port")
+		cmd.Flags().StringVar(&flagPostgreSQL.User, "user", "", "PostgreSQL username")
+		cmd.Flags().StringVar(&flagPostgreSQL.Password, "password", "", "PostgreSQL password")
+		cmd.Flags().StringVar(&flagPostgreSQL.SSLMode, "sslmode", "disable", "PostgreSQL SSL Mode: disable, require, verify-full or verify-ca")
+		cmd.Flags().BoolVar(&flagPostgreSQL.CreateUser, "create-user", false, "create a new PostgreSQL user")
+		cmd.Flags().StringVar(&flagPostgreSQL.CreateUserPassword, "create-user-password", "", "optional password for a new PostgreSQL user")
+		cmd.Flags().BoolVar(&flagPostgreSQL.Force, "force", false, "force to create/update PostgreSQL user")
+		cmd.Flags().BoolVar(&flagDisableSSL, "disable-ssl", false, "disable ssl mode on exporter")
+	}
+	// pmm-admin add postgresql
+	addCommonPostgreSQLFlags(cmdAddPostgreSQL)
+	// pmm-admin add postgresql:metrics
+	addCommonPostgreSQLFlags(cmdAddPostgreSQLMetrics)
+
+	// Common MongoDB flags.
 	addCommonMongoDBFlags := func(cmd *cobra.Command) {
 		cmd.Flags().StringVar(&flagMongoURI, "uri", "localhost:27017", "MongoDB URI, format: [mongodb://][user:pass@]host[:port][/database][?options]")
+		cmd.Flags().BoolVar(&flagDisableSSL, "disable-ssl", false, "disable ssl mode on exporter")
 	}
+	// Common MongoDB Metrics flags.
+	addCommonMongoDBMetricsFlags := func(cmd *cobra.Command) {
+		cmd.Flags().StringVar(&flagCluster, "cluster", "", "cluster name")
+	}
+	// Common MongoDB Queries flags.
+	addCommonMongoDBQueriesFlags := func(cmd *cobra.Command) {
+		cmd.Flags().BoolVar(&flagQueries.DisableQueryExamples, "disable-queryexamples", false, "disable collection of query examples")
+	}
+	// pmm-admin add mongodb
 	addCommonMongoDBFlags(cmdAddMongoDB)
-	cmdAddMongoDB.Flags().StringVar(&flagCluster, "cluster", "", "cluster name")
+	addCommonMongoDBMetricsFlags(cmdAddMongoDB)
+	addCommonMongoDBQueriesFlags(cmdAddMongoDB)
+	// pmm-admin add mongodb:metrics
 	addCommonMongoDBFlags(cmdAddMongoDBMetrics)
-	cmdAddMongoDBMetrics.Flags().StringVar(&flagCluster, "cluster", "", "cluster name")
+	addCommonMongoDBMetricsFlags(cmdAddMongoDBMetrics)
+	// pmm-admin add mongodb:queries
 	addCommonMongoDBFlags(cmdAddMongoDBQueries)
-	cmdAddMongoDBQueries.Flags().BoolVar(&flagQueries.DisableQueryExamples, "disable-queryexamples", false, "disable collection of query examples")
+	addCommonMongoDBQueriesFlags(cmdAddMongoDBQueries)
 
 	cmdAddProxySQLMetrics.Flags().StringVar(&flagDSN, "dsn", "stats:stats@tcp(localhost:6032)/", "ProxySQL connection DSN")
+	cmdAddProxySQLMetrics.Flags().BoolVar(&flagDisableSSL, "disable-ssl", false, "disable ssl mode on exporter")
 
 	cmdAddExternalService.Flags().DurationVar(&flagExtInterval, "interval", 0, "scrape interval. A positive number with the unit symbol - 's', 'm', 'h', etc. Ex.: 5s, 1m.")
 	cmdAddExternalService.Flags().DurationVar(&flagExtTimeout, "timeout", 0, "scrape timeout. A positive number with the unit symbol - 's', 'm', 'h', etc. Ex.: 5s, 1m.")

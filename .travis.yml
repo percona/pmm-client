@@ -19,6 +19,9 @@ env:
     - MYSQL_IMAGE=mariadb:10.1
     - MYSQL_IMAGE=mariadb:10.2
     - MYSQL_IMAGE=mariadb:10.3
+    - POSTGRESQL_IMAGE=postgres:9
+    - POSTGRESQL_IMAGE=postgres:10
+    - POSTGRESQL_IMAGE=postgres:11
     - MONGODB_IMAGE=mongo:3.2
     - MONGODB_IMAGE=mongo:3.4
     - MONGODB_IMAGE=mongo:3.6
@@ -38,6 +41,7 @@ install:
 
 before_script:
   - sudo service mysql stop
+  - sudo service postgresql stop
   - docker --version
   - docker-compose --version
   - docker-compose up -d

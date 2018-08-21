@@ -25,8 +25,8 @@ import (
 	"regexp"
 )
 
-// NewDebugRoundTripper is a wrapper around http.RoundTripper that logs request and response
-func NewDebugRoundTripper(parent http.RoundTripper) http.RoundTripper {
+// NewVerboseRoundTripper is a wrapper around http.RoundTripper that logs request and response
+func NewVerboseRoundTripper(parent http.RoundTripper) http.RoundTripper {
 	return &verboseRoundTripper{
 		parent: parent,
 	}

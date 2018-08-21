@@ -171,7 +171,7 @@ func (a *API) NewClient() *http.Client {
 	}
 	if a.debug {
 		// if api is in debug mode we should log every request and response
-		client.Transport = utils.NewDebugRoundTripper(client.Transport)
+		client.Transport = utils.NewVerboseRoundTripper(client.Transport)
 	}
 	return client
 }

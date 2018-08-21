@@ -20,6 +20,7 @@ package pmm
 import (
 	"testing"
 
+	"github.com/percona/pmm-client/pmm/utils"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -40,7 +41,7 @@ func TestSanitizeDSN(t *testing.T) {
 	}
 
 	for uri, expected := range uris {
-		assert.Equal(t, expected, SanitizeDSN(uri), "uri = %s", uri)
+		assert.Equal(t, expected, utils.SanitizeDSN(uri), "uri = %s", uri)
 	}
 }
 

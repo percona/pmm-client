@@ -15,30 +15,33 @@
 	along with this program.  If not, see <http://www.gnu.org/licenses/>
 */
 
-package pmm
+package mongodb
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestAdmin_DetectMongoDB(t *testing.T) {
-	rootDir, err := ioutil.TempDir("/tmp", "pmm-client-test-rootdir-")
-	assert.Nil(t, err)
+func TestInit(t *testing.T) {
+	pmmBaseDir, err := ioutil.TempDir("/tmp", "pmm-client-test-rootdir-")
+	assert.NoError(t, err)
 	defer func() {
-		err := os.RemoveAll(rootDir)
+		err := os.RemoveAll(pmmBaseDir)
 		assert.Nil(t, err)
 	}()
 
-	os.MkdirAll(rootDir+PMMBaseDir, 0777)
-	f, _ := os.Create(rootDir + PMMBaseDir + "/mongodb_exporter")
-	f.WriteString("#!/bin/sh\n")
-	f.WriteString(`cat << 'EOF'
+	err = os.MkdirAll(pmmBaseDir, 0777)
+	assert.NoError(t, err)
+	f, _ := os.Create(filepath.Join(pmmBaseDir, "mongodb_exporter"))
+	fmt.Fprintln(f, "#!/bin/sh")
+	fmt.Fprintln(f, `cat << 'EOF'
 {
   "Version": "3.4.12",
   "VersionArray": [
@@ -55,16 +58,14 @@ func TestAdmin_DetectMongoDB(t *testing.T) {
   "MaxObjectSize": 16777216
 }
 
-EOF
-`)
+EOF`)
 	f.Close()
-	os.Chmod(rootDir+PMMBaseDir+"/mongodb_exporter", 0777)
-	PMMBaseDir = rootDir + PMMBaseDir
+	err = os.Chmod(filepath.Join(pmmBaseDir, "mongodb_exporter"), 0777)
+	assert.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	admin := Admin{}
-	buildInfo, err := admin.DetectMongoDB(ctx, "")
-	assert.Nil(t, err)
+	buildInfo, err := Init(ctx, "", []string{}, pmmBaseDir)
+	assert.NoError(t, err)
 	assert.NotEmpty(t, buildInfo)
 }
