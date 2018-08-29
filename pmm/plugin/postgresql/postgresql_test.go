@@ -59,7 +59,7 @@ func TestMakeGrants(t *testing.T) {
 		},
 	}
 	for _, s := range samples {
-		grants := makeGrants(s.dsn, false)
+		grants := makeGrants(s.dsn, false, false)
 		assert.Equal(t, s.grants, grants)
 	}
 }
