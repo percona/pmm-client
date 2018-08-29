@@ -37,8 +37,8 @@ func TestMakeGrants(t *testing.T) {
 			dsn: DSN{User: "pmm", Password: "abc123"},
 			grants: []string{
 				"CREATE USER \"pmm\" WITH PASSWORD 'abc123'",
+				"CREATE SCHEMA \"pmm\" AUTHORIZATION \"pmm\"",
 				"ALTER USER \"pmm\" SET SEARCH_PATH TO \"pmm\",pg_catalog",
-				"CREATE SCHEMA IF NOT EXISTS \"pmm\" AUTHORIZATION \"pmm\"",
 				"CREATE OR REPLACE VIEW \"pmm\".pg_stat_activity AS SELECT * from pg_catalog.pg_stat_activity",
 				"GRANT SELECT ON \"pmm\".pg_stat_activity TO \"pmm\"",
 				"CREATE OR REPLACE VIEW \"pmm\".pg_stat_replication AS SELECT * from pg_catalog.pg_stat_replication",
@@ -49,8 +49,8 @@ func TestMakeGrants(t *testing.T) {
 			dsn: DSN{User: "admin", Password: "23;,_-asd"},
 			grants: []string{
 				"CREATE USER \"admin\" WITH PASSWORD '23;,_-asd'",
+				"CREATE SCHEMA \"admin\" AUTHORIZATION \"admin\"",
 				"ALTER USER \"admin\" SET SEARCH_PATH TO \"admin\",pg_catalog",
-				"CREATE SCHEMA IF NOT EXISTS \"admin\" AUTHORIZATION \"admin\"",
 				"CREATE OR REPLACE VIEW \"admin\".pg_stat_activity AS SELECT * from pg_catalog.pg_stat_activity",
 				"GRANT SELECT ON \"admin\".pg_stat_activity TO \"admin\"",
 				"CREATE OR REPLACE VIEW \"admin\".pg_stat_replication AS SELECT * from pg_catalog.pg_stat_replication",
