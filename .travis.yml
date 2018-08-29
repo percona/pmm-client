@@ -5,29 +5,15 @@ go:
 
 env:
   matrix:
-    - MYSQL_IMAGE=mysql:5.5
-    - MYSQL_IMAGE=mysql:5.6
-    - MYSQL_IMAGE=mysql:5.7
-    - MYSQL_IMAGE=mysql:8.0
-    - MYSQL_IMAGE=percona/percona-server:5.6
-    - MYSQL_IMAGE=percona/percona-server:5.7
-    - MYSQL_IMAGE=percona:5.5
-    - MYSQL_IMAGE=percona:5.6
-    - MYSQL_IMAGE=percona:5.7
-    - MYSQL_IMAGE=mariadb:5.5
-    - MYSQL_IMAGE=mariadb:10.0
-    - MYSQL_IMAGE=mariadb:10.1
-    - MYSQL_IMAGE=mariadb:10.2
-    - MYSQL_IMAGE=mariadb:10.3
     - POSTGRESQL_IMAGE=postgres:9
     - POSTGRESQL_IMAGE=postgres:10
     - POSTGRESQL_IMAGE=postgres:11
-    - MONGODB_IMAGE=mongo:3.2
-    - MONGODB_IMAGE=mongo:3.4
-    - MONGODB_IMAGE=mongo:3.6
-    - MONGODB_IMAGE=percona/percona-server-mongodb:3.2
-    - MONGODB_IMAGE=percona/percona-server-mongodb:3.4
-    - MONGODB_IMAGE=percona/percona-server-mongodb:3.6
+    - POSTGRESQL_IMAGE=postgres:9.1
+    - POSTGRESQL_IMAGE=postgres:9.2
+    - POSTGRESQL_IMAGE=postgres:9.3
+    - POSTGRESQL_IMAGE=postgres:9.4
+    - POSTGRESQL_IMAGE=postgres:9.5
+    - POSTGRESQL_IMAGE=postgres:9.6
 
 services:
   - docker
