@@ -93,12 +93,15 @@ func TestPmmAdmin(t *testing.T) {
 	tests := []func(*testing.T, pmmAdminData){
 		testAddMongoDB,
 		testAddMongoDBMetrics,
+		testAddMongoDBMetricsErr,
 		testAddMongoDBQueries,
 		testAddPostgreSQL,
 		testAddPostgreSQLMetrics,
+		testAddPostgreSQLMetricsErr,
 		testAddPostgreSQLWithCreateUser,
 		testAddMySQL,
 		testAddMySQLMetrics,
+		testAddMySQLMetricsErr,
 		testAddMySQLWithCreateUser,
 		testAddMySQLWithDisableSlowLogsRotation,
 		testAddMySQLWithRetainSlowLogs,
@@ -1215,6 +1218,59 @@ func testAddPostgreSQLMetrics(t *testing.T, data pmmAdminData) {
 	assertRegexpLines(t, expected, string(output))
 }
 
+func testAddPostgreSQLMetricsErr(t *testing.T, data pmmAdminData) {
+	defer func() {
+		err := os.RemoveAll(data.rootDir)
+		assert.Nil(t, err)
+	}()
+	createFakeENV(t, data)
+
+	{
+		// Create fake api server
+		fapi := fakeapi.New()
+		fapi.AppendRoot()
+		fapi.AppendQanAPIPing()
+		fapi.AppendConsulV1StatusLeader()
+		node := api.CatalogNode{
+			Node: &api.Node{},
+		}
+		clientName, _ := os.Hostname()
+		fapi.AppendConsulV1CatalogNode(clientName, node)
+		fapi.AppendConsulV1CatalogService()
+		fapi.AppendConsulV1CatalogRegister()
+		fapi.AppendConsulV1KV()
+		_, host, port := fapi.Start()
+		defer fapi.Close()
+
+		// Configure pmm
+		cmd := exec.Command(
+			data.bin,
+			"config",
+			"--server",
+			fmt.Sprintf("%s:%s", host, port),
+		)
+		output, err := cmd.CombinedOutput()
+		assert.Nil(t, err, string(output))
+	}
+
+	cmd := exec.Command(
+		data.bin,
+		"add",
+		"postgresql:metrics",
+		"--user", "bad-credentials",
+	)
+
+	output, err := cmd.CombinedOutput()
+	assert.Error(t, err)
+	expected := `Error adding PostgreSQL metrics: Cannot connect to PostgreSQL: 
+* pq: role "bad-credentials" does not exist
+
+Verify that PostgreSQL user exists and has the correct privileges.
+Use additional flags --user, --password, --host, --port if needed.
+`
+	assertRegexpLines(t, expected, string(output))
+}
+
 func testAddPostgreSQLWithCreateUser(t *testing.T, data pmmAdminData) {
 	defer func() {
 		err := os.RemoveAll(data.rootDir)
@@ -1393,6 +1449,73 @@ func testAddMySQLMetrics(t *testing.T, data pmmAdminData) {
 	output, err := cmd.CombinedOutput()
 	assert.Nil(t, err)
 	expected := `OK, now monitoring MySQL metrics using DSN root:\*\*\*@tcp\(127.0.0.1:3306\)
+`
+	assertRegexpLines(t, expected, string(output))
+}
+
+func testAddMySQLMetricsErr(t *testing.T, data pmmAdminData) {
+	defer func() {
+		err := os.RemoveAll(data.rootDir)
+		assert.Nil(t, err)
+	}()
+	createFakeENV(t, data)
+
+	{
+		// Create fake api server
+		fapi := fakeapi.New()
+		fapi.AppendRoot()
+		fapi.AppendQanAPIPing()
+		fapi.AppendConsulV1StatusLeader()
+		node := api.CatalogNode{
+			Node: &api.Node{},
+		}
+		clientName, _ := os.Hostname()
+		fapi.AppendConsulV1CatalogNode(clientName, node)
+		fapi.AppendConsulV1CatalogService()
+		fapi.AppendConsulV1CatalogRegister()
+		fapi.AppendConsulV1KV()
+		in := &proto.Instance{
+			Subsystem: "mysql",
+			UUID:      "13",
+		}
+		agentInstance := &proto.Instance{
+			Subsystem: "agent",
+			UUID:      "42",
+		}
+		fapi.AppendQanAPIInstancesId(agentInstance.UUID, agentInstance)
+		fapi.AppendQanAPIAgents(agentInstance.UUID)
+		fapi.AppendQanAPIInstances([]*proto.Instance{
+			in,
+		})
+		_, host, port := fapi.Start()
+		defer fapi.Close()
+
+		// Configure pmm
+		cmd := exec.Command(
+			data.bin,
+			"config",
+			"--server",
+			fmt.Sprintf("%s:%s", host, port),
+		)
+		output, err := cmd.CombinedOutput()
+		assert.Nil(t, err, string(output))
+	}
+
+	cmd := exec.Command(
+		data.bin,
+		"add",
+		"mysql:metrics",
+		"--user", "bad-credentials",
+		"--port", "3306", // MySQL instance with performance_schema enabled.
+		"--host", "127.0.0.1", // Force pmm-admin to ignore auto detection, otherwise it tries to connect to socket.
+	)
+
+	output, err := cmd.CombinedOutput()
+	assert.Error(t, err)
+	expected := `Error adding MySQL metrics: Cannot connect to MySQL: Error 1045: Access denied for user 'bad-credentials'@'.*' \(using password: NO\)
+
+Verify that MySQL user exists and has the correct privileges.
+Use additional flags --user, --password, --host, --port, --socket if needed.
 `
 	assertRegexpLines(t, expected, string(output))
 }
@@ -1824,6 +1947,68 @@ func testAddMongoDBMetrics(t *testing.T, data pmmAdminData) {
 	assertRegexpLines(t, expected, string(output))
 }
 
+func testAddMongoDBMetricsErr(t *testing.T, data pmmAdminData) {
+	defer func() {
+		err := os.RemoveAll(data.rootDir)
+		assert.Nil(t, err)
+	}()
+	createFakeENV(t, data)
+
+	{
+		// Create fake api server
+		fapi := fakeapi.New()
+		fapi.AppendRoot()
+		fapi.AppendQanAPIPing()
+		fapi.AppendConsulV1StatusLeader()
+		node := api.CatalogNode{
+			Node: &api.Node{},
+		}
+		clientName, _ := os.Hostname()
+		fapi.AppendConsulV1CatalogNode(clientName, node)
+		fapi.AppendConsulV1CatalogService()
+		fapi.AppendConsulV1CatalogRegister()
+		fapi.AppendConsulV1KV()
+		mongodbInstance := &proto.Instance{
+			Subsystem: "mongodb",
+			UUID:      "13",
+		}
+		agentInstance := &proto.Instance{
+			Subsystem: "agent",
+			UUID:      "42",
+		}
+		fapi.AppendQanAPIInstancesId(agentInstance.UUID, agentInstance)
+		fapi.AppendQanAPIAgents(agentInstance.UUID)
+		fapi.AppendQanAPIInstances([]*proto.Instance{
+			mongodbInstance,
+		})
+		_, host, port := fapi.Start()
+		defer fapi.Close()
+
+		// Configure pmm
+		cmd := exec.Command(
+			data.bin,
+			"config",
+			"--server",
+			fmt.Sprintf("%s:%s", host, port),
+		)
+		output, err := cmd.CombinedOutput()
+		assert.Nil(t, err, string(output))
+	}
+
+	cmd := exec.Command(
+		data.bin,
+		"add",
+		"mongodb:metrics",
+		"--uri", "bad-credentials",
+	)
+
+	output, err := cmd.CombinedOutput()
+	assert.Error(t, err)
+	expected := `Error adding MongoDB metrics: cannot verify MongoDB connection with .*
+`
+	assertRegexpLines(t, expected, string(output))
+}
+
 func testAddMongoDBQueries(t *testing.T, data pmmAdminData) {
 	defer func() {
 		err := os.RemoveAll(data.rootDir)
@@ -1952,8 +2137,13 @@ func createFakeENV(t *testing.T, data pmmAdminData) {
 
 	f, err := os.Create(filepath.Join(data.rootDir, pmm.PMMBaseDir, "mongodb_exporter"))
 	assert.NoError(t, err)
-	fmt.Fprintln(f, "#!/bin/sh")
-	fmt.Fprintln(f, `cat << 'EOF'
+	fmt.Fprintln(f, `#!/bin/sh
+
+if [ "${MONGODB_URI}" = "bad-credentials" ]; then
+    exit 1
+fi
+
+cat << 'EOF'
 {
   "Version": "3.4.12",
   "VersionArray": [
@@ -1969,7 +2159,6 @@ func createFakeENV(t *testing.T, data pmmAdminData) {
   "Debug": false,
   "MaxObjectSize": 16777216
 }
-
 EOF`)
 	f.Close()
 	err = os.Chmod(filepath.Join(data.rootDir, pmm.PMMBaseDir, "mongodb_exporter"), 0777)
