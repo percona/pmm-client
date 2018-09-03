@@ -452,7 +452,7 @@ a new user 'pmm' automatically using the given (auto-detected) PostgreSQL creden
 		Run: func(cmd *cobra.Command, args []string) {
 			postgresqlMetrics := postgresqlMetrics.New(flagPostgreSQL)
 			info, err := admin.AddMetrics(ctx, postgresqlMetrics, false, flagDisableSSL)
-			if err == pmm.ErrDuplicate {
+			if err != nil {
 				fmt.Println("Error adding PostgreSQL metrics:", err)
 				os.Exit(1)
 			}
@@ -537,7 +537,7 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 		Run: func(cmd *cobra.Command, args []string) {
 			mongodbMetrics := mongodbMetrics.New(flagMongoURI, admin.Args, flagCluster, pmm.PMMBaseDir)
 			info, err := admin.AddMetrics(ctx, mongodbMetrics, false, flagDisableSSL)
-			if err == pmm.ErrDuplicate {
+			if err != nil {
 				fmt.Println("Error adding MongoDB metrics:", err)
 				os.Exit(1)
 			}
