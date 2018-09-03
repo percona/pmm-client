@@ -23,7 +23,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -408,29 +407,38 @@ func (a *Admin) RemoveAllMonitoring(ignoreErrors bool) (uint16, error) {
 }
 
 // PurgeMetrics purge metrics data on the server by its metric type and name.
-func (a *Admin) PurgeMetrics(svcType string) (uint, error) {
+func (a *Admin) PurgeMetrics(svcType string) error {
 	if svcType != "linux:metrics" && svcType != "mysql:metrics" && svcType != "mongodb:metrics" && svcType != "proxysql:metrics" {
-		return 0, errors.New(`bad service type.
+		return errors.New(`bad service type.
 
 Service type takes the following values: linux:metrics, mysql:metrics, mongodb:metrics, proxysql:metrics.`)
 	}
 
-	match := fmt.Sprintf(`{job="%s",instance="%s"}`, strings.Split(svcType, ":")[0], a.ServiceName)
-	// XXX need this https://github.com/prometheus/client_golang/pull/248
-	//count, err := a.promSeriesAPI.Delete(context.Background(), []string{match})
-	//if err != nil {
-	//	return 0, err
-	//}
-	url := a.qanAPI.URL(a.serverURL, fmt.Sprintf("prometheus/api/v1/series?match[]=%s", match))
-	_, data, err := a.qanAPI.Delete(url)
-	if err != nil {
-		return 0, err
-	}
-	var res map[string]interface{}
-	_ = json.Unmarshal(data, &res)
-	count := uint(res["data"].(map[string]interface{})["numDeleted"].(float64))
+	var promError error
 
-	return count, nil
+	// Delete series in Prometheus v1.
+	match := fmt.Sprintf(`{job="%s",instance="%s"}`, strings.Split(svcType, ":")[0], a.ServiceName)
+	url := a.qanAPI.URL(a.serverURL, fmt.Sprintf("prometheus1/api/v1/series?match[]=%s", match))
+	resp, _, err := a.qanAPI.Delete(url)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		promError = fmt.Errorf("%v:%v resp: %v", promError, err, resp)
+	}
+
+	// Delete series in Prometheus v2.
+	url = a.qanAPI.URL(a.serverURL, fmt.Sprintf("prometheus/api/v1/admin/tsdb/delete_series?match[]=%s", match))
+	resp, _, err = a.qanAPI.Post(url, []byte{})
+	if err != nil || resp.StatusCode != http.StatusNoContent {
+		promError = fmt.Errorf("%v:%v resp: %v", promError, err, resp)
+	}
+
+	// Clean tombstones in Prometheus v2.
+	url = a.qanAPI.URL(a.serverURL, "prometheus/api/v1/admin/tsdb/clean_tombstones")
+	resp, _, err = a.qanAPI.Post(url, []byte{})
+	if err != nil || resp.StatusCode != http.StatusNoContent {
+		promError = fmt.Errorf("%v:%v resp: %v", promError, err, resp)
+	}
+
+	return promError
 }
 
 // getConsulService get service from Consul by service type and optionally name (alias).

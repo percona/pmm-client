@@ -1292,16 +1292,12 @@ It is not required that metric service or name exists.
 				admin.ServiceName = args[1]
 			}
 
-			count, err := admin.PurgeMetrics(svcType)
+			err := admin.PurgeMetrics(svcType)
 			if err != nil {
 				fmt.Printf("Error purging %s data for %s: %s\n", svcType, admin.ServiceName, err)
 				os.Exit(1)
 			}
-			if count == 0 {
-				fmt.Printf("OK, no data purged of %s for %s.\n", svcType, admin.ServiceName)
-			} else {
-				fmt.Printf("OK, purged %d time-series of %s data for %s.\n", count, svcType, admin.ServiceName)
-			}
+			fmt.Printf("OK, data purged of %s for %s.\n", svcType, admin.ServiceName)
 		},
 	}
 
