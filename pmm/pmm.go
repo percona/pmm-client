@@ -45,6 +45,7 @@ import (
 	"github.com/prometheus/client_golang/api/prometheus"
 
 	"github.com/percona/pmm-client/pmm/managed"
+	"github.com/percona/pmm-client/pmm/utils"
 )
 
 // Admin main class.
@@ -307,7 +308,7 @@ func (a *Admin) StartStopMonitoring(action, svcType string) (affected bool, err 
 
 // StartStopAllMonitoring start/stop all metric services.
 func (a *Admin) StartStopAllMonitoring(action string) (numOfAffected, numOfAll int, err error) {
-	var errs Errors
+	var errs utils.Errs
 
 	localServices := GetLocalServices()
 	numOfAll = len(localServices)

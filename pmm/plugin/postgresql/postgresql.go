@@ -84,7 +84,7 @@ func Init(ctx context.Context, flags Flags, pmmUserPassword string) (*plugin.Inf
 
 	userDSN := flags.DSN
 
-	var errs errs
+	var errs utils.Errs
 
 	// Test access using detected credentials and stored password.
 	accessOK := false
@@ -384,17 +384,4 @@ func getInfo(ctx context.Context, db *sql.DB) (*plugin.Info, error) {
 	}
 	info.Distro = "PostgreSQL"
 	return info, nil
-}
-
-type errs []error
-
-func (errs errs) Error() string {
-	if len(errs) == 0 {
-		return ""
-	}
-	buf := &bytes.Buffer{}
-	for _, err := range errs {
-		fmt.Fprintf(buf, "\n* %s", err)
-	}
-	return buf.String()
 }

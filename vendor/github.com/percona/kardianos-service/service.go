@@ -75,10 +75,27 @@ const (
 	optionUserServiceDefault   = false
 	optionSessionCreate        = "SessionCreate"
 	optionSessionCreateDefault = false
+	optionLogOutput            = "LogOutput"
+	optionLogOutputDefault     = true
 
 	optionRunWait      = "RunWait"
 	optionReloadSignal = "ReloadSignal"
 	optionPIDFile      = "PIDFile"
+
+	optionSystemdScript = "SystemdScript"
+	optionSysvScript    = "SysvScript"
+	optionUpstartScript = "UpstartScript"
+	optionLaunchdConfig = "LaunchdConfig"
+)
+
+// Status represents service status as an byte value
+type Status byte
+
+// Status of service represented as an byte
+const (
+	StatusUnknown Status = iota // Status is unable to be determined due to an error or it was not installed.
+	StatusRunning
+	StatusStopped
 )
 
 // Config provides the setup for a Service. The Name field is required.
@@ -106,14 +123,19 @@ type Config struct {
 
 	// System specific options.
 	//  * OS X
+	//    - LaunchdConfig string ()      - Use custom launchd config
 	//    - KeepAlive     bool (true)
 	//    - RunAtLoad     bool (false)
 	//    - UserService   bool (false) - Install as a current user service.
 	//    - SessionCreate bool (false) - Create a full user session.
 	//  * POSIX
+	//    - SystemdScript string ()                 - Use custom systemd script
+	//    - UpstartScript string ()                 - Use custom upstart script
+	//    - SysvScript    string ()                 - Use custom sysv script
 	//    - RunWait      func() (wait for SIGNAL) - Do not install signal but wait for this function to return.
 	//    - ReloadSignal string () [USR1, ...] - Signal to send on reaload.
-	//    - PIDFile      string () [/run/prog.pid] - Location of the PID file (systemd, systemv).
+	//    - PIDFile       string () [/run/prog.pid] - Location of the PID file.
+	//    - LogOutput     bool   (false)            - Redirect StdErr & StdOut to files.
 	Option KeyValue
 }
 
@@ -123,10 +145,12 @@ var (
 )
 
 var (
-	// ErrNameFieldRequired is returned when Conifg.Name is empty.
+	// ErrNameFieldRequired is returned when Config.Name is empty.
 	ErrNameFieldRequired = errors.New("Config.Name field is required.")
 	// ErrNoServiceSystemDetected is returned when no system was detected.
 	ErrNoServiceSystemDetected = errors.New("No service system detected.")
+	// ErrNotInstalled is returned when the service is not installed
+	ErrNotInstalled = errors.New("the service is not installed")
 )
 
 // New creates a new service based on a service interface and configuration.
@@ -312,10 +336,6 @@ type Service interface {
 	// greater rights. Will return an error if the service is not present.
 	Uninstall() error
 
-	// Status requests the given service status from the OS service manager.
-	// Will return an error if the service is not running or not installed.
-	Status() error
-
 	// Opens and returns a system logger. If the user program is running
 	// interactively rather then as a service, the returned logger will write to
 	// os.Stderr. If errs is non-nil errors will be sent on errs as well as
@@ -329,6 +349,9 @@ type Service interface {
 	// String displays the name of the service. The display name if present,
 	// otherwise the name.
 	String() string
+
+	// Status returns the current service status.
+	Status() (Status, error)
 }
 
 // ControlAction list valid string texts to use in Control.
@@ -349,7 +372,7 @@ func Control(s Service, action string) error {
 	case ControlAction[4]:
 		err = s.Uninstall()
 	case ControlAction[5]:
-		err = s.Status()
+		_, err = s.Status()
 	default:
 		err = fmt.Errorf("Unknown action %s", action)
 	}

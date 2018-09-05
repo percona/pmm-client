@@ -19,10 +19,12 @@ package pmm
 
 import (
 	service "github.com/percona/kardianos-service"
+	"github.com/percona/pmm-client/pmm/utils"
 )
 
 var (
-	NewService func(i service.Interface, c *service.Config) (service.Service, error) = service.New
+	// NewService defines function to create service.Service.
+	NewService = service.New
 )
 
 // @todo don't use singleton init, use dependency injection
@@ -38,13 +40,13 @@ func init() {
 type dummyService struct {
 }
 
-func (*dummyService) Run() error       { return nil }
-func (*dummyService) Start() error     { return nil }
-func (*dummyService) Stop() error      { return nil }
-func (*dummyService) Restart() error   { return nil }
-func (*dummyService) Install() error   { return nil }
-func (*dummyService) Uninstall() error { return nil }
-func (*dummyService) Status() error    { return nil }
+func (*dummyService) Run() error                      { return nil }
+func (*dummyService) Start() error                    { return nil }
+func (*dummyService) Stop() error                     { return nil }
+func (*dummyService) Restart() error                  { return nil }
+func (*dummyService) Install() error                  { return nil }
+func (*dummyService) Uninstall() error                { return nil }
+func (*dummyService) Status() (service.Status, error) { return service.StatusRunning, nil }
 func (*dummyService) Logger(errs chan<- error) (service.Logger, error) {
 	return service.ConsoleLogger, nil
 }
@@ -90,9 +92,14 @@ func uninstallService(name string) error {
 	if err != nil {
 		return err
 	}
-	if err := svc.Status(); err == nil {
+	var errs utils.Errs
+	if status, err := svc.Status(); status != service.StatusStopped {
+		if err != nil {
+			errs = append(errs, err)
+		}
 		if err := svc.Stop(); err != nil {
-			return err
+			errs = append(errs, err)
+			return errs
 		}
 	}
 	if err := svc.Uninstall(); err != nil {
@@ -108,9 +115,14 @@ func startService(name string) error {
 	if err != nil {
 		return err
 	}
-	if err := svc.Status(); err != nil {
+	var errs utils.Errs
+	if status, err := svc.Status(); status != service.StatusRunning {
+		if err != nil {
+			errs = append(errs, err)
+		}
 		if err := svc.Start(); err != nil {
-			return err
+			errs = append(errs, err)
+			return errs
 		}
 	}
 	return nil
@@ -123,9 +135,14 @@ func stopService(name string) error {
 	if err != nil {
 		return err
 	}
-	if err := svc.Status(); err == nil {
+	var errs utils.Errs
+	if status, err := svc.Status(); status != service.StatusStopped {
+		if err != nil {
+			errs = append(errs, err)
+		}
 		if err := svc.Stop(); err != nil {
-			return err
+			errs = append(errs, err)
+			return errs
 		}
 	}
 	return nil
@@ -138,8 +155,8 @@ func getServiceStatus(name string) bool {
 	if err != nil {
 		return false
 	}
-	if err := svc.Status(); err != nil {
-		return false
+	if status, _ := svc.Status(); status == service.StatusRunning {
+		return true
 	}
-	return true
+	return false
 }

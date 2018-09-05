@@ -30,9 +30,11 @@ import (
 	"strings"
 
 	consul "github.com/hashicorp/consul/api"
+	"gopkg.in/yaml.v2"
+
+	"github.com/percona/pmm-client/pmm/utils"
 	"github.com/percona/pmm/proto"
 	protocfg "github.com/percona/pmm/proto/config"
-	"gopkg.in/yaml.v2"
 )
 
 // Config pmm.yml config file.
@@ -337,7 +339,8 @@ func isAddressLocal(myAddress string) bool {
 }
 
 // renameClientNameInServices changes a clientName in all services
-func (a *Admin) renameClientNameInServices(node *consul.CatalogNode, oldName, newName string) (errs Errors) {
+func (a *Admin) renameClientNameInServices(node *consul.CatalogNode, oldName, newName string) error {
+	var errs utils.Errs
 	for _, svc := range node.Services {
 		for k, v := range svc.Tags {
 			if v == fmt.Sprintf("alias_%s", oldName) {
@@ -415,7 +418,11 @@ func (a *Admin) renameClientNameInServices(node *consul.CatalogNode, oldName, ne
 		}
 	}
 
-	return errs
+	if len(errs) > 0 {
+		return errs
+	}
+
+	return nil
 }
 
 // deregisterNode removes node from consul

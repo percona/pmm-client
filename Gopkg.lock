@@ -201,10 +201,9 @@
   revision = "251dbc2e6a0c734cba315e66bf694b4b0b011e0c"
 
 [[projects]]
-  branch = "master"
   name = "github.com/percona/kardianos-service"
   packages = ["."]
-  revision = "acdc9090d60b1763410d42052a29e62e73a3552d"
+  revision = "36af3aea664da2e20254dd33335cb18187475f8f"
 
 [[projects]]
   branch = "master"
