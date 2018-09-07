@@ -1325,7 +1325,7 @@ It removes local services disconnected from PMM server and remote services that 
 		Short: "Removes all monitoring services with the best effort.",
 		Long: `This command removes all monitoring services with the best effort.
 
-Usuaully, it runs automatically when pmm-client package is uninstalled to remove all local monitoring services
+Usually, it runs automatically when pmm-client package is uninstalled to remove all local monitoring services
 despite PMM server is alive or not.
 		`,
 		Run: func(cmd *cobra.Command, args []string) {
