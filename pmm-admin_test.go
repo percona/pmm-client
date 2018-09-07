@@ -587,6 +587,7 @@ Flags:
 
 Global Flags:
   -c, --config-file string   PMM config file \(default ".*?"\)
+      --skip-superadmin      skip UID check \(experimental\)
       --verbose              verbose output
 `
 		assertRegexpLines(t, expected, string(output))
