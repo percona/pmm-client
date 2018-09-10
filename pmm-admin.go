@@ -57,6 +57,14 @@ var (
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			ctx, cancel = context.WithTimeout(context.Background(), flagTimeout)
 
+			if !admin.SkipAdmin && os.Getuid() != 0 {
+				// skip root check if binary was build in tests
+				if pmm.Version != "gotest" {
+					fmt.Println("pmm-admin requires superuser privileges to manage system services.")
+					os.Exit(1)
+				}
+			}
+
 			switch cmd.Name() {
 			case "help":
 				// Skip pre-run for "help" command.
@@ -1412,6 +1420,7 @@ func main() {
 	// Flags.
 	rootCmd.PersistentFlags().StringVarP(&pmm.ConfigFile, "config-file", "c", pmm.ConfigFile, "PMM config file")
 	rootCmd.PersistentFlags().BoolVarP(&admin.Verbose, "verbose", "", false, "verbose output")
+	rootCmd.PersistentFlags().BoolVarP(&admin.SkipAdmin, "skip-superadmin", "", false, "skip UID check (experimental)")
 	rootCmd.Flags().BoolVarP(&flagVersion, "version", "v", false, "show version")
 	rootCmd.Flags().DurationVar(&flagTimeout, "timeout", 5*time.Second, "timeout")
 
@@ -1551,14 +1560,6 @@ func main() {
 	cmdStart.Flags().BoolVar(&flagAll, "all", false, "start all monitoring services")
 	cmdStop.Flags().BoolVar(&flagAll, "all", false, "stop all monitoring services")
 	cmdRestart.Flags().BoolVar(&flagAll, "all", false, "restart all monitoring services")
-
-	if os.Getuid() != 0 {
-		// skip root check if binary was build in tests
-		if pmm.Version != "gotest" {
-			fmt.Println("pmm-admin requires superuser privileges to manage system services.")
-			os.Exit(1)
-		}
-	}
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
