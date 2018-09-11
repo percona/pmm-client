@@ -156,7 +156,11 @@ func (a *Admin) CollectSummary(mysqluser string, mysqlpassword string, mysqlport
         }
 
         dirname := strings.Join([]string{"/tmp/pmm", string(cmdHostname)[:len(string(cmdHostname))-1], currentTime.Format("2006-01-02T15_04_05")}, "-")
-        os.MkdirAll(dirname, 0777)
+        err = os.MkdirAll(dirname, 0777)
+	if err != nil {
+		fmt.Println("Error creating a temporary directory %s: %e", dirname, err)
+		os.Exit(1)
+	}
 
         var Collectors = []Collector{{"Collect pmm-admin check-network output",
 		[]string{"pmm-admin", "check-network"},
@@ -223,22 +227,30 @@ func (a *Admin) CollectSummary(mysqluser string, mysqlpassword string, mysqlport
         names, err := srcf.Readdirnames(100)
         for _, name := range names {
 		if pmmLogs.MatchString(name) {
-			srcf, err := os.Open(strings.Join([]string{"/var/log/",name},"/"))
+                        srcf, err := os.Open(strings.Join([]string{"/var/log/",name},"/"))
                         if err != nil {
-				fmt.Printf("Open file %s failed with %s\n", strings.Join([]string{"/var/log/",name},"/"), err)
+                                fmt.Printf("Open file %s failed with %v\n", strings.Join([]string{"/var/log/",name},"/"), err)
                         } else {
-				defer srcf.Close()
+                                defer srcf.Close()
                         }
                         dstf, err := os.OpenFile(strings.Join([]string{dirname,name},"/"), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0777)
-                        defer srcf.Close()
+                        if err != nil {
+                                fmt.Printf("Create file %s failed with %v\n", strings.Join([]string{dirname,name},"/"), err)
+                        } else {
+                                defer dstf.Close()
+                        }
                         if _, err := io.Copy(dstf, srcf); err != nil {
-				fmt.Printf("Cannot copy %s to %s: %v\n", name, dstf, err)
+                                fmt.Printf("Cannot copy %s to %v: %v\n", name, dstf, err)
                         }
                }
         }
 
 	archFilename := strings.Join([]string{"pmm","-",string(cmdHostname)[:len(string(cmdHostname))-1],"-",currentTime.Format("2006-01-02T15_04_05"),".zip"}, "")
-	zipIt(dirname, archFilename)
+	err = zipIt(dirname, archFilename)
+        if err != nil {
+                fmt.Printf("Error archiving directory %s: %v", dirname, err)
+                os.Exit(1)
+        }
 
 	fmt.Printf("\nAll operations have been performed.\nResult file is %s\n", archFilename)
 
