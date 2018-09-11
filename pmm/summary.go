@@ -110,7 +110,7 @@ func zipIt(source, target string) error {
 	if info.IsDir() {
 		baseDir = filepath.Base(source)
 	}
-	filepath.Walk(source, func(path string, info os.FileInfo, err error) error {
+	err = filepath.Walk(source, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
