@@ -150,6 +150,11 @@ func (a *Admin) CollectSummary(mysqluser string, mysqlpassword string, mysqlport
         // Create a directory for collecting files
         currentTime := time.Now().Local()
         cmdHostname, err := exec.Command("hostname").Output()
+        if err != nil {
+                fmt.Println("Error exec command hostname:", err)
+                cmdHostname = []byte("unknown ")
+        }
+
         dirname := strings.Join([]string{"/tmp/pmm", string(cmdHostname)[:len(string(cmdHostname))-1], currentTime.Format("2006-01-02T15_04_05")}, "-")
         os.MkdirAll(dirname, 0777)
 
@@ -232,7 +237,7 @@ func (a *Admin) CollectSummary(mysqluser string, mysqlpassword string, mysqlport
                }
         }
 
-	archFilename := strings.Join([]string{"pmm","-",string(cmdHostname)[:len(string(cmdHostname))-1],"-",current_time.Format("2006-01-02T15_04_05"),".zip"}, "")
+	archFilename := strings.Join([]string{"pmm","-",string(cmdHostname)[:len(string(cmdHostname))-1],"-",currentTime.Format("2006-01-02T15_04_05"),".zip"}, "")
 	zipIt(dirname, archFilename)
 
 	fmt.Printf("\nAll operations have been performed.\nResult file is %s\n", archFilename)
