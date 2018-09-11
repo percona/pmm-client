@@ -72,6 +72,8 @@ var (
 				return
 			case "uninstall":
 				return
+			case "summary":
+				return
 			case "config":
 				// Skip pre-run as we do not require config file to exist here.
 				// If the config does not exist, we will init an empty and write on Run.
@@ -178,6 +180,19 @@ run 'pmm-admin repair' to remove orphaned services. Otherwise, please reinstall 
 		},
 		PersistentPostRun: func(cmd *cobra.Command, args []string) {
 			cancel()
+		},
+	}
+
+	cmdSummary = &cobra.Command{
+		Use:     "summary",
+		Short:   "Fetch system data for diagnostics.",
+		Long:    "Collect data for Support Engineers to review when troubleshooting pmm-client cases",
+		Example: `  pmm-admin summary `,
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := admin.CollectSummary(); err != nil {
+				fmt.Println("Error requesting summary. Error message is: ", err)
+				os.Exit(1)
+			}
 		},
 	}
 
@@ -1422,6 +1437,7 @@ func main() {
 		cmdPurge,
 		cmdRepair,
 		cmdUninstall,
+		cmdSummary,
 	)
 	cmdAdd.AddCommand(
 		cmdAddLinuxMetrics,

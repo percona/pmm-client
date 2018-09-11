@@ -179,6 +179,7 @@ Available Commands:
   purge          Purge metrics data on PMM server.
   repair         Repair installation.
   uninstall      Removes all monitoring services with the best effort.
+  summary        Fetch system data for diagnostics.
   help           Help about any command
 
 Flags:
