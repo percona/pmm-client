@@ -184,7 +184,7 @@ Available Commands:
 Flags:
   -c, --config-file string   PMM config file \(default ".*"\)
   -h, --help                 help for pmm-admin
-      --skip-superadmin      skip UID check \(experimental\)
+      --skip-root            skip UID check \(experimental\)
       --timeout duration     timeout \(default 5s\)
       --verbose              verbose output
   -v, --version              show version
@@ -587,7 +587,7 @@ Flags:
 
 Global Flags:
   -c, --config-file string   PMM config file \(default ".*?"\)
-      --skip-superadmin      skip UID check \(experimental\)
+      --skip-root            skip UID check \(experimental\)
       --verbose              verbose output
 `
 		assertRegexpLines(t, expected, string(output))
