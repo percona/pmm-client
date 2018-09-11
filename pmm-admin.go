@@ -72,6 +72,8 @@ var (
 				return
 			case "uninstall":
 				return
+			case "summary":
+				return
 			case "config":
 				// Skip pre-run as we do not require config file to exist here.
 				// If the config does not exist, we will init an empty and write on Run.
@@ -178,6 +180,21 @@ run 'pmm-admin repair' to remove orphaned services. Otherwise, please reinstall 
 		},
 		PersistentPostRun: func(cmd *cobra.Command, args []string) {
 			cancel()
+		},
+	}
+
+        cmdSummary = &cobra.Command{
+                Use:   "summary",
+                Short: "Fetch system data for diagnostics.",
+                Long:  "Collect data for Support Engineers to review when troubleshooting pmm-client cases",
+                Example: `  pmm-admin summary 
+  pmm-admin summary --mysqlsocket /tmp/PS_NODE.sock
+  pmm-admin summary --mysqluser root --mysqlpassword secret`,
+                Run: func(cmd *cobra.Command, args []string) {
+                        if err := admin.CollectSummary(flagSUser,flagSPassword,flagSPort,flagSSocket); err != nil {
+                                fmt.Println("Error requesting summary. Error message is: ", err)
+                                os.Exit(1)
+                        }
 		},
 	}
 
@@ -1349,6 +1366,7 @@ despite PMM server is alive or not.
 
 	flagMongoURI, flagCluster, flagDSN, flagFormat string
 	flagATags                                      string
+	flagSSocket, flagSUser, flagSPassword, flagSPort string
 
 	flagVersion, flagJSON, flagAll, flagForce, flagDisableSSL bool
 
@@ -1385,6 +1403,7 @@ func main() {
 		cmdPurge,
 		cmdRepair,
 		cmdUninstall,
+		cmdSummary,
 	)
 	cmdAdd.AddCommand(
 		cmdAddLinuxMetrics,
@@ -1437,6 +1456,11 @@ func main() {
 	cmdAdd.PersistentFlags().IntVar(&flagServicePort, "service-port", 0, "service port")
 
 	cmdAnnotate.Flags().StringVar(&flagATags, "tags", "", "List of tags (separated by comma)")
+
+	cmdSummary.Flags().StringVar(&flagSSocket, "mysqlsocket", "", "MySQL socket")
+	cmdSummary.Flags().StringVar(&flagSUser, "mysqluser", "", "MySQL username")
+	cmdSummary.Flags().StringVar(&flagSPassword, "mysqlpassword", "", "MySQL password")
+	cmdSummary.Flags().StringVar(&flagSPort, "mysqlport", "", "MySQL port")
 
 	cmdAddLinuxMetrics.Flags().BoolVar(&flagForce, "force", false, "force to add another linux:metrics instance with different name for testing purposes")
 	cmdAddLinuxMetrics.Flags().BoolVar(&flagDisableSSL, "disable-ssl", true, "disable ssl mode on exporter")
