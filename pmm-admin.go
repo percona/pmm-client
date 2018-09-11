@@ -1420,7 +1420,7 @@ func main() {
 	// Flags.
 	rootCmd.PersistentFlags().StringVarP(&pmm.ConfigFile, "config-file", "c", pmm.ConfigFile, "PMM config file")
 	rootCmd.PersistentFlags().BoolVarP(&admin.Verbose, "verbose", "", false, "verbose output")
-	rootCmd.PersistentFlags().BoolVarP(&admin.SkipAdmin, "skip-superadmin", "", false, "skip UID check (experimental)")
+	rootCmd.PersistentFlags().BoolVarP(&admin.SkipAdmin, "skip-root", "", false, "skip UID check (experimental)")
 	rootCmd.Flags().BoolVarP(&flagVersion, "version", "v", false, "show version")
 	rootCmd.Flags().DurationVar(&flagTimeout, "timeout", 5*time.Second, "timeout")
 
