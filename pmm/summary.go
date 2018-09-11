@@ -29,12 +29,14 @@ import (
 	"path/filepath"
 )
 
+// Collector parameters and description.
 type Collector struct {
         CollectorDescription	string
 	ExecCommand		[]string
 	OutputFileName		string
 }
 
+// CollectData runs a command and collects output into a file.
 func (c Collector) CollectData() {
         fmt.Printf("%s ... ",c.CollectorDescription)
 	dstfNetworks, err := os.OpenFile(c.OutputFileName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0777)
@@ -55,6 +57,7 @@ func (c Collector) CollectData() {
 	}
 }
 
+// CheckInitType detects which system manager is running on Linux System.
 func CheckInitType() string {
 	var initType string
 	cmdSystemType, err := exec.Command("stat", "/proc/1/exe").Output()
@@ -73,6 +76,7 @@ func CheckInitType() string {
 	return initType
 }
 
+// CheckMonitoredDBServices finds out what DB instances are monitored.
 func CheckMonitoredDBServices() []string {
         var monitoredDBServices []string
         cmdPmmList, err := exec.Command("pmm-admin","list").Output()
@@ -89,6 +93,7 @@ func CheckMonitoredDBServices() []string {
         return monitoredDBServices
 }
 
+// zipIt archives collected information.
 func zipIt(source, target string) error {
 	zipfile, err := os.Create(target)
 	if err != nil {
@@ -139,12 +144,13 @@ func zipIt(source, target string) error {
 	return err
 }
 
+// CollectSummary get output of system and pmm utilites. 
 func (a *Admin) CollectSummary(mysqluser string, mysqlpassword string, mysqlport string, mysqlsocket string) error {
 	fmt.Println("\nCollecting information for system diagnostic")
         // Create a directory for collecting files
-        current_time := time.Now().Local()
+        currentTime := time.Now().Local()
         cmdHostname, err := exec.Command("hostname").Output()
-        dirname := strings.Join([]string{"/tmp/pmm", string(cmdHostname)[:len(string(cmdHostname))-1], current_time.Format("2006-01-02T15_04_05")}, "-")
+        dirname := strings.Join([]string{"/tmp/pmm", string(cmdHostname)[:len(string(cmdHostname))-1], currentTime.Format("2006-01-02T15_04_05")}, "-")
         os.MkdirAll(dirname, 0777)
 
         var Collectors = []Collector{{"Collect pmm-admin check-network output",
@@ -200,7 +206,6 @@ func (a *Admin) CollectSummary(mysqluser string, mysqlpassword string, mysqlport
         for _, info := range Collectors {
                 info.CollectData()
         }
-
 
         // Collect pmm logs from /var/log
         pmmLogs, _ := regexp.Compile("^pmm-.*")
