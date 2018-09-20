@@ -408,7 +408,7 @@ func (a *Admin) RemoveAllMonitoring(ignoreErrors bool) (uint16, error) {
 
 // PurgeMetrics purge metrics data on the server by its metric type and name.
 func (a *Admin) PurgeMetrics(svcType string) error {
-	if svcType != "linux:metrics" && svcType != "mysql:metrics" && svcType != "mongodb:metrics" && svcType != "proxysql:metrics" {
+	if svcType != "linux:metrics" && svcType != "mysql:metrics" && svcType != "mongodb:metrics" && svcType != "proxysql:metrics" && svcType != "postgresql:metrics" {
 		return errors.New(`bad service type.
 
 Service type takes the following values: linux:metrics, mysql:metrics, mongodb:metrics, proxysql:metrics.`)
