@@ -55,9 +55,8 @@ func (c *Collector) CollectData() error {
 	if _, err := dstfNetworks.Write(cmd); err != nil {
 		fmt.Printf("Skipped. Failed to copy %s output into file %s\n", c.ExecCommand[0], c.OutputFileName)
 		return err
-	} else {
-		fmt.Println("Done.")
 	}
+	fmt.Println("Done.")
 
 	return err
 }
