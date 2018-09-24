@@ -53,6 +53,7 @@ type Admin struct {
 	Args         []string // Args defines additional arguments to pass through to *_exporter or qan-agent
 	Config       *Config
 	Verbose      bool
+	SkipAdmin    bool
 	Format       string
 	serverURL    string
 	apiTimeout   time.Duration
