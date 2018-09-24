@@ -21,10 +21,10 @@ import (
 	"archive/zip"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 
@@ -39,26 +39,27 @@ type Collector struct {
 }
 
 // CollectData runs a command and collects output into a file.
-func (c Collector) CollectData() {
+func (c *Collector) CollectData() error {
 	fmt.Printf("%s ... ", c.CollectorDescription)
 	dstfNetworks, err := os.OpenFile(c.OutputFileName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0777)
 	if err != nil {
 		fmt.Printf("Skipped. Failed to create file %s with %s\n", c.OutputFileName, err)
-		return
+		return err
 	}
 	defer dstfNetworks.Close()
 	cmd, err := exec.Command(c.ExecCommand[0], c.ExecCommand[1:]...).Output()
 	if err != nil {
 		fmt.Printf("Skipped. Error collecting data by %s: %s\n", c.ExecCommand, err)
-		return
+		return err
 	}
 	if _, err := dstfNetworks.Write(cmd); err != nil {
 		fmt.Printf("Skipped. Failed to copy %s output into file %s\n", c.ExecCommand[0], c.OutputFileName)
+		return err
 	} else {
 		fmt.Println("Done.")
 	}
 
-	return
+	return err
 }
 
 // CheckMonitoredDBServices finds out what DB instances are monitored.
@@ -77,6 +78,24 @@ func CheckMonitoredDBServices() []string {
 	}
 
 	return monitoredDBServices
+}
+
+// Copy a file for collecting in the final archive
+func copyFile(dirname, name string) error {
+	srcf, err := os.Open(name)
+	if err != nil {
+		return err
+	}
+	defer srcf.Close()
+	dstf, err := os.OpenFile(filepath.Join(dirname, filepath.Base(name)), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0777)
+	if err != nil {
+		return err
+	}
+	defer dstf.Close()
+	if _, err := io.Copy(dstf, srcf); err != nil {
+		return err
+	}
+	return err
 }
 
 // zipIt archives collected information.
@@ -133,54 +152,58 @@ func zipIt(source, target string) error {
 // CollectSummary get output of system and pmm utilites.
 func (a *Admin) CollectSummary(mysqluser string, mysqlpassword string, mysqlport string, mysqlsocket string, mongodbuser string, mongodbpassword string, mongodbport string) error {
 	fmt.Println("\nCollecting information for system diagnostic")
-	// Create a directory for collecting files
+	// Create a directory for collecting files and log file for possible errors
 	currentTime := time.Now().Local()
-	cmdHostname, err := exec.Command("hostname").Output()
+	cmdHostname, err := os.Hostname()
 	if err != nil {
-		fmt.Println("Error exec command hostname:", err)
-		cmdHostname = []byte("unknown ")
+		fmt.Println("Error getting hostname:", err)
+		cmdHostname = ("unknown")
 	}
 
-	dirname := strings.Join([]string{"/tmp/pmm", string(cmdHostname)[:len(string(cmdHostname))-1], currentTime.Format("2006-01-02T15_04_05")}, "-")
+	dirname := strings.Join([]string{"/tmp/pmm", cmdHostname, currentTime.Format("2006-01-02T15_04_05")}, "-")
 	err = os.MkdirAll(dirname, 0777)
 	if err != nil {
 		fmt.Printf("Error creating a temporary directory %s: %v\n", dirname, err)
 		os.Exit(1)
 	}
 
+	dstLogInfo, _ := os.OpenFile(filepath.Join(dirname, "pmm-summary.err"), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0777)
+	defer dstLogInfo.Close()
+	summaryLogger := log.New(dstLogInfo, "", log.LstdFlags)
+
 	var Collectors = []Collector{{"Collect pmm-admin check-network output",
 		[]string{"pmm-admin", "check-network"},
-		strings.Join([]string{dirname, strings.Join([]string{"pmm-admin_check-network_", string(cmdHostname)[:len(string(cmdHostname))-1], ".txt"}, "")}, "/")},
+		strings.Join([]string{dirname, strings.Join([]string{"pmm-admin_check-network_", cmdHostname, ".txt"}, "")}, "/")},
 		{"Collect pmm-admin list output",
 			[]string{"pmm-admin", "list"},
-			strings.Join([]string{dirname, strings.Join([]string{"pmm-admin_list_", string(cmdHostname)[:len(string(cmdHostname))-1], ".txt"}, "")}, "/")},
+			strings.Join([]string{dirname, strings.Join([]string{"pmm-admin_list_", cmdHostname, ".txt"}, "")}, "/")},
 		{"Collect ps output",
 			[]string{"sh", "-c", "ps aux | grep exporter | grep -v grep"},
-			strings.Join([]string{dirname, strings.Join([]string{"ps_exporter_", string(cmdHostname)[:len(string(cmdHostname))-1], ".txt"}, "")}, "/")},
+			strings.Join([]string{dirname, strings.Join([]string{"ps_exporter_", cmdHostname, ".txt"}, "")}, "/")},
 		{"Collect pt-summary output",
 			[]string{"pt-summary"},
-			strings.Join([]string{dirname, strings.Join([]string{"pt-summary_", string(cmdHostname)[:len(string(cmdHostname))-1], ".txt"}, "")}, "/")},
+			strings.Join([]string{dirname, strings.Join([]string{"pt-summary_", cmdHostname, ".txt"}, "")}, "/")},
 		{"Collect list of open ports",
 			[]string{"netstat", "-punta"},
-			strings.Join([]string{dirname, strings.Join([]string{"netstat_", string(cmdHostname)[:len(string(cmdHostname))-1], ".txt"}, "")}, "/")}}
+			strings.Join([]string{dirname, strings.Join([]string{"netstat_", cmdHostname, ".txt"}, "")}, "/")}}
 
 	switch service.Platform() {
 	case "linux-upstart":
 		Collectors = append(Collectors, Collector{"Collect service output",
 			[]string{"service", "--status-all"},
-			strings.Join([]string{dirname, strings.Join([]string{"sysv_service_", string(cmdHostname)[:len(string(cmdHostname))-1], ".txt"}, "")}, "/")})
+			strings.Join([]string{dirname, strings.Join([]string{"sysv_service_", cmdHostname, ".txt"}, "")}, "/")})
 	case "linux-systemd":
 		Collectors = append(Collectors, Collector{"Collect systemctl output",
 			[]string{"systemctl", "-l", "status"},
-			strings.Join([]string{dirname, strings.Join([]string{"systemd_", string(cmdHostname)[:len(string(cmdHostname))-1], ".txt"}, "")}, "/")})
+			strings.Join([]string{dirname, strings.Join([]string{"systemd_", cmdHostname, ".txt"}, "")}, "/")})
 	case "unix-systemv":
 		Collectors = append(Collectors, Collector{"Collect initctl output",
 			[]string{"initctl", "list"},
-			strings.Join([]string{dirname, strings.Join([]string{"upstart_", string(cmdHostname)[:len(string(cmdHostname))-1], ".txt"}, "")}, "/")})
+			strings.Join([]string{dirname, strings.Join([]string{"upstart_", cmdHostname, ".txt"}, "")}, "/")})
 	case "darwin-launchd":
 		Collectors = append(Collectors, Collector{"Collect LaunchDaemons output",
 			[]string{"launchctl", "bslist"},
-			strings.Join([]string{dirname, strings.Join([]string{"launchd_", string(cmdHostname)[:len(string(cmdHostname))-1], ".txt"}, "")}, "/")})
+			strings.Join([]string{dirname, strings.Join([]string{"launchd_", cmdHostname, ".txt"}, "")}, "/")})
 	}
 
 	for _, service := range CheckMonitoredDBServices() {
@@ -200,7 +223,7 @@ func (a *Admin) CollectSummary(mysqluser string, mysqlpassword string, mysqlport
 			}
 			Collectors = append(Collectors, Collector{"Collect pt-mysql-summary output",
 				[]string{"pt-mysql-summary", mysqluser, mysqlpassword, mysqlsocket, mysqlport},
-				strings.Join([]string{dirname, strings.Join([]string{"pt-mysql-summary_", string(cmdHostname)[:len(string(cmdHostname))-1], ".txt"}, "")}, "/")})
+				strings.Join([]string{dirname, strings.Join([]string{"pt-mysql-summary_", cmdHostname, ".txt"}, "")}, "/")})
 		case (service == "mongodb"):
 			if len(mongodbuser) > 0 {
 				mongodbuser = strings.Join([]string{"--username=", mongodbuser}, "")
@@ -213,50 +236,40 @@ func (a *Admin) CollectSummary(mysqluser string, mysqlpassword string, mysqlport
 			}
 			Collectors = append(Collectors, Collector{"Collect pt-mongodb-summary output",
 				[]string{"pt-mongodb-summary", mongodbuser, mongodbpassword, mongodbport},
-				strings.Join([]string{dirname, strings.Join([]string{"pt-mongodb-summary_", string(cmdHostname)[:len(string(cmdHostname))-1], ".txt"}, "")}, "/")})
+				strings.Join([]string{dirname, strings.Join([]string{"pt-mongodb-summary_", cmdHostname, ".txt"}, "")}, "/")})
 		}
 	}
 
 	// Perform exec commands and collect results
 	for _, info := range Collectors {
-		info.CollectData()
+		summaryLogger.Printf("%s - %v\n", info.CollectorDescription, info.CollectData())
 	}
 
 	// Collect pmm logs from /var/log
-	pmmLogs, _ := regexp.Compile("^pmm-.*")
-	srcf, err := os.Open("/var/log")
+	logsDir := "/var/log"
+	srcf, err := os.Open(logsDir)
 	if err != nil {
-		fmt.Printf("Failed to open directory %s with %s\n", dirname, err)
+		fmt.Printf("Failed to open directory %s with %s\n", logsDir, err)
+		summaryLogger.Println(err)
 	} else {
-		defer srcf.Close()
-		names, err := srcf.Readdirnames(100)
-		if err != nil {
-			fmt.Printf("Failed to read directory %s with %v\n", dirname, err)
-		} else {
+		names, _ := filepath.Glob(filepath.Join(logsDir, "pmm-*"))
+		if len(names) > 0 {
 			for _, name := range names {
-				if pmmLogs.MatchString(name) {
-					srcf, err := os.Open(strings.Join([]string{"/var/log/", name}, "/"))
-					if err != nil {
-						fmt.Printf("Open file %s failed with %v\n", strings.Join([]string{"/var/log/", name}, "/"), err)
-					} else {
-						defer srcf.Close()
-					}
-					dstf, err := os.OpenFile(strings.Join([]string{dirname, name}, "/"), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0777)
-					if err != nil {
-						fmt.Printf("Create file %s failed with %v\n", strings.Join([]string{dirname, name}, "/"), err)
-					} else {
-						defer dstf.Close()
-					}
-					if _, err := io.Copy(dstf, srcf); err != nil {
-						fmt.Printf("Cannot copy %s to %v: %v\n", name, dstf, err)
-					}
+				err := copyFile(dirname, name)
+				if err != nil {
+					fmt.Printf("Failed %v\n", err)
+					summaryLogger.Println(err)
 				}
 			}
+		} else {
+			fmt.Println("No PMM logs were detected in", logsDir)
+			summaryLogger.Println("No PMM logs were detected in", logsDir)
 		}
 	}
+	defer srcf.Close()
 
 	// Archiving collected files
-	archFilename := strings.Join([]string{"pmm", "-", string(cmdHostname)[:len(string(cmdHostname))-1], "-", currentTime.Format("2006-01-02T15_04_05"), ".zip"}, "")
+	archFilename := strings.Join([]string{"pmm", "-", cmdHostname, "-", currentTime.Format("2006-01-02T15_04_05"), ".zip"}, "")
 	err = zipIt(dirname, archFilename)
 	if err != nil {
 		fmt.Printf("Error archiving directory %s: %v", dirname, err)
