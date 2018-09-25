@@ -149,7 +149,7 @@ func zipIt(source, target string) error {
 }
 
 // CollectSummary get output of system and pmm utilites.
-func (a *Admin) CollectSummary(mysqluser string, mysqlpassword string, mysqlport string, mysqlsocket string, mongodbuser string, mongodbpassword string, mongodbport string) error {
+func (a *Admin) CollectSummary() error {
 	fmt.Println("\nCollecting information for system diagnostic")
 	// Create a directory for collecting files and log file for possible errors
 	currentTime := time.Now().Local()
@@ -208,33 +208,12 @@ func (a *Admin) CollectSummary(mysqluser string, mysqlpassword string, mysqlport
 	for _, service := range CheckMonitoredDBServices() {
 		switch {
 		case (service == "mysql"):
-			if len(mysqlsocket) > 0 {
-				mysqlsocket = strings.Join([]string{"--socket=", mysqlsocket}, "")
-			}
-			if len(mysqluser) > 0 {
-				mysqluser = strings.Join([]string{"--user=", mysqluser}, "")
-			}
-			if len(mysqlpassword) > 0 {
-				mysqlpassword = strings.Join([]string{"--password=", mysqlpassword}, "")
-			}
-			if len(mysqlport) > 0 {
-				mysqlport = strings.Join([]string{"--port=", mysqlport}, "")
-			}
 			Collectors = append(Collectors, Collector{"Collect pt-mysql-summary output",
-				[]string{"pt-mysql-summary", mysqluser, mysqlpassword, mysqlsocket, mysqlport},
+				[]string{"pt-mysql-summary"},
 				strings.Join([]string{dirname, strings.Join([]string{"pt-mysql-summary_", cmdHostname, ".txt"}, "")}, "/")})
 		case (service == "mongodb"):
-			if len(mongodbuser) > 0 {
-				mongodbuser = strings.Join([]string{"--username=", mongodbuser}, "")
-			}
-			if len(mongodbpassword) > 0 {
-				mongodbpassword = strings.Join([]string{"--password=", mongodbpassword}, "")
-			}
-			if len(mongodbport) > 0 {
-				mongodbport = strings.Join([]string{"localhost:", mongodbport}, "")
-			}
 			Collectors = append(Collectors, Collector{"Collect pt-mongodb-summary output",
-				[]string{"pt-mongodb-summary", mongodbuser, mongodbpassword, mongodbport},
+				[]string{"pt-mongodb-summary"},
 				strings.Join([]string{dirname, strings.Join([]string{"pt-mongodb-summary_", cmdHostname, ".txt"}, "")}, "/")})
 		}
 	}
