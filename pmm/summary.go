@@ -41,7 +41,7 @@ type Collector struct {
 // CollectData runs a command and collects output into a file.
 func (c *Collector) CollectData() error {
 	fmt.Printf("%s ... ", c.CollectorDescription)
-	dstfNetworks, err := os.OpenFile(c.OutputFileName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0777)
+	dstfNetworks, err := os.OpenFile(c.OutputFileName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
 	if err != nil {
 		fmt.Printf("Skipped. Failed to create file %s with %s\n", c.OutputFileName, err)
 		return err
@@ -79,22 +79,32 @@ func CheckMonitoredDBServices() []string {
 	return monitoredDBServices
 }
 
-// Copy a file for collecting in the final archive
+// Copy a file for collecting into the final archive
 func copyFile(dirname, name string) error {
 	srcf, err := os.Open(name)
 	if err != nil {
-		return err
+		return fmt.Errorf("copy %s to %s: %v", name, dirname, err)
 	}
 	defer srcf.Close()
-	dstf, err := os.OpenFile(filepath.Join(dirname, filepath.Base(name)), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0777)
+
+	dstf, err := os.OpenFile(filepath.Join(dirname, filepath.Base(name)), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
 	if err != nil {
-		return err
+		return fmt.Errorf("copy %s to %s: %v", name, dirname, err)
 	}
-	defer dstf.Close()
+
 	if _, err := io.Copy(dstf, srcf); err != nil {
-		return err
+		dstf.Close()
+		defer dstf.Close()
+		os.Remove(dstf.Name())
+		return fmt.Errorf("copy %s to %s: %v", name, dirname, err)
 	}
-	return err
+
+	if err := dstf.Close(); err != nil {
+		os.Remove(dstf.Name())
+		return fmt.Errorf("copy %s to %s: %v", name, dirname, err)
+	}
+
+	return nil
 }
 
 // zipIt archives collected information.
@@ -160,13 +170,13 @@ func (a *Admin) CollectSummary() error {
 	}
 
 	dirname := strings.Join([]string{"/tmp/pmm", cmdHostname, currentTime.Format("2006-01-02T15_04_05")}, "-")
-	err = os.MkdirAll(dirname, 0777)
+	err = os.MkdirAll(dirname, 0755)
 	if err != nil {
 		fmt.Printf("Error creating a temporary directory %s: %v\n", dirname, err)
 		os.Exit(1)
 	}
 
-	dstLogInfo, _ := os.OpenFile(filepath.Join(dirname, "pmm-summary.err"), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0777)
+	dstLogInfo, _ := os.OpenFile(filepath.Join(dirname, "pmm-summary.err"), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
 	defer dstLogInfo.Close()
 	summaryLogger := log.New(dstLogInfo, "", log.LstdFlags)
 
