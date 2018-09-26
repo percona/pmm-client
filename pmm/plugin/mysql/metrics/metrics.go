@@ -142,7 +142,7 @@ func (m Metrics) KV() map[string][]byte {
 	for _, o := range m.optsToDisable {
 		kv[o] = []byte("OFF")
 	}
-	return nil
+	return kv
 }
 
 // Cluster defines cluster name for the target.
