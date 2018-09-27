@@ -412,7 +412,7 @@ func (a *Admin) PurgeMetrics(svcType string) error {
 	if svcType != "linux:metrics" && svcType != "mysql:metrics" && svcType != "mongodb:metrics" && svcType != "proxysql:metrics" && svcType != "postgresql:metrics" {
 		return errors.New(`bad service type.
 
-Service type takes the following values: linux:metrics, mysql:metrics, mongodb:metrics, proxysql:metrics.`)
+Service type takes the following values: linux:metrics, mysql:metrics, mongodb:metrics, proxysql:metrics, postgresql:metrics.`)
 	}
 
 	var promError error
