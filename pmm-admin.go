@@ -57,6 +57,14 @@ var (
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			ctx, cancel = context.WithTimeout(context.Background(), flagTimeout)
 
+			if !admin.SkipAdmin && os.Getuid() != 0 {
+				// skip root check if binary was build in tests
+				if pmm.Version != "gotest" {
+					fmt.Println("pmm-admin requires superuser privileges to manage system services.")
+					os.Exit(1)
+				}
+			}
+
 			switch cmd.Name() {
 			case "help":
 				// Skip pre-run for "help" command.
@@ -566,6 +574,47 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 			fmt.Println("It is required for correct operation that profiling of monitored MongoDB databases be enabled.")
 			fmt.Println("Note that profiling is not enabled by default because it may reduce the performance of your MongoDB server.")
 			fmt.Println("For more information read PMM documentation (https://www.percona.com/doc/percona-monitoring-and-management/conf-mongodb.html).")
+		},
+	}
+	cmdAddProxySQL = &cobra.Command{
+		Use:   "proxysql [flags] [name]",
+		Short: "Add complete monitoring for ProxySQL instance (linux and proxysql metrics).",
+		Long: `This command adds the given ProxySQL instance to system and metrics monitoring.
+
+When adding a ProxySQL instance, you may provide --dsn if the default one does not work for you.
+
+[name] is an optional argument, by default it is set to the client name of this PMM client.
+		`,
+		Example: `  pmm-admin add proxysql --dsn "stats:stats@tcp(localhost:6032)/"`,
+		Run: func(cmd *cobra.Command, args []string) {
+			// Passing additional arguments doesn't make sense because this command enables multiple exporters.
+			if len(admin.Args) > 0 {
+				fmt.Printf("We can't determine which exporter should receive additional flags: %s.\n", strings.Join(admin.Args, ", "))
+				fmt.Println("To pass additional arguments to specific exporter you need to add it separately e.g.:")
+				fmt.Println("pmm-admin add linux:metrics -- ", strings.Join(admin.Args, " "))
+				fmt.Println("or")
+				fmt.Println("pmm-admin add proxysql:metrics -- ", strings.Join(admin.Args, " "))
+				os.Exit(1)
+			}
+
+			linuxMetrics := linuxMetrics.New()
+			_, err := admin.AddMetrics(ctx, linuxMetrics, flagForce, flagDisableSSL)
+			if err == pmm.ErrDuplicate {
+				fmt.Println("[linux:metrics] OK, already monitoring this system.")
+			} else if err != nil {
+				fmt.Println("[linux:metrics] Error adding linux metrics:", err)
+				os.Exit(1)
+			} else {
+				fmt.Println("[linux:metrics] OK, now monitoring this system.")
+			}
+
+			proxysqlMetrics := proxysqlMetrics.New(flagDSN)
+			info, err := admin.AddMetrics(ctx, proxysqlMetrics, false, flagDisableSSL)
+			if err != nil {
+				fmt.Println("Error adding proxysql metrics:", err)
+				os.Exit(1)
+			}
+			fmt.Println("OK, now monitoring ProxySQL metrics using DSN", utils.SanitizeDSN(info.DSN))
 		},
 	}
 	cmdAddProxySQLMetrics = &cobra.Command{
@@ -1325,7 +1374,7 @@ It removes local services disconnected from PMM server and remote services that 
 		Short: "Removes all monitoring services with the best effort.",
 		Long: `This command removes all monitoring services with the best effort.
 
-Usuaully, it runs automatically when pmm-client package is uninstalled to remove all local monitoring services
+Usually, it runs automatically when pmm-client package is uninstalled to remove all local monitoring services
 despite PMM server is alive or not.
 		`,
 		Run: func(cmd *cobra.Command, args []string) {
@@ -1388,6 +1437,7 @@ func main() {
 		cmdAddMongoDBQueries,
 		cmdAddPostgreSQL,
 		cmdAddPostgreSQLMetrics,
+		cmdAddProxySQL,
 		cmdAddProxySQLMetrics,
 		cmdAddExternalService,
 		cmdAddExternalMetrics,
@@ -1412,6 +1462,7 @@ func main() {
 	// Flags.
 	rootCmd.PersistentFlags().StringVarP(&pmm.ConfigFile, "config-file", "c", pmm.ConfigFile, "PMM config file")
 	rootCmd.PersistentFlags().BoolVarP(&admin.Verbose, "verbose", "", false, "verbose output")
+	rootCmd.PersistentFlags().BoolVarP(&admin.SkipAdmin, "skip-root", "", false, "skip UID check (experimental)")
 	rootCmd.Flags().BoolVarP(&flagVersion, "version", "v", false, "show version")
 	rootCmd.PersistentFlags().DurationVar(&flagTimeout, "timeout", 5*time.Second, "timeout")
 
@@ -1513,6 +1564,8 @@ func main() {
 	addCommonMongoDBFlags(cmdAddMongoDBQueries)
 	addCommonMongoDBQueriesFlags(cmdAddMongoDBQueries)
 
+	cmdAddProxySQL.Flags().StringVar(&flagDSN, "dsn", "stats:stats@tcp(localhost:6032)/", "ProxySQL connection DSN")
+	cmdAddProxySQL.Flags().BoolVar(&flagDisableSSL, "disable-ssl", false, "disable ssl mode on exporter")
 	cmdAddProxySQLMetrics.Flags().StringVar(&flagDSN, "dsn", "stats:stats@tcp(localhost:6032)/", "ProxySQL connection DSN")
 	cmdAddProxySQLMetrics.Flags().BoolVar(&flagDisableSSL, "disable-ssl", false, "disable ssl mode on exporter")
 
@@ -1551,14 +1604,6 @@ func main() {
 	cmdStart.Flags().BoolVar(&flagAll, "all", false, "start all monitoring services")
 	cmdStop.Flags().BoolVar(&flagAll, "all", false, "stop all monitoring services")
 	cmdRestart.Flags().BoolVar(&flagAll, "all", false, "restart all monitoring services")
-
-	if os.Getuid() != 0 {
-		// skip root check if binary was build in tests
-		if pmm.Version != "gotest" {
-			fmt.Println("pmm-admin requires superuser privileges to manage system services.")
-			os.Exit(1)
-		}
-	}
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)

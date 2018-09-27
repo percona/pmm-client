@@ -99,16 +99,14 @@ func (a *Admin) AddMetrics(ctx context.Context, m plugin.Metrics, force bool, di
 	}
 
 	// Add info to Consul KV.
-	if len(m.KV()) > 0 {
-		for i, v := range m.KV() {
-			d := &consul.KVPair{
-				Key:   fmt.Sprintf("%s/%s/%s", a.Config.ClientName, serviceID, i),
-				Value: v,
-			}
-			_, err = a.consulAPI.KV().Put(d, nil)
-			if err != nil {
-				return nil, err
-			}
+	for i, v := range m.KV() {
+		d := &consul.KVPair{
+			Key:   fmt.Sprintf("%s/%s/%s", a.Config.ClientName, serviceID, i),
+			Value: v,
+		}
+		_, err = a.consulAPI.KV().Put(d, nil)
+		if err != nil {
+			return nil, err
 		}
 	}
 
