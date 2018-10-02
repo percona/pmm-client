@@ -32,3 +32,23 @@ func TestIsValidSvcType(t *testing.T) {
 	// check invalid type
 	assert.Error(t, isValidSvcType("invalid type"))
 }
+
+func TestHideCredentails(t *testing.T) {
+	admin := &Admin{
+		Config: &Config{
+			ServerAddress:  "172.0.0.1:8080",
+			ServerUser:     "test",
+			ServerPassword: "123",
+		},
+	}
+	err := admin.SetAPI()
+
+	expected := `Unable to connect to PMM server by address: 172.0.0.1:8080
+Get http://172.0.0.1:8080/qan-api/ping: net/http: request canceled while waiting for connection (Client.Timeout exceeded while awaiting headers)
+
+* Check if the configured address is correct.
+* If server is running on non-default port, ensure it was specified along with the address.
+* If server is enabled for SSL or self-signed SSL, enable the corresponding option.
+* You may also check the firewall settings.`
+	assert.Equal(t, expected, err.Error())
+}
