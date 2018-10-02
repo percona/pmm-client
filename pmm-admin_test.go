@@ -1880,8 +1880,8 @@ func testAddMongoDB(t *testing.T, data pmmAdminData) {
 	output, err := cmd.CombinedOutput()
 	assert.Nil(t, err)
 	expected := `\[linux:metrics\]   OK, now monitoring this system.
-\[mongodb:metrics\] OK, now monitoring MongoDB metrics using URI localhost:27017
-\[mongodb:queries\] OK, now monitoring MongoDB queries using URI localhost:27017
+\[mongodb:metrics\] OK, now monitoring MongoDB metrics using URI 127.0.0.1:27017
+\[mongodb:queries\] OK, now monitoring MongoDB queries using URI 127.0.0.1:27017
 \[mongodb:queries\] It is required for correct operation that profiling of monitored MongoDB databases be enabled.
 \[mongodb:queries\] Note that profiling is not enabled by default because it may reduce the performance of your MongoDB server.
 \[mongodb:queries\] For more information read PMM documentation \(https://www.percona.com/doc/percona-monitoring-and-management/conf-mongodb.html\).
@@ -1945,7 +1945,7 @@ func testAddMongoDBMetrics(t *testing.T, data pmmAdminData) {
 
 	output, err := cmd.CombinedOutput()
 	assert.Nil(t, err)
-	expected := `OK, now monitoring MongoDB metrics using URI localhost:27017
+	expected := `OK, now monitoring MongoDB metrics using URI 127.0.0.1:27017
 `
 	assertRegexpLines(t, expected, string(output))
 }
@@ -2068,7 +2068,7 @@ func testAddMongoDBQueries(t *testing.T, data pmmAdminData) {
 
 	output, err := cmd.CombinedOutput()
 	assert.Nil(t, err)
-	expected := `OK, now monitoring MongoDB queries using URI localhost:27017
+	expected := `OK, now monitoring MongoDB queries using URI 127.0.0.1:27017
 It is required for correct operation that profiling of monitored MongoDB databases be enabled.
 Note that profiling is not enabled by default because it may reduce the performance of your MongoDB server.
 For more information read PMM documentation \(https://www.percona.com/doc/percona-monitoring-and-management/conf-mongodb.html\).

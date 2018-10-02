@@ -1538,7 +1538,7 @@ func main() {
 
 	// Common MongoDB flags.
 	addCommonMongoDBFlags := func(cmd *cobra.Command) {
-		cmd.Flags().StringVar(&flagMongoURI, "uri", "localhost:27017", "MongoDB URI, format: [mongodb://][user:pass@]host[:port][/database][?options]")
+		cmd.Flags().StringVar(&flagMongoURI, "uri", "127.0.0.1:27017", "MongoDB URI, format: [mongodb://][user:pass@]host[:port][/database][?options]")
 		cmd.Flags().BoolVar(&flagDisableSSL, "disable-ssl", false, "disable ssl mode on exporter")
 	}
 	// Common MongoDB Metrics flags.
