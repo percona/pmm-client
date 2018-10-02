@@ -23,3 +23,6 @@ cp -f bin/mongodb_exporter $PMM_DIR/
 cp -f bin/proxysql_exporter $PMM_DIR/
 cp -f bin/percona-qan-agent $QAN_DIR/bin/
 cp -f bin/percona-qan-agent-installer $QAN_DIR/bin/
+cp -f bin/pt-summary $QAN_DIR/bin/
+cp -f bin/pt-mongodb-summary $QAN_DIR/bin/
+cp -f bin/pt-mysql-summary $QAN_DIR/bin/
