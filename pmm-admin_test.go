@@ -406,7 +406,7 @@ Get http://xyz/qan-api/ping: dial tcp: lookup xyz.*: no such host
 func testConfigServerHideCredentials(t *testing.T, data pmmAdminData) {
 	defer func() {
 		err := os.RemoveAll(data.rootDir)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 	}()
 
 	err := os.MkdirAll(data.rootDir+pmm.PMMBaseDir, 0777)
@@ -424,7 +424,7 @@ func testConfigServerHideCredentials(t *testing.T, data pmmAdminData) {
 	)
 
 	output, err := cmd.CombinedOutput()
-	assert.Error(t, err)
+	assert.IsType(t, &exec.ExitError{}, err)
 
 	expected := `Unable to connect to PMM server by address: 172.0.0.1:8080
 Get http://172.0.0.1:8080/qan-api/ping: net/http: request canceled while waiting for connection (Client.Timeout exceeded while awaiting headers)
