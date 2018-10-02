@@ -2,7 +2,7 @@
 *.swp
 *.log
 .vscode/
+.idea/
 distro/
 pmm-admin
 pmm.yml
-.idea/

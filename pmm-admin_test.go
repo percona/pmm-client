@@ -410,7 +410,7 @@ func testConfigServerHideCredentials(t *testing.T, data pmmAdminData) {
 	}()
 
 	err := os.MkdirAll(data.rootDir+pmm.PMMBaseDir, 0777)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	cmd := exec.Command(
 		data.bin,

@@ -36,8 +36,8 @@ func TestIsValidSvcType(t *testing.T) {
 func TestHideCredentails(t *testing.T) {
 	admin := &Admin{
 		Config: &Config{
-			ServerAddress: "172.0.0.1:8080",
-			ServerUser: "test",
+			ServerAddress:  "172.0.0.1:8080",
+			ServerUser:     "test",
 			ServerPassword: "123",
 		},
 	}
