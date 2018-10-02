@@ -230,8 +230,7 @@ func (a *Admin) getSVCTable(node *consul.CatalogNode) []ServiceStatus {
 		if svc.Service == "consul" {
 			continue
 		}
-		switch svc.Service {
-		case "mysql:queries", "mongodb:queries":
+		if strings.HasSuffix(svc.Service, ":queries") {
 			queryServices = append(queryServices, svc)
 			continue
 		}

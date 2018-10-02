@@ -1356,16 +1356,12 @@ It is not required that metric service or name exists.
 				admin.ServiceName = args[1]
 			}
 
-			count, err := admin.PurgeMetrics(svcType)
+			err := admin.PurgeMetrics(svcType)
 			if err != nil {
 				fmt.Printf("Error purging %s data for %s: %s\n", svcType, admin.ServiceName, err)
 				os.Exit(1)
 			}
-			if count == 0 {
-				fmt.Printf("OK, no data purged of %s for %s.\n", svcType, admin.ServiceName)
-			} else {
-				fmt.Printf("OK, purged %d time-series of %s data for %s.\n", count, svcType, admin.ServiceName)
-			}
+			fmt.Printf("OK, data purged of %s for %s.\n", svcType, admin.ServiceName)
 		},
 	}
 
@@ -1389,7 +1385,7 @@ It removes local services disconnected from PMM server and remote services that 
 		Short: "Removes all monitoring services with the best effort.",
 		Long: `This command removes all monitoring services with the best effort.
 
-Usuaully, it runs automatically when pmm-client package is uninstalled to remove all local monitoring services
+Usually, it runs automatically when pmm-client package is uninstalled to remove all local monitoring services
 despite PMM server is alive or not.
 		`,
 		Run: func(cmd *cobra.Command, args []string) {
@@ -1558,7 +1554,7 @@ func main() {
 
 	// Common MongoDB flags.
 	addCommonMongoDBFlags := func(cmd *cobra.Command) {
-		cmd.Flags().StringVar(&flagMongoURI, "uri", "localhost:27017", "MongoDB URI, format: [mongodb://][user:pass@]host[:port][/database][?options]")
+		cmd.Flags().StringVar(&flagMongoURI, "uri", "127.0.0.1:27017", "MongoDB URI, format: [mongodb://][user:pass@]host[:port][/database][?options]")
 		cmd.Flags().BoolVar(&flagDisableSSL, "disable-ssl", false, "disable ssl mode on exporter")
 	}
 	// Common MongoDB Metrics flags.
