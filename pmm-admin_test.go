@@ -624,6 +624,7 @@ Flags:
 Global Flags:
   -c, --config-file string   PMM config file \(default ".*?"\)
       --skip-root            skip UID check \(experimental\)
+      --timeout duration     timeout \(default 5s\)
       --verbose              verbose output
 `
 		assertRegexpLines(t, expected, string(output))
