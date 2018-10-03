@@ -18,7 +18,8 @@
 package pmm
 
 import (
-	"archive/zip"
+	"archive/tar"
+	"compress/gzip"
 	"errors"
 	"fmt"
 	"io"
@@ -109,54 +110,60 @@ func copyFile(dirname, name string) error {
 	return nil
 }
 
-// zipIt archives collected information.
-func zipIt(source, target string) error {
-	zipfile, err := os.Create(target)
+// tarIt archives collected information.
+func tarIt(source, target string) error {
+	dir, err := os.Open(source)
 	if err != nil {
 		return err
 	}
-	defer zipfile.Close()
-	archive := zip.NewWriter(zipfile)
-	defer archive.Close()
-	info, err := os.Stat(source)
+	defer dir.Close()
+
+	files, err := dir.Readdir(0)
 	if err != nil {
 		return err
 	}
-	var baseDir string
-	if info.IsDir() {
-		baseDir = filepath.Base(source)
+
+	tarfile, err := os.Create(target)
+	if err != nil {
+		return err
 	}
-	err = filepath.Walk(source, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
+	defer tarfile.Close()
+
+	var fileWriter io.WriteCloser = tarfile
+	fileWriter = gzip.NewWriter(tarfile)
+	defer fileWriter.Close()
+
+	tarfileWriter := tar.NewWriter(fileWriter)
+	defer tarfileWriter.Close()
+
+	for _, fileInfo := range files {
+		if fileInfo.IsDir() {
+			continue
 		}
-		header, err := zip.FileInfoHeader(info)
-		if err != nil {
-			return err
-		}
-		if baseDir != "" {
-			header.Name = filepath.Join(baseDir, strings.TrimPrefix(path, source))
-		}
-		if info.IsDir() {
-			header.Name += "/"
-		} else {
-			header.Method = zip.Deflate
-		}
-		writer, err := archive.CreateHeader(header)
-		if err != nil {
-			return err
-		}
-		if info.IsDir() {
-			return nil
-		}
-		file, err := os.Open(path)
+
+		file, err := os.Open(dir.Name() + string(filepath.Separator) + fileInfo.Name())
 		if err != nil {
 			return err
 		}
 		defer file.Close()
-		_, err = io.Copy(writer, file)
-		return err
-	})
+
+		header := new(tar.Header)
+		header.Name = filepath.Base(file.Name())
+		header.Size = fileInfo.Size()
+		header.Mode = int64(fileInfo.Mode())
+		header.ModTime = fileInfo.ModTime()
+
+		err = tarfileWriter.WriteHeader(header)
+		if err != nil {
+			return err
+		}
+
+		_, err = io.Copy(tarfileWriter, file)
+		if err != nil {
+			return err
+		}
+	}
+
 	return err
 }
 
@@ -267,14 +274,14 @@ func (a *Admin) CollectSummary() error {
 	}
 
 	// Archiving collected files
-	archFilename := strings.Join([]string{"pmm", cmdHostname, currentTime.Format("2006-01-02T15_04_05") + ".zip"}, "-")
-	err = zipIt(dirname, archFilename)
+	archFilename := strings.Join([]string{"summary", cmdHostname, currentTime.Format("2006-01-02T15_04_05") + ".tar.gz"}, "_")
+	err = tarIt(dirname, archFilename)
 	if err != nil {
 		fmt.Printf("Error archiving directory %s: %v", dirname, err)
 		os.Exit(1)
 	}
 
-	fmt.Printf("\nAll operations have been performed.\nResult file is %s\n", archFilename)
+	fmt.Printf("\nData collection complete.  Please attach file %s to the issue as requested by Percona Support.\n", archFilename)
 
 	return nil
 }
