@@ -1357,7 +1357,7 @@ func testAddPostgreSQLMetricsErr(t *testing.T, data pmmAdminData) {
 
 	output, err := cmd.CombinedOutput()
 	assert.Error(t, err)
-	expected := `Error adding PostgreSQL metrics: Cannot connect to PostgreSQL: 
+	expected := `Error adding PostgreSQL metrics: Cannot connect to PostgreSQL:
 * pq: role "bad-credentials" does not exist
 
 Verify that PostgreSQL user exists and has the correct privileges.
