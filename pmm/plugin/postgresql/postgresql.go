@@ -131,7 +131,7 @@ func Init(ctx context.Context, flags Flags, pmmUserPassword string) (*plugin.Inf
 
 	// At this point access is required.
 	if !accessOK {
-		err := fmt.Errorf("Cannot connect to PostgreSQL: %s\n\n%s\n%s", errs,
+		err := fmt.Errorf("Cannot connect to PostgreSQL:%s\n\n%s\n%s", errs,
 			"Verify that PostgreSQL user exists and has the correct privileges.",
 			"Use additional flags --user, --password, --host, --port if needed.")
 		return nil, err
