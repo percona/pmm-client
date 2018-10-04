@@ -257,6 +257,8 @@ Flags:
 Global Flags:
   -c, --config-file string   PMM config file \(default ".*"\)
       --service-port int     service port
+      --skip-root            skip UID check \(experimental\)
+      --timeout duration     timeout \(default 5s\)
       --verbose              verbose output
 `
 	t.Run("command", func(t *testing.T) {
