@@ -52,4 +52,4 @@ override_dh_auto_install:
 	cp -f distro/pt-mysql-summary $(TMP)/pt-mysql-summary
 	cp -f distro/pt-mongodb-summary $(TMP)/pt-mongodb-summary
 	cp -f distro/percona-qan-agent-installer $(TMP)/percona-qan-agent-installer
-	install -m 0644 distro/queries-mysqld.yml $(TMP)/queries-mysqld.yml
+	install -m 0644 queries-mysqld.yml $(TMP)/queries-mysqld.yml
