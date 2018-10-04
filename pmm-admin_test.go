@@ -113,6 +113,7 @@ func TestPmmAdmin(t *testing.T) {
 		testConfigVerboseServerNotAvailable,
 		testConfigServerHideCredentials,
 		testHelp,
+		testHelpAddPostgreSQL,
 		testListEmpty,
 		testListNonEmpty,
 		testStartStopRestart,
@@ -209,6 +210,62 @@ Use "pmm-admin \[command\] --help" for more information about a command.
 	t.Run("flag", func(t *testing.T) {
 		cmd := exec.Command(
 			data.bin,
+			"--help",
+		)
+
+		output, err := cmd.CombinedOutput()
+		assert.Nil(t, err)
+
+		actual := string(output)
+		assertRegexpLines(t, expected, actual)
+	})
+}
+
+func testHelpAddPostgreSQL(t *testing.T, data pmmAdminData) {
+	defer func() {
+		err := os.RemoveAll(data.rootDir)
+		assert.Nil(t, err)
+	}()
+
+	expected := `This command adds the given PostgreSQL instance to system and metrics monitoring.
+
+When adding a PostgreSQL instance, this tool tries to auto-detect the DSN and credentials.
+If you want to create a new user to be used for metrics collecting, provide --create-user option. pmm-admin will create
+a new user 'pmm' automatically using the given \(auto-detected\) PostgreSQL credentials for granting purpose.
+
+\[name\] is an optional argument, by default it is set to the client name of this PMM client.
+
+Usage:
+  pmm-admin add postgresql \[flags\] \[name\]
+
+Examples:
+  pmm-admin add postgresql --password abc123
+  pmm-admin add postgresql --password abc123 --create-user
+  pmm-admin add postgresql --password abc123 --port 3307 instance3307
+
+Flags:
+      --create-user                   create a new PostgreSQL user
+      --create-user-password string   optional password for a new PostgreSQL user
+      --disable-ssl                   disable ssl mode on exporter
+      --force                         force to create/update PostgreSQL user
+  -h, --help                          help for postgresql
+      --host string                   PostgreSQL host
+      --password string               PostgreSQL password
+      --port string                   PostgreSQL port
+      --sslmode string                PostgreSQL SSL Mode: disable, require, verify-full or verify-ca \(default "disable"\)
+      --user string                   PostgreSQL username
+
+Global Flags:
+  -c, --config-file string   PMM config file \(default ".*"\)
+      --service-port int     service port
+      --skip-root            skip UID check \(experimental\)
+      --timeout duration     timeout \(default 5s\)
+      --verbose              verbose output
+`
+	t.Run("command", func(t *testing.T) {
+		cmd := exec.Command(
+			data.bin,
+			"add", "postgresql",
 			"--help",
 		)
 
@@ -1301,7 +1358,7 @@ func testAddPostgreSQLMetricsErr(t *testing.T, data pmmAdminData) {
 
 	output, err := cmd.CombinedOutput()
 	assert.Error(t, err)
-	expected := `Error adding PostgreSQL metrics: Cannot connect to PostgreSQL: 
+	expected := `Error adding PostgreSQL metrics: Cannot connect to PostgreSQL:
 * pq: role "bad-credentials" does not exist
 
 Verify that PostgreSQL user exists and has the correct privileges.
