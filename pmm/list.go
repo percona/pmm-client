@@ -128,6 +128,7 @@ func (l *List) Table() string {
 func (l *List) ExternalTable() string {
 	var buf bytes.Buffer
 	w := tabwriter.NewWriter(&buf, 0, 0, 2, ' ', 0)
+	targetsExist := false
 	fmt.Fprintln(w, "Job name\tScrape interval\tScrape timeout\tMetrics path\tScheme\tTarget\tLabels\tHealth")
 	for _, ext := range l.ExternalServices {
 		for _, t := range ext.Targets {
@@ -139,7 +140,11 @@ func (l *List) ExternalTable() string {
 				ext.JobName, ext.ScrapeInterval, ext.ScrapeTimeout, ext.MetricsPath, ext.Scheme,
 				t.Target, strings.Join(labels, ", "), t.Health,
 			)
+			targetsExist = true
 		}
+	}
+	if !targetsExist {
+		return ""
 	}
 	w.Flush()
 	return buf.String()
