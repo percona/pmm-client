@@ -281,10 +281,9 @@ func (a *Admin) RemoveExternalInstances(ctx context.Context, name string, target
 	}
 	if len(cfg.StaticConfigs) == 0 {
 		return a.managedAPI.ScrapeConfigsDelete(ctx, name)
-	} else {
-		return a.managedAPI.ScrapeConfigsUpdate(ctx, &managed.APIScrapeConfigsUpdateRequest{
-			ScrapeConfig:      cfg,
-			CheckReachability: false,
-		})
 	}
+	return a.managedAPI.ScrapeConfigsUpdate(ctx, &managed.APIScrapeConfigsUpdateRequest{
+		ScrapeConfig:      cfg,
+		CheckReachability: false,
+	})
 }
