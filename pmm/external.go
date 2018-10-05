@@ -264,6 +264,7 @@ func (a *Admin) RemoveExternalInstances(ctx context.Context, name string, target
 
 	cfg := resp.ScrapeConfig
 	for _, removeT := range targets {
+		var newConfigs []*managed.APIStaticConfig
 		for i, staticConfig := range cfg.StaticConfigs {
 			var newTargets []string
 			for _, t := range staticConfig.Targets {
@@ -272,11 +273,18 @@ func (a *Admin) RemoveExternalInstances(ctx context.Context, name string, target
 				}
 			}
 			cfg.StaticConfigs[i].Targets = newTargets
+			if len(newTargets) > 0 {
+				newConfigs = append(newConfigs, cfg.StaticConfigs[i])
+			}
 		}
+		cfg.StaticConfigs = newConfigs
 	}
-
-	return a.managedAPI.ScrapeConfigsUpdate(ctx, &managed.APIScrapeConfigsUpdateRequest{
-		ScrapeConfig:      cfg,
-		CheckReachability: false,
-	})
+	if len(cfg.StaticConfigs) == 0 {
+		return a.managedAPI.ScrapeConfigsDelete(ctx, name)
+	} else {
+		return a.managedAPI.ScrapeConfigsUpdate(ctx, &managed.APIScrapeConfigsUpdateRequest{
+			ScrapeConfig:      cfg,
+			CheckReachability: false,
+		})
+	}
 }
