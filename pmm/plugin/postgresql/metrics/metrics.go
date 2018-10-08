@@ -29,7 +29,7 @@ type Metrics struct {
 func (m *Metrics) Init(ctx context.Context, pmmUserPassword string) (*plugin.Info, error) {
 	info, err := postgresql.Init(ctx, m.postgresqlFlags, pmmUserPassword)
 	if err != nil {
-		err = fmt.Errorf("%s\n"+
+		err = fmt.Errorf("%s\n\n"+
 			"It looks like we were unable to connect to your PostgreSQL server.\n"+
 			"Please see the PMM FAQ for additional troubleshooting steps: https://www.percona.com/doc/percona-monitoring-and-management/faq.html", err)
 		return nil, err
