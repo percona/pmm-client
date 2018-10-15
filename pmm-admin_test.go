@@ -1363,6 +1363,9 @@ func testAddPostgreSQLMetricsErr(t *testing.T, data pmmAdminData) {
 
 Verify that PostgreSQL user exists and has the correct privileges.
 Use additional flags --user, --password, --host, --port if needed.
+
+It looks like we were unable to connect to your PostgreSQL server.
+Please see the PMM FAQ for additional troubleshooting steps: https://www.percona.com/doc/percona-monitoring-and-management/faq.html
 `
 	assertRegexpLines(t, expected, string(output))
 }
