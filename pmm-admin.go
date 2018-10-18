@@ -299,9 +299,6 @@ Table statistics is automatically disabled when there are more than 10000 tables
 				fmt.Println("pmm-admin add linux:metrics -- ", strings.Join(admin.Args, " "))
 				fmt.Println("or")
 				fmt.Println("pmm-admin add mysql:metrics -- ", strings.Join(admin.Args, " "))
-				fmt.Println("or")
-				fmt.Println("pmm-admin add postgresql:metrics -- ", strings.Join(admin.Args, " "))
-				fmt.Println("etc.")
 				os.Exit(1)
 			}
 
