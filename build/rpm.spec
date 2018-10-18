@@ -34,6 +34,7 @@ as possible.
 %endif
 install -m 0755 -d $RPM_BUILD_ROOT/usr/local/percona/pmm-client
 install -m 0755 -d $RPM_BUILD_ROOT/usr/local/percona/qan-agent/bin
+install -m 0755 -d $RPM_BUILD_ROOT/usr/local/percona/pmm-client/textfile-collector
 install -m 0755 bin/node_exporter $RPM_BUILD_ROOT/usr/local/percona/pmm-client/
 install -m 0755 bin/mysqld_exporter $RPM_BUILD_ROOT/usr/local/percona/pmm-client/
 install -m 0755 bin/postgres_exporter $RPM_BUILD_ROOT/usr/local/percona/pmm-client/
@@ -45,6 +46,7 @@ install -m 0755 bin/pt-mongodb-summary $RPM_BUILD_ROOT/usr/local/percona/qan-age
 install -m 0755 bin/percona-qan-agent $RPM_BUILD_ROOT/usr/local/percona/qan-agent/bin/
 install -m 0755 bin/percona-qan-agent-installer $RPM_BUILD_ROOT/usr/local/percona/qan-agent/bin/
 install -m 0644 queries-mysqld.yml $RPM_BUILD_ROOT/usr/local/percona/pmm-client
+install -m 0755 example.prom $RPM_BUILD_ROOT/usr/local/percona/pmm-client/textfile-collector/
 
 %clean
 rm -rf $RPM_BUILD_ROOT
@@ -58,6 +60,14 @@ if [ $? = 0 ] && [ "$1" = "2" ]; then
     do
         sed -i 's|^name=$(basename $0)|name=$(basename $(readlink -f $0))|' "$file"
     done
+    for file in $(find -L /etc/init.d -maxdepth 1 -name "pmm-linux-metrics*")
+    do
+        sed -i  "s/,meminfo_numa/,meminfo_numa,textfile/" "$file"
+    done
+    for file in $(find -L /etc/init -maxdepth 1 -name "pmm-linux-metrics*")
+    do
+        sed -i  "s/,meminfo_numa/,meminfo_numa,textfile/" "$file"
+    done
 %else
     for file in $(find -L /etc/systemd/system -maxdepth 1 -name "pmm-*")
     do
@@ -65,6 +75,10 @@ if [ $? = 0 ] && [ "$1" = "2" ]; then
         if [ $network_exists = 0 ]; then
             sed -i 's/Unit]/Unit]\nAfter=network.target\nAfter=syslog.target/' "$file"
         fi
+    done
+    for file in $(find -L /etc/systemd/system/pmm-linux-metrics*.service -maxdepth 1 -name "pmm-linux-metrics*")
+    do
+        sed -i  "s/,meminfo_numa/,meminfo_numa,textfile/" "$file"
     done
 %endif
     pmm-admin restart --all
@@ -86,7 +100,9 @@ fi
 
 %files
 %dir /usr/local/percona/pmm-client
+%dir /usr/local/percona/pmm-client/textfile-collector
 %dir /usr/local/percona/qan-agent/bin
+/usr/local/percona/pmm-client/textfile-collector/*
 /usr/local/percona/pmm-client/*
 /usr/local/percona/qan-agent/bin/*
 %if 0%{?rhel} == 5
