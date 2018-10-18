@@ -5,6 +5,8 @@ cd $SOURCE_DIR
 
 install -m 0755 -d $RPM_BUILD_ROOT/usr/sbin
 install -m 0755 -d $RPM_BUILD_ROOT/usr/local/percona/pmm-client
+install -m 0755 -d $RPM_BUILD_ROOT/usr/local/percona/pmm-client
+install -m 0755 -d $RPM_BUILD_ROOT/usr/local/percona/pmm-client/textfile-collector
 install -m 0755 -d $RPM_BUILD_ROOT/usr/local/percona/qan-agent/bin
 install -m 0755 bin/pmm-admin $RPM_BUILD_ROOT/usr/sbin/
 install -m 0755 bin/node_exporter $RPM_BUILD_ROOT/usr/local/percona/pmm-client/
