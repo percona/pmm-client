@@ -95,12 +95,14 @@ func TestPmmAdmin(t *testing.T) {
 		testAddMongoDBMetrics,
 		testAddMongoDBMetricsErr,
 		testAddMongoDBQueries,
+		testAddMongoDBQueriesWithAdditionalParamsErr,
 		testAddPostgreSQL,
 		testAddPostgreSQLMetrics,
 		testAddPostgreSQLMetricsErr,
 		testAddPostgreSQLWithCreateUser,
 		testAddMySQL,
 		testAddMySQLMetrics,
+		testAddMySQLQueryWithAdditionalParamsErr,
 		testAddMySQLMetricsErr,
 		testAddMySQLWithCreateUser,
 		testAddMySQLWithDisableSlowLogsRotation,
@@ -1488,7 +1490,7 @@ func testAddMySQL(t *testing.T, data pmmAdminData) {
 	assertRegexpLines(t, expected, string(output))
 }
 
-func testAddMySQLQueryWithAdditionalParams(t *testing.T, data pmmAdminData) {
+func testAddMySQLQueryWithAdditionalParamsErr(t *testing.T, data pmmAdminData) {
 	defer func() {
 		err := os.RemoveAll(data.rootDir)
 		assert.Nil(t, err)
@@ -1547,7 +1549,7 @@ func testAddMySQLQueryWithAdditionalParams(t *testing.T, data pmmAdminData) {
 	)
 
 	output, err := cmd.CombinedOutput()
-	assert.Nil(t, err)
+	assert.Error(t, err)
 	expected := `Command pmm-admin add mysql:queries does not accept additional flags: --collect.perf_schema.eventsstatements.
 Type pmm-admin add mysql:queries --help to see all acceptable flags.
 `
@@ -2238,7 +2240,7 @@ For more information read PMM documentation \(https://www.percona.com/doc/percon
 	assertRegexpLines(t, expected, string(output))
 }
 
-func testAddMongoDBQueriesWithAdditionalParams(t *testing.T, data pmmAdminData) {
+func testAddMongoDBQueriesWithAdditionalParamsErr(t *testing.T, data pmmAdminData) {
 	defer func() {
 		err := os.RemoveAll(data.rootDir)
 		assert.Nil(t, err)
@@ -2290,11 +2292,11 @@ func testAddMongoDBQueriesWithAdditionalParams(t *testing.T, data pmmAdminData) 
 		data.bin,
 		"add",
 		"mongodb:queries",
-		"--", "--collect.perf_schema.eventsstatements",
+		"--", "--collect.mongo.attrs",
 	)
 
 	output, err := cmd.CombinedOutput()
-	assert.Nil(t, err)
+	assert.Error(t, err)
 	expected := `Command pmm-admin add mongodb:queries does not accept additional flags: --collect.mongo.attrs.
 Type pmm-admin add mongodb:queries --help to see all acceptable flags.
 `
