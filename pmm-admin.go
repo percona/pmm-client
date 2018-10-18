@@ -300,7 +300,8 @@ Table statistics is automatically disabled when there are more than 10000 tables
 				fmt.Println("or")
 				fmt.Println("pmm-admin add mysql:metrics -- ", strings.Join(admin.Args, " "))
 				fmt.Println("or")
-				fmt.Println("pmm-admin add mysql:queries -- ", strings.Join(admin.Args, " "))
+				fmt.Println("pmm-admin add postgresql:metrics -- ", strings.Join(admin.Args, " "))
+				fmt.Println("etc.")
 				os.Exit(1)
 			}
 
@@ -391,6 +392,14 @@ a new user 'pmm@' automatically using the given (auto-detected) MySQL credential
   pmm-admin add mysql:metrics --password abc123 --port 3307 instance3307
   pmm-admin add mysql:queries --user rdsuser --password abc123 --host my-rds.1234567890.us-east-1.rds.amazonaws.com my-rds`,
 		Run: func(cmd *cobra.Command, args []string) {
+			// Agent does not accept additional arguments, we start it through qan-api.
+			if len(admin.Args) > 0 {
+				msg := `Command pmm-admin add mysql:queries does not accept additional flags: %s.
+Type pmm-admin add mysql:queries --help to see all acceptable flags.
+`
+				fmt.Printf(msg, strings.Join(admin.Args, ", "))
+				os.Exit(1)
+			}
 			// Check --query-source flag.
 			if flagMySQLQueries.QuerySource != "auto" && flagMySQLQueries.QuerySource != "slowlog" && flagMySQLQueries.QuerySource != "perfschema" {
 				fmt.Println("Flag --query-source can take the following values: auto, slowlog, perfschema.")
@@ -502,8 +511,6 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 				fmt.Println("pmm-admin add linux:metrics -- ", strings.Join(admin.Args, " "))
 				fmt.Println("or")
 				fmt.Println("pmm-admin add mongodb:metrics -- ", strings.Join(admin.Args, " "))
-				fmt.Println("or")
-				fmt.Println("pmm-admin add mongodb:queries -- ", strings.Join(admin.Args, " "))
 				os.Exit(1)
 			}
 
@@ -579,6 +586,14 @@ When adding a MongoDB instance, you may provide --uri if the default one does no
 		Example: `  pmm-admin add mongodb:queries
   pmm-admin add mongodb:queries`,
 		Run: func(cmd *cobra.Command, args []string) {
+			// Agent does not accept additional arguments, we start it through qan-api.
+			if len(admin.Args) > 0 {
+				msg := `Command pmm-admin add mongodb:queries does not accept additional flags: %s.
+Type pmm-admin add mongodb:queries --help to see all acceptable flags.
+`
+				fmt.Printf(msg, strings.Join(admin.Args, ", "))
+				os.Exit(1)
+			}
 			mongodbQueries := mongodbQueries.New(flagQueries, flagMongoURI, admin.Args, pmm.PMMBaseDir)
 			info, err := admin.AddQueries(ctx, mongodbQueries)
 			if err == pmm.ErrDuplicate {
