@@ -76,7 +76,7 @@ if [ $? = 0 ] && [ "$1" = "2" ]; then
             sed -i 's/Unit]/Unit]\nAfter=network.target\nAfter=syslog.target/' "$file"
         fi
     done
-    for file in $(find -L /etc/systemd/system/pmm-linux-metrics*.service -maxdepth 1 -name "pmm-linux-metrics*")
+    for file in $(find -L /etc/systemd/system -maxdepth 1 -name "pmm-linux-metrics*")
     do
         sed -i  "s/,meminfo_numa/,meminfo_numa,textfile/" "$file"
     done
