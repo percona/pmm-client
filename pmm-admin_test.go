@@ -1551,7 +1551,7 @@ func testAddMySQLAdditionalParamsErr(t *testing.T, data pmmAdminData) {
 	)
 
 	output, err := cmd.CombinedOutput()
-	assert.Nil(t, err)
+	assert.Error(t, err)
 	expected := `We can't determine which exporter should receive additional flags: --collect.perf_schema.eventsstatements.
 To pass additional arguments to specific exporter you need to add it separately e.g.:
 pmm-admin add linux:metrics --  --collect.perf_schema.eventsstatements
@@ -2180,7 +2180,7 @@ func testAddMongoDBAdditionalParamsErr(t *testing.T, data pmmAdminData) {
 	)
 
 	output, err := cmd.CombinedOutput()
-	assert.Nil(t, err)
+	assert.Error(t, err)
 	expected := `We can't determine which exporter should receive additional flags: --collect.mongo.attrs.
 To pass additional arguments to specific exporter you need to add it separately e.g.:
 pmm-admin add linux:metrics --  --collect.mongo.attrs
