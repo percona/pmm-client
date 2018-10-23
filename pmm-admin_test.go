@@ -153,7 +153,7 @@ func testVersion(t *testing.T, data pmmAdminData) {
 	assert.Nil(t, err)
 
 	// sanity check that version number was changed with ldflag for this test build
-	assert.Equal(t, "1.15.1", pmm.Version)
+	assert.Equal(t, "1.16.0", pmm.Version)
 	expected := `gotest`
 
 	assertRegexpLines(t, expected, string(output))
