@@ -1490,6 +1490,75 @@ func testAddMySQL(t *testing.T, data pmmAdminData) {
 	assertRegexpLines(t, expected, string(output))
 }
 
+func testAddMySQLAdditionalParamsErr(t *testing.T, data pmmAdminData) {
+	defer func() {
+		err := os.RemoveAll(data.rootDir)
+		assert.Nil(t, err)
+	}()
+	createFakeENV(t, data)
+
+	{
+		// Create fake api server
+		fapi := fakeapi.New()
+		fapi.AppendRoot()
+		fapi.AppendQanAPIPing()
+		fapi.AppendConsulV1StatusLeader()
+		node := api.CatalogNode{
+			Node: &api.Node{},
+		}
+		clientName, _ := os.Hostname()
+		fapi.AppendConsulV1CatalogNode(clientName, node)
+		fapi.AppendConsulV1CatalogService()
+		fapi.AppendConsulV1CatalogRegister()
+		fapi.AppendConsulV1KV()
+		in := &proto.Instance{
+			Subsystem: "mysql",
+			UUID:      "13",
+		}
+		agentInstance := &proto.Instance{
+			Subsystem: "agent",
+			UUID:      "42",
+		}
+		fapi.AppendQanAPIInstancesId(agentInstance.UUID, agentInstance)
+		fapi.AppendQanAPIAgents(agentInstance.UUID)
+		fapi.AppendQanAPIInstances([]*proto.Instance{
+			in,
+		})
+		_, host, port := fapi.Start()
+		defer fapi.Close()
+
+		// Configure pmm
+		cmd := exec.Command(
+			data.bin,
+			"config",
+			"--server",
+			fmt.Sprintf("%s:%s", host, port),
+		)
+		output, err := cmd.CombinedOutput()
+		assert.Nil(t, err, string(output))
+	}
+
+	cmd := exec.Command(
+		data.bin,
+		"add",
+		"mysql",
+		"--user", "root",
+		"--port", "3306", // MySQL instance with performance_schema enabled.
+		"--host", "127.0.0.1", // Force pmm-admin to ignore auto detection, otherwise it tries to connect to socket.
+		"--", "--collect.perf_schema.eventsstatements",
+	)
+
+	output, err := cmd.CombinedOutput()
+	assert.Nil(t, err)
+	expected := `We can't determine which exporter should receive additional flags: --collect.perf_schema.eventsstatements.
+To pass additional arguments to specific exporter you need to add it separately e.g.:
+pmm-admin add linux:metrics --  --collect.perf_schema.eventsstatements
+or
+pmm-admin add mysql:metrics --  --collect.perf_schema.eventsstatements
+`
+	assertRegexpLines(t, expected, string(output))
+}
+
 func testAddMySQLQueryWithAdditionalParamsErr(t *testing.T, data pmmAdminData) {
 	defer func() {
 		err := os.RemoveAll(data.rootDir)
@@ -2049,6 +2118,72 @@ func testAddMongoDB(t *testing.T, data pmmAdminData) {
 \[mongodb:queries\] It is required for correct operation that profiling of monitored MongoDB databases be enabled.
 \[mongodb:queries\] Note that profiling is not enabled by default because it may reduce the performance of your MongoDB server.
 \[mongodb:queries\] For more information read PMM documentation \(https://www.percona.com/doc/percona-monitoring-and-management/conf-mongodb.html\).
+`
+	assertRegexpLines(t, expected, string(output))
+}
+
+func testAddMongoDBAdditionalParamsErr(t *testing.T, data pmmAdminData) {
+	defer func() {
+		err := os.RemoveAll(data.rootDir)
+		assert.Nil(t, err)
+	}()
+	createFakeENV(t, data)
+
+	{
+		// Create fake api server
+		fapi := fakeapi.New()
+		fapi.AppendRoot()
+		fapi.AppendQanAPIPing()
+		fapi.AppendConsulV1StatusLeader()
+		node := api.CatalogNode{
+			Node: &api.Node{},
+		}
+		clientName, _ := os.Hostname()
+		fapi.AppendConsulV1CatalogNode(clientName, node)
+		fapi.AppendConsulV1CatalogService()
+		fapi.AppendConsulV1CatalogRegister()
+		fapi.AppendConsulV1KV()
+		mongodbInstance := &proto.Instance{
+			Subsystem: "mongodb",
+			UUID:      "13",
+		}
+		agentInstance := &proto.Instance{
+			Subsystem: "agent",
+			UUID:      "42",
+		}
+		fapi.AppendQanAPIInstancesId(agentInstance.UUID, agentInstance)
+		fapi.AppendQanAPIAgents(agentInstance.UUID)
+		fapi.AppendQanAPIInstances([]*proto.Instance{
+			mongodbInstance,
+		})
+		_, host, port := fapi.Start()
+		defer fapi.Close()
+
+		// Configure pmm
+		cmd := exec.Command(
+			data.bin,
+			"config",
+			"--server",
+			fmt.Sprintf("%s:%s", host, port),
+		)
+		output, err := cmd.CombinedOutput()
+		assert.Nil(t, err, string(output))
+	}
+
+	cmd := exec.Command(
+		data.bin,
+		"add",
+		"mongodb",
+		"--", "--collect.mongo.attrs",
+	)
+
+	output, err := cmd.CombinedOutput()
+	assert.Nil(t, err)
+	expected := `We can't determine which exporter should receive additional flags: --collect.mongo.attrs.
+To pass additional arguments to specific exporter you need to add it separately e.g.:
+pmm-admin add linux:metrics --  --collect.mongo.attrs
+or
+pmm-admin add mongodb:metrics --  --collect.mongo.attrs
 `
 	assertRegexpLines(t, expected, string(output))
 }
