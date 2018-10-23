@@ -92,6 +92,7 @@ func TestPmmAdmin(t *testing.T) {
 	}
 	tests := []func(*testing.T, pmmAdminData){
 		testAddMongoDB,
+		testAddMongoDBAdditionalParamsErr,
 		testAddMongoDBMetrics,
 		testAddMongoDBMetricsErr,
 		testAddMongoDBQueries,
@@ -101,6 +102,7 @@ func TestPmmAdmin(t *testing.T) {
 		testAddPostgreSQLMetricsErr,
 		testAddPostgreSQLWithCreateUser,
 		testAddMySQL,
+		testAddMySQLAdditionalParamsErr,
 		testAddMySQLMetrics,
 		testAddMySQLQueryWithAdditionalParamsErr,
 		testAddMySQLMetricsErr,
