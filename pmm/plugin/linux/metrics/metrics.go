@@ -34,7 +34,7 @@ func (Metrics) DefaultPort() int {
 // Args is a list of additional arguments passed to exporter executable.
 func (Metrics) Args() []string {
 	return []string{
-		"-collectors.enabled=diskstats,filefd,filesystem,loadavg,meminfo,netdev,netstat,stat,time,uname,vmstat,meminfo_numa,textfile",
+		"-collector.meminfo_numa",
 	}
 }
 
