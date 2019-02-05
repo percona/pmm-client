@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -550,6 +551,55 @@ func (a *Admin) checkSSLCertificate() error {
 
 	// Generate SSL cert and key.
 	return generateSSLCertificate(a.Config.ClientAddress, SSLCertFile, SSLKeyFile)
+}
+
+type ServerPing struct {
+	Version string
+}
+
+// CheckVersion check server and client versions.
+func (a *Admin) CheckVersion() (error, bool) {
+
+	scheme := "http"
+	insecureTransport := &http.Transport{}
+	if a.Config.ServerInsecureSSL {
+		scheme = "https"
+		insecureTransport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	}
+	if a.Config.ServerSSL {
+		scheme = "https"
+	}
+
+	serverURL := fmt.Sprintf("%s://%s", scheme, a.Config.ServerAddress)
+	pingURL := a.qanAPI.URL(serverURL, "ping")
+	if resp, body, err := a.qanAPI.Get(pingURL); err == nil && resp.StatusCode == http.StatusOK {
+		var ping ServerPing
+		err := json.Unmarshal(body, &ping)
+		if err != nil {
+			cleanedErr := strings.Replace(err.Error(), a.serverURL, serverURL, -1)
+			return fmt.Errorf(`Unable to connect to PMM server by address: %s
+%s
+
+* Check if the configured address is correct.
+* If server is running on non-default port, ensure it was specified along with the address.
+* If server is enabled for SSL or self-signed SSL, enable the corresponding option.
+* You may also check the firewall settings.`, a.Config.ServerAddress, cleanedErr), true
+		}
+		if Version > ping.Version {
+			return fmt.Errorf(`Warning: The recommended upgrade process is to upgrade PMM Server first, then clients. 
+See Percona's instructions for upgrading at https://www.percona.com/doc/percona-monitoring-and-management/deploy/index.html#deploy-pmm-updating.`), false //SERVER_LOWER
+		}
+		if Version < ping.Version && Version[0] == ping.Version[0] {
+			return fmt.Errorf(`Warning: It is recommended to use the same version on both PMM Server and Client, otherwise some features will not work correctly.  
+Please upgrade your Client by following the instructions from https://www.percona.com/doc/percona-monitoring-and-management/deploy/index.html#updating`), false //MINOR_LOWER
+		}
+		if Version < ping.Version {
+			return fmt.Errorf(`Error: You cannot run PMM Server 2.x with PMM Client 1.x .  
+Please upgrade Client by following the instructions at https://www.percona.com/doc/percona-monitoring-and-management/deploy/index.html#updating`), false //MAJOR_LOWER
+		}
+	}
+
+	return nil, false
 }
 
 // CheckInstallation check for broken installation.
