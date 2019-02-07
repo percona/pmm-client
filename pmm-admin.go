@@ -150,7 +150,7 @@ var (
 			}
 
 			// Check PMM-Server and PMM-Client versions
-			if fatal, err := admin.CheckVersion(); err != nil {
+			if fatal, err := admin.CheckVersion(ctx); err != nil {
 				fmt.Printf("%s\n", err)
 				if fatal {
 					os.Exit(1)
