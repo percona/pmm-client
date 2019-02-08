@@ -554,7 +554,7 @@ func (a *Admin) checkSSLCertificate() error {
 	return generateSSLCertificate(a.Config.ClientAddress, SSLCertFile, SSLKeyFile)
 }
 
-// CheckVersion check server and client versions.
+// CheckVersion check server and client versions and returns boolean and error; boolean is true if error is fatal.
 func (a *Admin) CheckVersion(ctx context.Context) (bool, error) {
 	clientVersion, err := version.Parse(Version)
 	if err != nil {
