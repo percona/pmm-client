@@ -555,7 +555,7 @@ func (a *Admin) checkSSLCertificate() error {
 }
 
 // CheckVersion check server and client versions and returns boolean and error; boolean is true if error is fatal.
-func (a *Admin) CheckVersion(ctx context.Context) (bool, error) {
+func (a *Admin) CheckVersion(ctx context.Context) (fatal bool, err error) {
 	clientVersion, err := version.Parse(Version)
 	if err != nil {
 		return true, err
@@ -569,17 +569,40 @@ func (a *Admin) CheckVersion(ctx context.Context) (bool, error) {
 		return true, err
 	}
 
+	// return fatal error if major versions do not match
+	if serverVersion.Major != clientVersion.Major {
+		// texts are slightly different, including anchors
+		if serverVersion.Major < clientVersion.Major {
+			return true, fmt.Errorf(
+				"Error: You cannot run PMM Server %d.x with PMM Client %d.x.\n"+
+					"Please upgrade Server by following the instructions at "+
+					"https://www.percona.com/doc/percona-monitoring-and-management/deploy/index.html#deploy-pmm-updating",
+				serverVersion.Major, clientVersion.Major,
+			)
+		} else {
+			return true, fmt.Errorf(
+				"Error: You cannot run PMM Server %d.x with PMM Client %d.x.\n"+
+					"Please upgrade Client by following the instructions at "+
+					"https://www.percona.com/doc/percona-monitoring-and-management/deploy/index.html#updating",
+				serverVersion.Major, clientVersion.Major,
+			)
+		}
+	}
+
+	// return warning if versions do not match
 	if serverVersion.Less(&clientVersion) {
-		return false, fmt.Errorf(`Warning: The recommended upgrade process is to upgrade PMM Server first, then clients. 
-See Percona's instructions for upgrading at https://www.percona.com/doc/percona-monitoring-and-management/deploy/index.html#deploy-pmm-updating.`) //SERVER_LOWER
+		return false, fmt.Errorf(
+			"Warning: The recommended upgrade process is to upgrade PMM Server first, then clients.\n" +
+				"See Percona's instructions for upgrading at " +
+				"https://www.percona.com/doc/percona-monitoring-and-management/deploy/index.html#deploy-pmm-updating.",
+		)
 	}
 	if clientVersion.Less(&serverVersion) {
-		if clientVersion.Major == serverVersion.Major {
-			return false, fmt.Errorf(`Warning: It is recommended to use the same version on both PMM Server and Client, otherwise some features will not work correctly.  
-Please upgrade your Client by following the instructions from https://www.percona.com/doc/percona-monitoring-and-management/deploy/index.html#updating`) //MINOR_LOWER
-		}
-		return true, fmt.Errorf(`Error: You cannot run PMM Server 2.x with PMM Client 1.x .  
-Please upgrade Client by following the instructions at https://www.percona.com/doc/percona-monitoring-and-management/deploy/index.html#updating`) //MAJOR_LOWER
+		return false, fmt.Errorf(
+			"Warning: It is recommended to use the same version on both PMM Server and Client, otherwise some features will not work correctly.\n" +
+				"Please upgrade your Client by following the instructions from " +
+				"https://www.percona.com/doc/percona-monitoring-and-management/deploy/index.html#updating",
+		)
 	}
 
 	return false, nil
