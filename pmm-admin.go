@@ -149,6 +149,16 @@ var (
 				return
 			}
 
+			if pmm.Version != "gotest" {
+				// Check PMM-Server and PMM-Client versions
+				if fatal, err := admin.CheckVersion(ctx); err != nil {
+					fmt.Printf("%s\n", err)
+					if fatal {
+						os.Exit(1)
+					}
+				}
+			}
+
 			// Check for broken installation.
 			orphanedServices, missingServices := admin.CheckInstallation()
 			if len(orphanedServices) > 0 {

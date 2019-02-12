@@ -141,3 +141,8 @@ type APIAnnotationCreateRequest struct {
 	// description of annotation
 	Text string `json:"text"`
 }
+
+// VersionResponse response server version.
+type VersionResponse struct {
+	Version string
+}
