@@ -569,27 +569,26 @@ func (a *Admin) CheckVersion(ctx context.Context) (fatal bool, err error) {
 		return true, err
 	}
 
-	// return fatal error if major versions do not match
-	if serverVersion.Major != clientVersion.Major {
-		// texts are slightly different, including anchors
-		if serverVersion.Major < clientVersion.Major {
-			return true, fmt.Errorf(
-				"Error: You cannot run PMM Server %d.x with PMM Client %d.x.\n"+
-					"Please upgrade Server by following the instructions at "+
-					"https://www.percona.com/doc/percona-monitoring-and-management/deploy/index.html#deploy-pmm-updating",
-				serverVersion.Major, clientVersion.Major,
-			)
-		} else {
-			return true, fmt.Errorf(
-				"Error: You cannot run PMM Server %d.x with PMM Client %d.x.\n"+
-					"Please upgrade Client by following the instructions at "+
-					"https://www.percona.com/doc/percona-monitoring-and-management/deploy/index.html#updating",
-				serverVersion.Major, clientVersion.Major,
-			)
-		}
+	// Return fatal error if major versions do not match.
+	// Texts are slightly different, including anchors.
+	if serverVersion.Major < clientVersion.Major {
+		return true, fmt.Errorf(
+			"Error: You cannot run PMM Server %d.x with PMM Client %d.x.\n"+
+				"Please upgrade Server by following the instructions at "+
+				"https://www.percona.com/doc/percona-monitoring-and-management/deploy/index.html#deploy-pmm-updating",
+			serverVersion.Major, clientVersion.Major,
+		)
+	}
+	if serverVersion.Major > clientVersion.Major {
+		return true, fmt.Errorf(
+			"Error: You cannot run PMM Server %d.x with PMM Client %d.x.\n"+
+				"Please upgrade Client by following the instructions at "+
+				"https://www.percona.com/doc/percona-monitoring-and-management/deploy/index.html#updating",
+			serverVersion.Major, clientVersion.Major,
+		)
 	}
 
-	// return warning if versions do not match
+	// Return warning if versions do not match.
 	if serverVersion.Less(&clientVersion) {
 		return false, fmt.Errorf(
 			"Warning: The recommended upgrade process is to upgrade PMM Server first, then clients.\n" +
