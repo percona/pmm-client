@@ -574,7 +574,7 @@ func (a *Admin) CheckVersion(ctx context.Context) (fatal bool, err error) {
 	if serverVersion.Major < clientVersion.Major {
 		return true, fmt.Errorf(
 			"Error: You cannot run PMM Server %d.x with PMM Client %d.x.\n"+
-				"Please upgrade Server by following the instructions at "+
+				"Please upgrade PMM Server by following the instructions at "+
 				"https://www.percona.com/doc/percona-monitoring-and-management/deploy/index.html#deploy-pmm-updating",
 			serverVersion.Major, clientVersion.Major,
 		)
@@ -582,7 +582,7 @@ func (a *Admin) CheckVersion(ctx context.Context) (fatal bool, err error) {
 	if serverVersion.Major > clientVersion.Major {
 		return true, fmt.Errorf(
 			"Error: You cannot run PMM Server %d.x with PMM Client %d.x.\n"+
-				"Please upgrade Client by following the instructions at "+
+				"Please upgrade PMM Client by following the instructions at "+
 				"https://www.percona.com/doc/percona-monitoring-and-management/deploy/index.html#updating",
 			serverVersion.Major, clientVersion.Major,
 		)
@@ -591,7 +591,7 @@ func (a *Admin) CheckVersion(ctx context.Context) (fatal bool, err error) {
 	// Return warning if versions do not match.
 	if serverVersion.Less(&clientVersion) {
 		return false, fmt.Errorf(
-			"Warning: The recommended upgrade process is to upgrade PMM Server first, then clients.\n" +
+			"Warning: The recommended upgrade process is to upgrade PMM Server first, then PMM Clients.\n" +
 				"See Percona's instructions for upgrading at " +
 				"https://www.percona.com/doc/percona-monitoring-and-management/deploy/index.html#deploy-pmm-updating.",
 		)
@@ -599,7 +599,7 @@ func (a *Admin) CheckVersion(ctx context.Context) (fatal bool, err error) {
 	if clientVersion.Less(&serverVersion) {
 		return false, fmt.Errorf(
 			"Warning: It is recommended to use the same version on both PMM Server and Client, otherwise some features will not work correctly.\n" +
-				"Please upgrade your Client by following the instructions from " +
+				"Please upgrade your PMM Client by following the instructions from " +
 				"https://www.percona.com/doc/percona-monitoring-and-management/deploy/index.html#updating",
 		)
 	}
