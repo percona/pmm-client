@@ -23,7 +23,7 @@ import (
 	"path/filepath"
 
 	consul "github.com/hashicorp/consul/api"
-	"github.com/percona/kardianos-service"
+	service "github.com/percona/kardianos-service"
 	"github.com/percona/pmm-client/pmm/plugin"
 )
 
@@ -126,10 +126,10 @@ func (a *Admin) AddMetrics(ctx context.Context, m plugin.Metrics, force bool, di
 		)
 	}
 
-	// Add additional args passed to pmm-admin.
-	args = append(args, a.Args...)
 	// Add additional args passed by plugin.
 	args = append(args, m.Args()...)
+	// Add additional args passed to pmm-admin.
+	args = append(args, a.Args...)
 
 	_, executable := filepath.Split(m.Executable())
 	if executable == "" {
