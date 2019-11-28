@@ -18,6 +18,7 @@
 package pmm
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
@@ -41,6 +42,7 @@ import (
 	"github.com/fatih/color"
 	consul "github.com/hashicorp/consul/api"
 	"github.com/percona/kardianos-service"
+	"github.com/percona/pmm/version"
 	"github.com/prometheus/client_golang/api/prometheus"
 
 	"github.com/percona/pmm-client/pmm/managed"
@@ -550,6 +552,59 @@ func (a *Admin) checkSSLCertificate() error {
 
 	// Generate SSL cert and key.
 	return generateSSLCertificate(a.Config.ClientAddress, SSLCertFile, SSLKeyFile)
+}
+
+// CheckVersion check server and client versions and returns boolean and error; boolean is true if error is fatal.
+func (a *Admin) CheckVersion(ctx context.Context) (fatal bool, err error) {
+	clientVersion, err := version.Parse(Version)
+	if err != nil {
+		return true, err
+	}
+	versionResponse, err := a.managedAPI.VersionGet(ctx)
+	if err != nil {
+		return true, err
+	}
+	serverVersion, err := version.Parse(versionResponse.Version)
+	if err != nil {
+		return true, err
+	}
+
+	// Return fatal error if major versions do not match.
+	// Texts are slightly different, including anchors.
+	if serverVersion.Major < clientVersion.Major {
+		return true, fmt.Errorf(
+			"Error: You cannot run PMM Server %d.x with PMM Client %d.x.\n"+
+				"Please upgrade PMM Server by following the instructions at "+
+				"https://www.percona.com/doc/percona-monitoring-and-management/deploy/index.html#deploy-pmm-updating",
+			serverVersion.Major, clientVersion.Major,
+		)
+	}
+	if serverVersion.Major > clientVersion.Major {
+		return true, fmt.Errorf(
+			"Error: You cannot run PMM Server %d.x with PMM Client %d.x.\n"+
+				"Please upgrade PMM Client by following the instructions at "+
+				"https://www.percona.com/doc/percona-monitoring-and-management/deploy/index.html#updating",
+			serverVersion.Major, clientVersion.Major,
+		)
+	}
+
+	// Return warning if versions do not match.
+	if serverVersion.Less(&clientVersion) {
+		return false, fmt.Errorf(
+			"Warning: The recommended upgrade process is to upgrade PMM Server first, then PMM Clients.\n" +
+				"See Percona's instructions for upgrading at " +
+				"https://www.percona.com/doc/percona-monitoring-and-management/deploy/index.html#deploy-pmm-updating.",
+		)
+	}
+	if clientVersion.Less(&serverVersion) {
+		return false, fmt.Errorf(
+			"Warning: It is recommended to use the same version on both PMM Server and Client, otherwise some features will not work correctly.\n" +
+				"Please upgrade your PMM Client by following the instructions from " +
+				"https://www.percona.com/doc/percona-monitoring-and-management/deploy/index.html#updating",
+		)
+	}
+
+	return false, nil
 }
 
 // CheckInstallation check for broken installation.
