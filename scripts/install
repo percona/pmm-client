@@ -10,7 +10,7 @@ if [ $(id -u) -ne 0 ]; then
     exit 1
 fi
 
-mkdir -p $PMM_DIR $QAN_DIR/bin $PMM_DIR/textfile_collector
+mkdir -p $PMM_DIR $QAN_DIR/bin $PMM_DIR/textfile-collector
 
 # delete old symlink
 rm -f /usr/sbin/pmm-admin
@@ -28,4 +28,4 @@ cp -f bin/pt-summary $QAN_DIR/bin/
 cp -f bin/pt-mongodb-summary $QAN_DIR/bin/
 cp -f bin/pt-mysql-summary $QAN_DIR/bin/
 install -m 0644 queries-mysqld.yml $PMM_DIR/
-install -m 0755 example.prom $PMM_DIR/textfile_collector/
+install -m 0755 example.prom $PMM_DIR/textfile-collector/
