@@ -10,6 +10,9 @@ if [ $(id -u) -ne 0 ]; then
     exit 1
 fi
 
+# Clean up invalid dir created in v1.7.2
+rm -rf $PMM_DIR/textfile_collector
+
 mkdir -p $PMM_DIR $QAN_DIR/bin $PMM_DIR/textfile-collector
 
 # delete old symlink
