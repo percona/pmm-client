@@ -172,3 +172,12 @@ func (c *Client) ScrapeConfigsDelete(ctx context.Context, jobName string) error 
 func (c *Client) AnnotationCreate(ctx context.Context, req *APIAnnotationCreateRequest) error {
 	return c.do(ctx, "POST", "/v0/annotations", req, nil)
 }
+
+// VersionGet returns version of the managed API.
+func (c *Client) VersionGet(ctx context.Context) (*VersionResponse, error) {
+	res := new(VersionResponse)
+	if err := c.do(ctx, "GET", "/v1/version", nil, res); err != nil {
+		return nil, err
+	}
+	return res, nil
+}

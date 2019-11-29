@@ -1,28 +1,38 @@
 #!/bin/bash
-for file in $(find -L /etc/init.d -maxdepth 1 -name "pmm-*")
-do
-    sed -i 's:for i in {1..10}:for i in $(seq 1 10):' "$file"
-    sed -i 's|^name=$(basename $0)|name=$(basename $(readlink -f $0))|' "$file"
-done
-for file in $(find -L /etc/systemd/system -maxdepth 1 -name "pmm-*")
-do
-    network_exists=$(grep -c "network.target" "$file")
-    if [ $network_exists = 0 ]; then
-        sed -i 's/Unit]/Unit]\nAfter=network.target\nAfter=syslog.target/' "$file"
-    fi
-done
-for file in $(find -L /etc/init.d -maxdepth 1 -name "pmm-linux-metrics*")
-do
-    sed -i  "s/,meminfo_numa/,meminfo_numa,textfile/" "$file"
-done
-for file in $(find -L /etc/init -maxdepth 1 -name "pmm-linux-metrics*")
-do
-    sed -i  "s/,meminfo_numa/,meminfo_numa,textfile/" "$file"
-done
-for file in $(find -L /etc/systemd/system -maxdepth 1 -name "pmm-linux-metrics*")
-do
-    sed -i  "s/,meminfo_numa/,meminfo_numa,textfile/" "$file"
-done
+if [ -d /etc/init.d ]; then
+    for file in $(find -L /etc/init.d -maxdepth 1 -name "pmm-*")
+    do
+        sed -i 's:for i in {1..10}:for i in $(seq 1 10):' "$file"
+        sed -i 's|^name=$(basename $0)|name=$(basename $(readlink -f $0))|' "$file"
+    done
+fi
+if [ -d /etc/systemd/system ]; then
+    for file in $(find -L /etc/systemd/system -maxdepth 1 -name "pmm-*")
+    do
+        network_exists=$(grep -c "network.target" "$file")
+        if [ $network_exists = 0 ]; then
+            sed -i 's/Unit]/Unit]\nAfter=network.target\nAfter=syslog.target/' "$file"
+        fi
+    done
+fi
+if [ -d /etc/init.d ]; then
+    for file in $(find -L /etc/init.d -maxdepth 1 -name "pmm-linux-metrics*")
+    do
+        sed -i  "s/,meminfo_numa/,meminfo_numa,textfile/" "$file"
+    done
+fi
+if [ -d /etc/init ]; then
+    for file in $(find -L /etc/init -maxdepth 1 -name "pmm-linux-metrics*")
+    do
+        sed -i  "s/,meminfo_numa/,meminfo_numa,textfile/" "$file"
+    done
+fi
+if [ -d /etc/systemd/system ]; then
+    for file in $(find -L /etc/systemd/system -maxdepth 1 -name "pmm-linux-metrics*")
+    do
+        sed -i  "s/,meminfo_numa/,meminfo_numa,textfile/" "$file"
+    done
+fi
 pmm-admin ping > /dev/null
 if [ $? = 0 ]; then
     pmm-admin restart --all

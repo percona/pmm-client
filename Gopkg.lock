@@ -272,14 +272,15 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:19226ae1eb7f9f23cb9d8c269f078e866e2d2d7c54f9b3f5e9e20d5bb992559d"
+  digest = "1:5670f66eb1bc3be7c0e4b8e1f6e3b13d2d29f099068f99d177047772990670ca"
   name = "github.com/percona/pmm"
   packages = [
     "proto",
     "proto/config",
+    "version",
   ]
   pruneopts = "NUT"
-  revision = "ca530ba01e84089f5236e26c9f28694f5cef054d"
+  revision = "ddd32432fe12828f481a1458c97b60185bd84a1f"
 
 [[projects]]
   digest = "1:5cf3f025cbee5951a4ee961de067c8a89fc95a5adabead774f82822efabab121"
@@ -446,6 +447,7 @@
     "github.com/percona/kardianos-service",
     "github.com/percona/pmm/proto",
     "github.com/percona/pmm/proto/config",
+    "github.com/percona/pmm/version",
     "github.com/prometheus/client_golang/api/prometheus",
     "github.com/prometheus/common/model",
     "github.com/spf13/cobra",
