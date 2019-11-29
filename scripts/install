@@ -11,7 +11,9 @@ if [ $(id -u) -ne 0 ]; then
 fi
 
 # Clean up invalid dir created in v1.7.2
-rm -rf $PMM_DIR/textfile_collector
+if [ -d "$PMM_DIR/textfile_collector" ]; then 
+   rm -rf $PMM_DIR/textfile_collector
+fi
 
 mkdir -p $PMM_DIR $QAN_DIR/bin $PMM_DIR/textfile-collector
 
