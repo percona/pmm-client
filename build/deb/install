@@ -4,7 +4,6 @@ mysqld_exporter /usr/local/percona/pmm-client/
 postgres_exporter /usr/local/percona/pmm-client/
 mongodb_exporter /usr/local/percona/pmm-client/
 proxysql_exporter /usr/local/percona/pmm-client/
-clickhouse_exporter /usr/local/percona/pmm-client/
 pt-summary /usr/local/percona/qan-agent/bin/
 pt-mysql-summary /usr/local/percona/qan-agent/bin/
 pt-mongodb-summary /usr/local/percona/qan-agent/bin/

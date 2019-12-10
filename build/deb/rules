@@ -47,7 +47,6 @@ override_dh_auto_install:
 	cp -f distro/postgres_exporter $(TMP)/postgres_exporter
 	cp -f distro/mongodb_exporter $(TMP)/mongodb_exporter
 	cp -f distro/proxysql_exporter $(TMP)/proxysql_exporter
-	cp -f distro/clickhouse_exporter $(TMP)/clickhouse_exporter
 	cp -f distro/percona-qan-agent $(TMP)/percona-qan-agent
 	cp -f distro/pt-summary $(TMP)/pt-summary
 	cp -f distro/pt-mysql-summary $(TMP)/pt-mysql-summary
