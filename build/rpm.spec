@@ -62,11 +62,11 @@ if [ $? = 0 ] && [ "$1" = "2" ]; then
     done
     for file in $(find -L /etc/init.d -maxdepth 1 -name "pmm-linux-metrics*")
     do
-        sed -i  "s/,meminfo_numa/,meminfo_numa,textfile/" "$file"
+        sed -i  "s/,meminfo_numa /,meminfo_numa,textfile /" "$file"
     done
     for file in $(find -L /etc/init -maxdepth 1 -name "pmm-linux-metrics*")
     do
-        sed -i  "s/,meminfo_numa/,meminfo_numa,textfile/" "$file"
+        sed -i  "s/,meminfo_numa /,meminfo_numa,textfile /" "$file"
     done
 %else
     for file in $(find -L /etc/systemd/system -maxdepth 1 -name "pmm-*")
@@ -78,7 +78,7 @@ if [ $? = 0 ] && [ "$1" = "2" ]; then
     done
     for file in $(find -L /etc/systemd/system -maxdepth 1 -name "pmm-linux-metrics*")
     do
-        sed -i  "s/,meminfo_numa/,meminfo_numa,textfile/" "$file"
+        sed -i  "s/,meminfo_numa /,meminfo_numa,textfile /" "$file"
     done
 %endif
     pmm-admin restart --all

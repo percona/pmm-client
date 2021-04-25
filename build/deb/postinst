@@ -18,19 +18,19 @@ fi
 if [ -d /etc/init.d ]; then
     for file in $(find -L /etc/init.d -maxdepth 1 -name "pmm-linux-metrics*")
     do
-        sed -i  "s/,meminfo_numa/,meminfo_numa,textfile/" "$file"
+        sed -i  "s/,meminfo_numa /,meminfo_numa,textfile /" "$file"
     done
 fi
 if [ -d /etc/init ]; then
     for file in $(find -L /etc/init -maxdepth 1 -name "pmm-linux-metrics*")
     do
-        sed -i  "s/,meminfo_numa/,meminfo_numa,textfile/" "$file"
+        sed -i  "s/,meminfo_numa /,meminfo_numa,textfile /" "$file"
     done
 fi
 if [ -d /etc/systemd/system ]; then
     for file in $(find -L /etc/systemd/system -maxdepth 1 -name "pmm-linux-metrics*")
     do
-        sed -i  "s/,meminfo_numa/,meminfo_numa,textfile/" "$file"
+        sed -i  "s/,meminfo_numa /,meminfo_numa,textfile /" "$file"
     done
 fi
 pmm-admin ping > /dev/null
