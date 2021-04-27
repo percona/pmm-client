@@ -1,9 +1,9 @@
-# Percona Monitoring and Management (PMM) Client
+# Percona Monitoring and Management (PMM) Client v1.x
 
-[![Build Status](https://travis-ci.org/percona/pmm-client.svg?branch=master)](https://travis-ci.org/percona/pmm-client)
+[![Build Status](https://travis-ci.com/percona/pmm-client.svg?branch=master)](https://travis-ci.com/percona/pmm-client)
 [![Go Report Card](https://goreportcard.com/badge/github.com/percona/pmm-client)](https://goreportcard.com/report/github.com/percona/pmm-client) [![CLA assistant](https://cla-assistant.percona.com/readme/badge/percona/pmm-client)](https://cla-assistant.percona.com/percona/pmm-client)
 
-See the [PMM docs](https://www.percona.com/doc/percona-monitoring-and-management/index.html) for more information.
+See the [PMM docs](https://www.percona.com/doc/percona-monitoring-and-management/1.x/index.html) for more information.
 
 
 ## Submitting Bug Reports
